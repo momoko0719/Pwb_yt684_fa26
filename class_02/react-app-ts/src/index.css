@@ -1,0 +1,30 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:          #0d0d14;
+  --surface:     #13131f;
+  --surface-2:   #1a1a2e;
+  --border:      #2a2a3d;
+  --border-soft: #22223a;
+  --accent:      #7c3aed;
+  --accent-glow: rgba(124, 58, 237, 0.25);
+  --text:        #9ca3af;
+  --text-bright: #e5e7eb;
+  --text-dim:    #4b5563;
+
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}

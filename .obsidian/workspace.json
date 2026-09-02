@@ -20,23 +20,8 @@
               "icon": "lucide-file",
               "title": "README"
             }
-          },
-          {
-            "id": "042c92035482c39f",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "class_02/Git and GitHub tutorials.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "Git and GitHub tutorials"
-            }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -114,7 +99,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "class_02/Git and GitHub tutorials.md",
+                "file": "class_02/tutorials/Three.js basics.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -133,7 +118,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "class_02/Git and GitHub tutorials.md",
+                "file": "class_02/tutorials/Three.js basics.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
@@ -176,7 +161,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "class_02/Git and GitHub tutorials.md",
+                "file": "class_02/tutorials/Three.js basics.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
@@ -203,11 +188,52 @@
       "bases:Create new base": false
     }
   },
-  "active": "042c92035482c39f",
+  "active": "d9a6d425d58385c5",
   "lastOpenFiles": [
-    "class_02/tutorials",
-    "README.md",
-    "class_02/Git and GitHub tutorials.md",
-    "class_02"
+    "class_02/tutorials/Three.js basics.md",
+    "class_02/react-app-ts/src/components/Sidebar.tsx",
+    "class_02/react-app-ts/src/components/Scene.tsx",
+    "class_02/react-app-ts/src/components",
+    "class_02/tutorials/Installing React.md",
+    "class_02/react-app-ts/node_modules/tunnel-rat/node_modules/zustand/vanilla/shallow.js",
+    "class_02/react-app-ts/node_modules/tunnel-rat/node_modules/zustand/vanilla/shallow.d.ts",
+    "class_02/react-app-ts/node_modules/tunnel-rat/node_modules/zustand/vanilla",
+    "class_02/react-app-ts/node_modules/three-stdlib/environments/RoomEnvironment.js.map",
+    "class_02/react-app-ts/node_modules/three-stdlib/environments/RoomEnvironment.js",
+    "class_02/react-app-ts/node_modules/three-stdlib/environments/RoomEnvironment.d.ts",
+    "class_02/react-app-ts/node_modules/three-stdlib/environments/RoomEnvironment.cjs.map",
+    "class_02/react-app-ts/node_modules/three-stdlib/README.md",
+    "class_02/react-app-ts/node_modules/tunnel-rat/node_modules/zustand/readme.md",
+    "class_02/react-app-ts/node_modules/@monogrid/gainmap-js/CONTRIBUTING.md",
+    "class_02/react-app-ts/node_modules/@react-three/fiber/CHANGELOG.md",
+    "class_02/react-app-ts/node_modules/@monogrid/gainmap-js/CHANGELOG.md",
+    "class_02/react-app-ts/node_modules/stats-gl/node_modules/three/src/nodes/materialx/DISCLAIMER.md",
+    "class_02/react-app-ts/node_modules/@use-gesture/core/CHANGELOG.md",
+    "class_02/react-app-ts/node_modules/@mediapipe/tasks-vision/README.md",
+    "class_02/react-app-ts/node_modules/camera-controls/readme.md",
+    "class_02/react-app-ts/node_modules/cross-env/README.md",
+    "class_02/react-app-ts/node_modules/stats-gl/node_modules/three/examples/jsm/libs/draco/README.md",
+    "class_02/react-app-ts/node_modules/stats-gl/node_modules/three/examples/jsm/libs/basis/README.md",
+    "class_02/react-app-ts/node_modules/stats-gl/node_modules/three/examples/fonts/ttf/README.md",
+    "class_02/react-app-ts/node_modules/stats-gl/node_modules/three/examples/fonts/README.md",
+    "class_02/react-app-ts/node_modules/three/examples/jsm/libs/draco/README.md",
+    "class_02/react-app-ts/node_modules/three/examples/jsm/libs/basis/README.md",
+    "class_02/react-app-ts/node_modules/three/src/nodes/materialx/DISCLAIMER.md",
+    "class_02/react-app-ts/node_modules/three/README.md",
+    "class_02/react-app-ts/node_modules/glsl-noise/README.md",
+    "class_02/react-app-ts/node_modules/suspend-react/readme.md",
+    "class_02/react-app-ts/node_modules/@types/three/README.md",
+    "class_02/react-app-ts/node_modules/three-mesh-bvh/README.md",
+    "class_02/react-app-ts/node_modules/utility-types/SUPPORT.md",
+    "class_02/react-app-ts/src/assets/react.svg",
+    "class_02/react-app-ts/src/assets/vite.svg",
+    "class_02/react-app-ts/src/assets/hero.png",
+    "class_02/react-app-ts/public/icons.svg",
+    "class_02/react-app-ts/public/favicon.svg",
+    "class_02/react-app/src/assets/vite.svg",
+    "class_02/react-app/src/assets/react.svg",
+    "class_02/react-app/src/assets/hero.png",
+    "class_02/react-app/public/icons.svg",
+    "class_02/react-app/public/favicon.svg"
   ]
 }
