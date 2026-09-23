@@ -4,6 +4,22 @@ This is a repo for **Design 4197-6197: Special Topics in Design 2026 — Procedu
 
 ---
 
+## Weekly log
+
+Newest first. Each entry is a short snapshot of what I explored that week.
+
+### 2026-09 · Class 04 — Clay Studio (voxels → clear UI → Firebase)
+
+Explored **voxel / density** experiments from lecture, then reshaped them into a simpler, beginner-friendly **Clay Studio** app (pinch · cut · glaze · fire nearby). Deployed to **Firebase Hosting** with **Google sign-in** and **save / load** of studio settings via **Firestore**.
+
+![Clay Studio — Class 04 screenshot](docs/weekly/2026-09-class04-clay-studio.png)
+
+- App: [`class_04/react-app-ts/`](class_04/react-app-ts/)  
+- Live: [https://pwb-class04-clay.web.app](https://pwb-class04-clay.web.app)  
+- Notes: [`class_04/tutorials/`](class_04/tutorials/)
+
+---
+
 ## Repo Structure
 
 ```
@@ -16,6 +32,7 @@ Pwb_yt684_fa26/
 │   ├── package.json
 │   └── vite.config.ts
 ├── docs/
+│   ├── weekly/                # Screenshots + short weekly log images
 │   ├── planning/              # Plans and schedules
 │   ├── tutorials/             # Shared notes across sessions
 │   └── analysis/              # Readings, case studies, and reflections
@@ -60,7 +77,7 @@ npm run dev
 
 ### Deployments
 
-Each app is deployed independently (e.g. via Vercel) by setting the **Root Directory** to that app's folder. This means each app gets its own URL:
+Each app is deployed independently (e.g. via Vercel or Firebase Hosting) by pointing at that app's folder. This means each app gets its own URL:
 
 | App | Root Directory | Purpose |
 | --- | --- | --- |
@@ -70,7 +87,8 @@ Each app is deployed independently (e.g. via Vercel) by setting the **Root Direc
 ### Tech stack
 
 - **React 19** + **TypeScript 6** via **Vite 8**
-- **Three.js 0.185** with **React Three Fiber** and **Drei**
+- **Three.js** with **React Three Fiber** and **Drei**
+- **Firebase** (Auth · Firestore · Hosting) for class cloud demos
 - Version control: **Git** + **GitHub**
 
 ---
@@ -80,5 +98,6 @@ Each app is deployed independently (e.g. via Vercel) by setting the **Root Direc
 | File / Folder | What's inside |
 | --- | --- |
 | [BACKLOG.md](BACKLOG.md) | Features and experiments to try |
+| [docs/weekly](docs/weekly) | Weekly screenshots for the log above |
 | [docs/planning](docs/planning) | Plans and schedules |
 | [docs/analysis](docs/analysis) | Readings, case studies, and reflections |
