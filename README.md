@@ -8,6 +8,15 @@ This is a repo for **Design 4197-6197: Special Topics in Design 2026 — Procedu
 
 Newest first. Each entry is a short snapshot of what I explored that week.
 
+### 2026-09 · Class 05 — Shader Lab (see → tweak → understand)
+
+Built a **Shader Lab** playground for class shader studies: vertex / fragment / uniforms, gradients, Fresnel, slope, distance, AO, contact, matcap, displacement, and a final combo. EN/中文 UI, “try this / takeaway / show mask,” and a suggested learning path — more material laboratory than documentation site.
+
+![Shader Lab — Class 05 screenshot (Fresnel study)](docs/weekly/2026-09-class05-shader-lab.png)
+
+- App: [`class_05/react-app-ts/`](class_05/react-app-ts/)  
+- Notes: [`class_05/tutorials/Shader Lab.md`](class_05/tutorials/Shader%20Lab.md)
+
 ### 2026-09 · Class 04 — Clay Studio (voxels → clear UI → Firebase)
 
 Explored **voxel / density** experiments from lecture, then reshaped them into a simpler, beginner-friendly **Clay Studio** app (pinch · cut · glaze · fire nearby). Deployed to **Firebase Hosting** with **Google sign-in** and **save / load** of studio settings via **Firestore**.
