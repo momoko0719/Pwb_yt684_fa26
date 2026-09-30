@@ -8,6 +8,27 @@ This is a repo for **Design 4197-6197: Special Topics in Design 2026 — Procedu
 
 Newest first. Each entry is a short snapshot of what I explored that week.
 
+### 2026-09 · Final project — Guixu 归墟: Penglai Island v1 (first floating island)
+
+Started the final project: **Guixu**, five floating mountains above a sea of cloud and the bottomless abyss beneath them, drawn from the *Liezi* and the *Shanhaijing*, colored after blue-green landscape painting, lit like *Sky*. Built the site (Ideas · Atlas · World, EN/中文) and the first island study, **Penglai**, where everything is generated from rules and a seed:
+
+- **Terrain**: Simplex noise → fBm → ridged shaping → heightmap; natural stone peaks from distance masks, merged by smooth union and painted ochre → malachite → azurite per peak.
+- **Underside**: the same heightmap idea hung upside down: a cliff wall and a few blunt hanging rocks.
+- **Water**: thin falls (noise streaks sliding down in a shader) and rock pools carved into hollows (Fresnel reflection of the sky).
+- **Life**: instanced grass bending in one shared wind; *Zhuyu* flowers that open by day and glow at night.
+- **Look and feel**: three palettes (blue-green, glazed tile, Guixu depths), a warm-gold and lavender cloud sea, a draggable sun, and a first-person **walk** (WASD) across the island.
+- **Techniques panel**: every step explained (what / where / how) with its class source and a live map.
+
+**AI workflow**: Claude Code as the builder, me as author and critic. A handover doc set the rules (everything procedural, plan before code, measure every change); each round I reviewed screenshots, drew corrections on them (for example the underside went from "knife cuts" to a twisted stem to an "upside-down cactus" before landing on blunt hanging rocks), and asked for the principle behind each technique so I can explain it. Every change and its measurements are logged in the project notes.
+
+**Next**: wind as a real vector field (Session 6), L-system pines (Session 7), seasons driven by the 24 solar terms, and the other four islands.
+
+![Guixu — Penglai Island v1 at dusk, with the techniques panel open](docs/weekly/2026-09-final-penglai-island-v1.webp)
+
+- App: [`final_project/`](final_project/)  
+- Live: [https://guixu-yt684.web.app](https://guixu-yt684.web.app)  
+- Notes: [`final_project/src/experiments/island-v1/notes.md`](final_project/src/experiments/island-v1/notes.md) · World concept: [`final_project/docs/world-concept.md`](final_project/docs/world-concept.md)
+
 ### 2026-09 · Class 05 — Shader Lab (see → tweak → understand)
 
 Built a **Shader Lab** playground for class shader studies: vertex / fragment / uniforms, gradients, Fresnel, slope, distance, AO, contact, matcap, displacement, and a final combo. EN/中文 UI, “try this / takeaway / show mask,” and a suggested learning path — more material laboratory than documentation site.
@@ -36,7 +57,7 @@ Pwb_yt684_fa26/
 ├── class_XX/                  # One folder per class session
 │   ├── react-app-ts/          # In-class React + TypeScript exercise app
 │   └── tutorials/             # Markdown notes and walkthroughs for that session
-├── final-project/             # Semester final project (separate app, separate deployment)
+├── final_project/             # Semester final project: Guixu (separate app, separate deployment)
 │   ├── src/
 │   ├── package.json
 │   └── vite.config.ts
@@ -73,13 +94,13 @@ npm install
 npm run dev
 ```
 
-### Final project (`final-project/`)
+### Final project (`final_project/`)
 
-The semester final project lives in its own top-level folder. It is a separate Vite + React + TypeScript app, independent of any class exercise. When ready, it will be deployed to its own URL.
+The semester final project, **Guixu**, lives in its own top-level folder. It is a separate Vite + React + TypeScript app, independent of any class exercise, deployed to its own URL: [https://guixu-yt684.web.app](https://guixu-yt684.web.app).
 
 Run the final project locally:
 ```bash
-cd final-project
+cd final_project
 npm install
 npm run dev
 ```
@@ -91,7 +112,7 @@ Each app is deployed independently (e.g. via Vercel or Firebase Hosting) by poin
 | App | Root Directory | Purpose |
 | --- | --- | --- |
 | Class exercises | `class_XX/react-app-ts` | Weekly in-class work |
-| Final project | `final-project` | Semester final |
+| Final project | `final_project` | Semester final ([guixu-yt684.web.app](https://guixu-yt684.web.app)) |
 
 ### Tech stack
 
