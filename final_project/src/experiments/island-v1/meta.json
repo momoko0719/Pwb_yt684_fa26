@@ -1,0 +1,28 @@
+{
+  "id": "island-v1",
+  "kind": "world-study",
+  "title": {
+    "en": "Penglai Island v1",
+    "zh": "蓬莱 Island v1"
+  },
+  "session": 6,
+  "techniques": ["seeded rng", "simplex fbm", "ridged shaping", "distance mask", "slope mask", "fresnel rim", "smooth union", "flowing noise"],
+  "techniqueMap": [
+    { "id": "seed", "source": "outside", "params": ["seed"] },
+    { "id": "terrain", "source": "class-03", "stages": ["noise", "fbm", "ridged", "height"], "params": ["frequency", "ridgeSharpness", "radius", "resolution"] },
+    { "id": "peaks", "source": "class-05", "derived": true, "stages": ["peaks"], "params": ["peakHeight", "peakCount", "peakSpread"] },
+    { "id": "underside", "source": "class-03", "derived": true, "stages": ["underside"], "params": ["undersideDepth", "rockCount", "taper"] },
+    { "id": "falls", "source": "class-05", "derived": true, "params": ["fallCount"] },
+    { "id": "pools", "source": "class-05", "derived": true, "params": ["poolCount"] },
+    { "id": "slope", "source": "class-05", "stages": ["slope"], "params": ["meadowLine"] },
+    { "id": "grass", "source": "class-05", "derived": true, "params": ["grassDensity", "grassHeight", "wind", "meadowLine"] },
+    { "id": "flowers", "source": "class-05", "derived": true, "params": ["flowerDensity", "timeOfDay", "wind"] },
+    { "id": "rimLight", "source": "class-05", "params": [] }
+  ],
+  "date": "2026-09-27",
+  "status": "in-progress",
+  "summary": {
+    "en": "One island of Penglai above a sea of cloud: stone peaks on a meadow plateau, a sheer cliff over large hanging rocks, thin falls fraying into vapour, backlit.",
+    "zh": "云海之上的一座蓬莱浮岛：草甸台地上立着石峰，陡直的崖壁下挂着几块大垂岩，细瀑布落下散成水汽，逆光。"
+  }
+}

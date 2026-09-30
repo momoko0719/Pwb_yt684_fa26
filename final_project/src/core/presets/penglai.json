@@ -1,0 +1,28 @@
+{
+  "island": {
+    "seed": 684,
+    "radius": 31,
+    "taper": 0,
+    "peakHeight": 7,
+    "peakCount": 4,
+    "peakSpread": 0.75,
+    "frequency": 1.0,
+    "ridgeSharpness": 0.6,
+    "undersideDepth": 38,
+    "rockCount": 4,
+    "poolCount": 4,
+    "resolution": 128
+  },
+  "surface": {
+    "meadowLine": 0.9,
+    "fallCount": 3,
+    "grassDensity": 0.6,
+    "grassHeight": 0.5,
+    "flowerDensity": 0.5
+  },
+  "scene": {
+    "theme": "qinglv",
+    "hour": 12,
+    "wind": 0.5
+  }
+}

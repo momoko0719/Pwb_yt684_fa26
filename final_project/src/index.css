@@ -1,0 +1,140 @@
+/* Colors come only from CSS variables set in main.tsx from core/palette.ts (UI). */
+
+:root {
+  --header-height: 52px;
+  font-family: 'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', Georgia, serif;
+  line-height: 1.6;
+  background: var(--bg);
+  color: var(--text);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: inherit; }
+
+.site-header {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  z-index: 10;
+}
+.site-header nav { display: flex; gap: 24px; align-items: baseline; }
+.site-header nav a { text-decoration: none; color: var(--textDim); letter-spacing: 0.08em; }
+.site-header nav a.active { color: var(--text); }
+.site-header .brand { font-size: 1.2rem; color: var(--text); }
+
+.language-toggle { display: flex; gap: 4px; }
+.language-toggle button {
+  font: inherit;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--textDim);
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.language-toggle button.active { color: var(--accent); border-color: var(--accent); }
+
+main { padding-top: var(--header-height); }
+
+.page { max-width: 760px; margin: 0 auto; padding: 48px 24px; }
+.dim { color: var(--textDim); }
+h1, h2, h3 { font-weight: normal; letter-spacing: 0.06em; }
+h2 { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-top: 40px; }
+
+.home h1 { font-size: 3rem; margin-bottom: 8px; }
+.seal {
+  display: inline-block;
+  margin-top: 24px;
+  padding: 6px 14px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* Walk mode: a one-line key hint over the 3D view. */
+.walk-hint {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); margin: 0;
+  padding: 6px 14px; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  font-size: 0.85rem; pointer-events: none; opacity: 0.9;
+}
+
+/* Ideas: image-led, a little wider than a text page. */
+.ideas { max-width: 1040px; }
+.ideas img { display: block; width: 100%; height: auto; margin: 12px 0; }
+.ideas p:has(> img + img) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ideas p:has(> img + img) img { margin: 0; }
+.ideas em { color: var(--textDim); font-style: normal; font-size: 0.85rem; }
+.ideas p:last-child a { display: inline-block; margin-top: 16px; padding: 6px 14px; border: 1px solid var(--accent); color: var(--accent); text-decoration: none; }
+@media (max-width: 640px) { .ideas p:has(> img + img) { grid-template-columns: 1fr; } }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.card { display: block; padding: 16px; border: 1px solid var(--line); text-decoration: none; }
+.card:hover { border-color: var(--textDim); }
+.card h3 { margin: 0 0 8px; }
+.card p { margin: 4px 0; }
+
+.experiment { position: relative; height: calc(100vh - var(--header-height)); overflow: hidden; }
+.experiment-caption {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  z-index: 5;
+  display: flex;
+  gap: 16px;
+  color: var(--textDim);
+}
+.experiment-caption a { text-decoration: none; }
+.technique-toggle {
+  position: absolute;
+  top: 48px;
+  left: 16px;
+  z-index: 6;
+  font: inherit;
+  background: var(--bg);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 4px 14px;
+  cursor: pointer;
+}
+.technique-panel {
+  position: absolute;
+  top: 88px;
+  left: 16px;
+  bottom: 16px;
+  width: 360px;
+  overflow-y: auto;
+  scrollbar-color: var(--line) transparent;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 4px 16px;
+  z-index: 5;
+  font-size: 0.85rem;
+}
+.technique-card { border-top: 1px solid var(--line); padding: 12px 0; }
+.technique-card header { display: flex; align-items: baseline; gap: 8px; }
+.technique-card h3 { margin: 0; font-size: 1rem; flex: 1; }
+.technique-card p { margin: 6px 0; }
+.technique-card canvas { display: block; width: 100%; max-width: 220px; aspect-ratio: 1; margin: 10px 0 4px; }
+.technique-step { color: var(--accent); }
+.technique-label { color: var(--textDim); font-size: 0.8rem; margin-right: 4px; }
+.technique-maps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0 4px; }
+.technique-maps figure { margin: 0; }
+.technique-maps canvas { margin: 0; max-width: none; }
+.technique-maps figcaption { font-size: 0.7rem; color: var(--textDim); text-align: center; margin-top: 2px; }
+.technique-source { font-size: 0.72rem; color: var(--textDim); border: 1px solid var(--line); padding: 0 6px; white-space: nowrap; }
+.leva-dock {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 300px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  scrollbar-color: var(--line) transparent;
+  z-index: 5;
+}

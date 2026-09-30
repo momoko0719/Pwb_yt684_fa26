@@ -1,0 +1,19 @@
+[
+  {
+    "id": "class04-clay-studio",
+    "kind": "class-exercise",
+    "title": {
+      "en": "Clay Studio",
+      "zh": "陶土工作室"
+    },
+    "session": 4,
+    "techniques": ["voxels", "density fields", "firebase"],
+    "date": "2026-09-20",
+    "status": "done",
+    "summary": {
+      "en": "Voxel density sculpting: pinch, cut, glaze, and fire.",
+      "zh": "体素密度雕刻：捏、切、上釉、烧制。"
+    },
+    "url": "https://pwb-class04-clay.web.app"
+  }
+]
