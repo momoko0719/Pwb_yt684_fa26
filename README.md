@@ -8,6 +8,20 @@ This is a repo for **Design 4197-6197: Special Topics in Design 2026 — Procedu
 
 Newest first. Each entry is a short snapshot of what I explored that week.
 
+### 2026-10 · Class 06 — One Stroke Landscape 一笔山河 (scatter · paths · vector fields)
+
+One interactive piece for the three assignments of the class (distributions, paths, vector fields and particles). Draw a stroke on an empty landscape: it becomes a **river** that carves the ground (or a **road** that levels it and gets lanterns); life **regrows around it by rules**; and the water you drew **flows**, carrying thousands of particles that leave brush-stroke trails. Four chapters (Scatter · Path · Flow · All), ink-wash and blue-green styles, EN/中文.
+
+- **Scatter**: one rule layer per asset, reading height, slope, moisture and distance to water and road: rocks only on cliffs, reeds on banks, pines in clumps on gentle slopes (smaller up high, greener where wet), flowers on wet flat ground, pavilions on the flattest high spots, lanterns along roads.
+- **Path**: mouse points → Catmull-Rom spline → draped on the terrain; the line carves or levels the mesh, and the mesh's moisture moves the vegetation.
+- **Flow**: a vector field summed from the river current (in the drawn direction), whirlpools you drop, and curl-noise wind; particles read it every frame and draw fading trails.
+- **AI workflow**: rebuilt from scratch with Claude Code after a first version felt dull and hard to use: I chose the concept (one integrated piece in three chapters) and the priorities (clear concepts, smooth, not over-detailed), and tested the interactions.
+
+![One Stroke Landscape — Class 06 screenshot](docs/weekly/2026-10-class06-one-stroke-landscape.jpg)
+
+- App: [`class_06/react-app-ts/`](class_06/react-app-ts/)  
+- Notes: [`class_06/tutorials/One Stroke Landscape.md`](class_06/tutorials/One%20Stroke%20Landscape.md)
+
 ### 2026-09 · Final project — Guixu 归墟: Penglai Island v1 (first floating island)
 
 Started the final project: **Guixu**, five floating mountains above a sea of cloud and the bottomless abyss beneath them, drawn from the *Liezi* and the *Shanhaijing*, colored after blue-green landscape painting, lit like *Sky*. Built the site (Ideas · Atlas · World, EN/中文) and the first island study, **Penglai**, where everything is generated from rules and a seed:
