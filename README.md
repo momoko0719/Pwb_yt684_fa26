@@ -8,6 +8,25 @@ This is a repo for **Design 4197-6197: Special Topics in Design 2026 — Procedu
 
 Newest first. Each entry is a short snapshot of what I explored that week.
 
+### 2026-10 · Class 07 — Penglai Pines 蓬莱松 & Guixu Chronicle 归墟编年 (L-systems · LOD · branching worlds)
+
+Two small pieces, one per assignment, in one app (switch at the top right, EN/中文).
+
+**Assignment 1, Penglai Pines (L-systems + LOD).** A tree written as a few rules: a stochastic L-system grammar is expanded a few generations, then read by a 3D turtle into branches and flat cloud-like needle pads.
+- **Presets**: Huangshan welcome pine, weeping willow (same kind of grammar, heavy gravity), the textbook plant `F = F[+F]F[-F]F`, and a vine hanging under a floating rock. Rules can be edited live, and the string is shown generation by generation.
+- **LOD from recursion depth**: LOD0 keeps every twig; LOD1 drops twigs and merges their pads; LOD2 keeps only the trunk and one pad per limb (pine: 4,590 → 1,232 → 132 triangles).
+- **Forest**: 1,200 instanced pines on a mountain choose their level by camera distance every frame. In one measured view, about 0.7 M triangles are drawn with LOD on versus 5.2 M with it off. *Tint by level* shows the rings.
+
+![Penglai Pines — Class 07, forest tinted by level of detail (LOD0 red, LOD1 ochre, LOD2 blue)](docs/weekly/2026-10-class07-penglai-pines-lod.jpg)
+
+**Assignment 2, Guixu Chronicle (procedural world building).** I played a short game of *Microscope* (with Claude, for lack of classmates nearby), with fixed bookends from the *Liezi*: five mountains drift over Guixu → three remain, two have sunk. Then I turned it into a system: the ending becomes a list of things that must happen, each with several possible causes filtered by the palette (what this world allows). The computer generates a history and then **draws the world that history leaves behind**: turtles, cloud pillars or giants' hands under the mountains, walls from the rivalry, a giant's fishing line, sunk mountains below, lights in the abyss. Six worlds share the same start and end, and each carries different marks.
+
+![Guixu Chronicle — Class 07, six worlds with the same ending and different histories](docs/weekly/2026-10-class07-guixu-chronicle.jpg)
+
+- **AI workflow**: Claude Code built both apps. For Assignment 2 the first version was a text card table that felt too abstract, so we switched to "history → visible traces", which made the idea of a procedural world concrete for me.
+- App: [`class_07/react-app-ts/`](class_07/react-app-ts/)  
+- Notes: [`class_07/tutorials/Penglai Pines.md`](class_07/tutorials/Penglai%20Pines.md) · [`class_07/tutorials/Guixu Chronicle.md`](class_07/tutorials/Guixu%20Chronicle.md)
+
 ### 2026-10 · Class 06 — One Stroke Landscape 一笔山河 (scatter · paths · vector fields)
 
 One interactive piece for the three assignments of the class (distributions, paths, vector fields and particles). Draw a stroke on an empty landscape: it becomes a **river** that carves the ground (or a **road** that levels it and gets lanterns); life **regrows around it by rules**; and the water you drew **flows**, carrying thousands of particles that leave brush-stroke trails. Four chapters (Scatter · Path · Flow · All), ink-wash and blue-green styles, EN/中文.
