@@ -1,19 +1,128 @@
 [
   {
-    "id": "class04-clay-studio",
+    "id": "class03-island-terrain",
     "kind": "class-exercise",
-    "title": {
-      "en": "Clay Studio",
-      "zh": "陶土工作室"
-    },
-    "session": 4,
-    "techniques": ["voxels", "density fields", "firebase"],
-    "date": "2026-09-20",
+    "course": "Class 03",
+    "title": { "en": "Island Terrain", "zh": "浮岛地形" },
+    "session": 3,
+    "techniques": ["fBm noise", "shaping", "island mask", "hydraulic erosion"],
+    "date": "2026-09-09",
     "status": "done",
-    "summary": {
-      "en": "Voxel density sculpting: pinch, cut, glaze, and fire.",
-      "zh": "体素密度雕刻：捏、切、上釉、烧制。"
+    "summary": { "en": "Noise becomes a floating island in four steps.", "zh": "一张噪声图，四步变成一座浮岛。" },
+    "learned": {
+      "en": "Terrain is a chain of maps: noise, then a curve, then a mask, then rain. Each step is one simple rule.",
+      "zh": "地形是一串图：噪声、曲线、遮罩、雨水。每一步都只是一条简单的规则。"
     },
-    "url": "https://pwb-class04-clay.web.app"
+    "guixu": {
+      "en": "The base of every island: a coast cut by a mask, valleys carved by rain, a rock hanging below.",
+      "zh": "每座岛的底子：遮罩切出海岸，雨水冲出山谷，下面挂着山石。"
+    },
+    "image": "atlas-img/class03-island-terrain.jpg",
+    "url": "atlas/class03/index.html"
+  },
+  {
+    "id": "class04-grotto-heaven",
+    "kind": "class-exercise",
+    "course": "Class 04",
+    "title": { "en": "Grotto Heaven", "zh": "洞天" },
+    "session": 5,
+    "techniques": ["voxels", "density field", "CSG", "marching cubes"],
+    "date": "2026-09-16",
+    "status": "done",
+    "summary": { "en": "A floating island as a density field, hollowed out.", "zh": "把浮岛做成密度场，再挖空。" },
+    "learned": {
+      "en": "A density field can hold what a heightmap cannot: caves, arches, hollows under an overhang.",
+      "zh": "密度场能装下高度图装不下的东西：山洞、拱门、悬崖下的空洞。"
+    },
+    "guixu": {
+      "en": "The next step for Guixu's terrain: islands with caves, arches and grotto-heavens hidden inside the mountains.",
+      "zh": "归墟地形的下一步：有山洞、拱门、山里藏着洞天的浮岛。"
+    },
+    "image": "atlas-img/class04-grotto-heaven.jpg",
+    "url": "atlas/class04/index.html"
+  },
+  {
+    "id": "class05-glaze-pearl-glow",
+    "kind": "class-exercise",
+    "course": "Class 05",
+    "title": { "en": "Glaze · Pearl · Glow", "zh": "琉璃 · 珠光 · 荧光" },
+    "session": 3,
+    "techniques": ["Fresnel", "thin-film iridescence", "backlight", "vertex waves"],
+    "date": "2026-09-23",
+    "status": "done",
+    "summary": { "en": "Three Guixu materials, one shader each.", "zh": "归墟的三种材质，每种一段 shader。" },
+    "learned": {
+      "en": "Most of a material is one 0..1 mask computed from the surface and the view: Fresnel, viewing angle, wave height.",
+      "zh": "材质的关键往往只是一个 0 到 1 的遮罩，由表面和视线算出来：Fresnel、视角、浪高。"
+    },
+    "guixu": {
+      "en": "Glazed rocks on the summits, pearly flowers, and a glowing sea in the abyss at night.",
+      "zh": "山顶的琉璃石、珠光花，还有夜里归墟深处的荧光海。"
+    },
+    "image": "atlas-img/class05-glaze-pearl-glow.jpg",
+    "url": "atlas/class05/index.html"
+  },
+  {
+    "id": "class06-one-stroke-landscape",
+    "kind": "class-exercise",
+    "course": "Class 06",
+    "title": { "en": "One Stroke Landscape", "zh": "一笔山河" },
+    "session": 6,
+    "techniques": ["scatter rules", "splines", "vector field", "particles"],
+    "date": "2026-09-30",
+    "status": "done",
+    "summary": { "en": "Draw a river; life regrows around it and the water flows.", "zh": "画一条河，生命沿着它长出来，河水流动起来。" },
+    "learned": {
+      "en": "Systems feed each other: a drawn line shapes the ground, the ground decides what grows, the water drives the flow.",
+      "zh": "系统彼此喂养：一笔画出的线改变地形，地形决定长什么，水流推动粒子。"
+    },
+    "guixu": {
+      "en": "Wind as a real vector field around the peaks, waterfalls and paths as splines, plants placed by rules.",
+      "zh": "绕着山峰流动的风场，用样条线做瀑布和小路，按规则种植物。"
+    },
+    "image": "atlas-img/class06-one-stroke-landscape.jpg",
+    "url": "atlas/class06/index.html"
+  },
+  {
+    "id": "class07-penglai-pines",
+    "kind": "class-exercise",
+    "course": "Class 07",
+    "title": { "en": "Penglai Pines", "zh": "蓬莱松" },
+    "session": 7,
+    "techniques": ["L-systems", "stochastic grammar", "levels of detail", "instancing"],
+    "date": "2026-10-07",
+    "status": "done",
+    "summary": { "en": "Pines grown from rules, a forest of them with LOD.", "zh": "用规则长出的松树，再种成一片带 LOD 的林。" },
+    "learned": {
+      "en": "A few rewriting rules grow a whole tree, and the recursion depth doubles as the level of detail.",
+      "zh": "几条改写规则长出整棵树，递归深度正好就是细节层次。"
+    },
+    "guixu": {
+      "en": "Huangshan pines on Penglai's cliffs, vines under the islands, and all five islands on screen at once thanks to LOD.",
+      "zh": "蓬莱崖上的迎客松、岛底的垂藤；有了 LOD，五座岛可以同时出现在画面里。"
+    },
+    "image": "atlas-img/class07-penglai-pines.jpg",
+    "url": "atlas/class07/index.html"
+  },
+  {
+    "id": "class07-guixu-chronicle",
+    "kind": "class-exercise",
+    "course": "Class 07",
+    "title": { "en": "Guixu Chronicle", "zh": "归墟编年" },
+    "session": 7,
+    "techniques": ["Microscope", "constraints", "generated history"],
+    "date": "2026-10-10",
+    "status": "done",
+    "summary": { "en": "Same ending, different histories, different worlds.", "zh": "同一个结局，不同的历史，不同的世界。" },
+    "learned": {
+      "en": "World building as rules: fixed bookends, a palette of what is allowed, and a generated history in between.",
+      "zh": "用规则构建世界：固定的开头和结尾、规定允许什么的调色盘、中间生成的历史。"
+    },
+    "guixu": {
+      "en": "Each island's look can come from its generated history: what holds it up, who lives there, what was lost.",
+      "zh": "每座岛的样子可以来自它被生成的历史：谁托着它、谁住在上面、失去了什么。"
+    },
+    "image": "atlas-img/class07-guixu-chronicle.jpg",
+    "url": "atlas/class07/index.html#chronicle"
   }
 ]

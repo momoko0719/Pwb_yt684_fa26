@@ -24,5 +24,15 @@
   "summary": {
     "en": "One island of Penglai above a sea of cloud: stone peaks on a meadow plateau, a sheer cliff over large hanging rocks, thin falls fraying into vapour, backlit.",
     "zh": "云海之上的一座蓬莱浮岛：草甸台地上立着石峰，陡直的崖壁下挂着几块大垂岩，细瀑布落下散成水汽，逆光。"
-  }
+  },
+  "course": "World study",
+  "learned": {
+    "en": "The techniques put together on one island: terrain, peaks, falls, pools, grass and flowers, each a rule with its own parameters.",
+    "zh": "把各项技术合到一座岛上：地形、石峰、瀑布、水池、草和花，每一样都是一条带参数的规则。"
+  },
+  "guixu": {
+    "en": "The first of the five mountains. Next: voxel terrain with caves, a real wind field, pines, and weather by the 24 solar terms.",
+    "zh": "五座仙山的第一座。下一步：带山洞的体素地形、真正的风场、松树，以及按二十四节气变化的天气。"
+  },
+  "image": "atlas-img/penglai-island-v1.jpg"
 }

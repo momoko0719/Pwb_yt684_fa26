@@ -8,11 +8,15 @@ Final project for Cornell Tech DESIGN 6197 Procedural World Building: a procedur
 npm install
 npm run dev      # local dev server
 npm run build    # type-check + production build into dist/
+npm run atlas    # build the class exercise apps into public/atlas/ (served as /atlas/classXX/)
 ```
+
+The Atlas page lists the class exercises from `src/experiments/external.json` (text, picture in `public/atlas-img/`, link). The apps themselves are built from `class_03` to `class_07` by `scripts/build-atlas.mjs`; the output is git-ignored, so run `npm run atlas` again whenever a class app changes, and always before deploying.
 
 ## Deploy (Firebase Hosting)
 
 ```bash
+npm run atlas
 npm run build
 npx firebase-tools login
 npx firebase-tools use --add     # first time only: pick the Firebase project

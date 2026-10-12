@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-10 rework: Island Terrain 浮岛地形
+
+The app was rebuilt for the midterm atlas so it reads as one step toward Guixu, in the same paper, ink and vermilion style as Classes 06–07 (EN/中文). The original layer explorer is in git history.
+
+- **One pipeline, four small maps** at the top of the panel: 1 noise (fBm) → 2 shaping (none, ridges, terraces, power) → 3 coast (a round mask with a noisy edge) → 4 island (after erosion).
+- **Floating island**: the mask cuts the coast and adds a dome; the same mask hangs a rock under the island, which meets the land exactly at the coast. Above a sea of clouds.
+- **Blue-green colours** by height relative to the peak (ochre shore, malachite slopes, azurite summits) and grey-ochre stone on steep faces.
+- **Erosion fixes** in `lib/erosion.ts`, measured on a test cone:
+  - each step used to rescale the map to 0–1, so one tall deposit squashed the whole island: removed;
+  - a droplet that stopped dropped only part of its sediment, so soil vanished: it now drops all of it (total soil before and after: 2055 → 2055);
+  - soil was taken from a single point, which dug pits and left needle spikes: it now comes from a radius-3 brush (after Sebastian Lague);
+  - far less rain by default (400 drops per step), so rain carves valleys instead of washing the island flat.
+
+The notes below describe the original version.
+
+---
+
 ## Exercise overview
 
 Build an interactive noise explorer that:

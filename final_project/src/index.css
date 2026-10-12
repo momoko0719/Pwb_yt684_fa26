@@ -73,12 +73,6 @@ h2 { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-top: 40px
 .ideas p:last-child a { display: inline-block; margin-top: 16px; padding: 6px 14px; border: 1px solid var(--accent); color: var(--accent); text-decoration: none; }
 @media (max-width: 640px) { .ideas p:has(> img + img) { grid-template-columns: 1fr; } }
 
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-.card { display: block; padding: 16px; border: 1px solid var(--line); text-decoration: none; }
-.card:hover { border-color: var(--textDim); }
-.card h3 { margin: 0 0 8px; }
-.card p { margin: 4px 0; }
-
 .experiment { position: relative; height: calc(100vh - var(--header-height)); overflow: hidden; }
 .experiment-caption {
   position: absolute;
@@ -138,3 +132,45 @@ h2 { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-top: 40px
   scrollbar-color: var(--line) transparent;
   z-index: 5;
 }
+
+/* Atlas: a research notebook on paper, in the same ink and cinnabar as the class exercise apps. */
+.atlas { min-height: calc(100vh - var(--header-height)); background: var(--atlas-paper); color: var(--atlas-ink); }
+.atlas-inner { max-width: 1120px; margin: 0 auto; padding: 48px 24px 64px; }
+.atlas h1 { font-size: 2.4rem; margin: 0 0 8px; }
+.atlas h2 { border-bottom: 1px solid var(--atlas-ink); font-size: 1.1rem; letter-spacing: 0.12em; margin: 40px 0 16px; }
+.atlas-intro { max-width: 640px; color: var(--atlas-inkDim); margin: 0; }
+.atlas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+.atlas-card { background: var(--atlas-card); border: 1px solid var(--atlas-ink); display: flex; flex-direction: column; }
+.atlas-card.wide { flex-direction: row; }
+.atlas-card.wide .atlas-img { flex: 1.4; }
+.atlas-card.wide .atlas-text { flex: 1; }
+.atlas-img { display: block; border-bottom: 1px solid var(--atlas-ink); overflow: hidden; }
+.atlas-card.wide .atlas-img { border-bottom: none; border-right: 1px solid var(--atlas-ink); }
+.atlas-img img { display: block; width: 100%; height: 100%; aspect-ratio: 16 / 10; object-fit: cover; transition: transform 0.4s; }
+.atlas-img:hover img { transform: scale(1.03); }
+.atlas-text { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; line-height: 1.55; }
+.atlas-text h3 { margin: 0; font-size: 1.3rem; }
+.atlas-text p { margin: 0; }
+.atlas-text b { font-weight: normal; color: var(--atlas-seal); margin-right: 4px; }
+.atlas-meta { color: var(--atlas-inkDim); font-size: 0.78rem; letter-spacing: 0.04em; }
+.atlas-open { align-self: flex-start; margin-top: auto; padding: 3px 12px; border: 1px solid var(--atlas-seal); color: var(--atlas-seal); text-decoration: none; }
+.atlas-open:hover { background: var(--atlas-seal); color: var(--atlas-card); }
+.atlas-footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--atlas-rule); color: var(--atlas-inkDim); font-size: 0.85rem; }
+.atlas-footer a { color: var(--atlas-seal); }
+@media (max-width: 760px) {
+  .atlas-card.wide { flex-direction: column; }
+  .atlas-card.wide .atlas-img { border-right: none; border-bottom: 1px solid var(--atlas-ink); }
+}
+
+/* A class exercise inside the site: a thin bar under the menu, the app below. */
+.technique-frame { height: calc(100vh - var(--header-height)); display: flex; flex-direction: column; background: var(--atlas-paper); }
+.technique-bar {
+  display: flex; align-items: center; gap: 20px; padding: 6px 20px; font-size: 0.85rem;
+  background: var(--atlas-card); color: var(--atlas-ink); border-bottom: 1px solid var(--atlas-ink);
+}
+.technique-bar a { color: var(--atlas-seal); text-decoration: none; }
+.technique-bar a:hover { text-decoration: underline; }
+.technique-title { letter-spacing: 0.06em; }
+.technique-steps { margin-left: auto; display: flex; gap: 18px; }
+.technique-frame iframe { flex: 1; width: 100%; border: 0; display: block; }
+@media (max-width: 640px) { .technique-steps a:not(:last-child) { display: none; } }

@@ -94,11 +94,37 @@ function deposit(map: Float32Array, res: number, x: number, y: number, amount: n
   map[clamp(yi + 1) * res + clamp(xi + 1)] += amount * fx       * fy;
 }
 
+/**
+ * Erosion brush: soil is taken from a small disc around the droplet, heavier in the middle.
+ * Taking it from one point only digs single-cell pits and leaves needle-like spikes.
+ */
+const BRUSH_RADIUS = 3;
+const BRUSH: [number, number, number][] = (() => {
+  const out: [number, number, number][] = [];
+  let sum = 0;
+  for (let dy = -BRUSH_RADIUS; dy <= BRUSH_RADIUS; dy++) {
+    for (let dx = -BRUSH_RADIUS; dx <= BRUSH_RADIUS; dx++) {
+      const w = BRUSH_RADIUS - Math.hypot(dx, dy);
+      if (w > 0) { out.push([dx, dy, w]); sum += w; }
+    }
+  }
+  return out.map(([dx, dy, w]) => [dx, dy, w / sum]);
+})();
+
+function erodeBrush(map: Float32Array, res: number, x: number, y: number, amount: number) {
+  const xi = Math.round(x), yi = Math.round(y);
+  for (const [dx, dy, w] of BRUSH) {
+    const cx = xi + dx, cy = yi + dy;
+    if (cx < 0 || cy < 0 || cx >= res || cy >= res) continue;
+    map[cy * res + cx] -= amount * w;
+  }
+}
+
 // ─── Main erosion function ───────────────────────────────────────────────────
 
 /**
  * Runs one simulation step (dropletsPerStep droplets) on a COPY of `map`.
- * Returns the new heightmap (values may temporarily exceed 0–1; call normalise after).
+ * Returns the new heightmap.
  */
 export function runErosionStep(
   map: Float32Array,
@@ -153,7 +179,7 @@ export function runErosionStep(
       } else {
         // ── 6b. Going downhill with capacity → erode ──────────────────────
         const erodeAmt = Math.min((capacity - sediment) * erosionRate, -dh);
-        deposit(result, resolution, oldX, oldY, -erodeAmt); // negative = remove height
+        erodeBrush(result, resolution, oldX, oldY, erodeAmt);
         sediment += erodeAmt;
       }
 
@@ -164,17 +190,12 @@ export function runErosionStep(
     }
 
     // Deposit remaining sediment at final position
-    deposit(result, resolution, x, y, sediment * depositionRate);
+    deposit(result, resolution, x, y, sediment); // drop everything it still carries, so no soil is lost
   }
 
-  // Renormalise to 0–1 (erosion can push values slightly outside range)
-  let min = Infinity, max = -Infinity;
-  for (let i = 0; i < result.length; i++) {
-    if (result[i] < min) min = result[i];
-    if (result[i] > max) max = result[i];
-  }
-  const range = max - min || 1;
-  for (let i = 0; i < result.length; i++) result[i] = (result[i] - min) / range;
+  // Keep heights in place (no rescaling: one tall deposit would squash the whole island); only
+  // stop holes from going below sea level.
+  for (let i = 0; i < result.length; i++) if (result[i] < 0) result[i] = 0;
 
   return result;
 }

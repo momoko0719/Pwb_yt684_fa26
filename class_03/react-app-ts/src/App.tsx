@@ -1,333 +1,153 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import NoiseCanvas2D   from './components/NoiseCanvas2D';
-import Terrain3D       from './components/Terrain3D';
-import LayerPanel, { makeDefaultLayer } from './components/LayerPanel';
-import SimulationPanel from './components/SimulationPanel';
-import BottomTimeline  from './components/BottomTimeline';
-import { computeNoiseMap } from './lib/computeMap';
-import { runErosionStep, DEFAULT_EROSION } from './lib/erosion';
-import type { ErosionSettings } from './lib/erosion';
-import type { NoiseLayer, GlobalSettings, ViewMode, ColorMode } from './types';
-import './App.css';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import Island, { PAPER } from './Island';
+import { useLang, type Key } from './i18n';
+import { DEFAULT_EROSION, runErosionStep } from './lib/erosion';
+import { buildStages, DEFAULTS, RES, type Params, type Stages } from './lib/pipeline';
+import type { NoiseType, ShapingFn } from './types';
 
-// ─── Defaults ────────────────────────────────────────────────────────────────
-
-const DEFAULT_SETTINGS: GlobalSettings = {
-  resolution:  128,
-  heightScale: 2.0,
-  wireframe:   false,
-  colorMode:   'terrain',
-};
-
-const INITIAL_LAYERS: NoiseLayer[] = [
-  makeDefaultLayer('Base Terrain', {
-    noiseType: 'perlin', scale: 2, octaves: 5,
-    persistence: 0.5, lacunarity: 2, opacity: 1, blendMode: 'add',
-  }),
-  makeDefaultLayer('Detail', {
-    noiseType: 'perlin', scale: 6, octaves: 3,
-    persistence: 0.4, lacunarity: 2.2, opacity: 0.35, blendMode: 'add',
-    shapingFn: 'power', shapingParam: 1.6, expanded: false,
-  }),
-];
-
-const MAX_EROSION_STEPS = 60;
-const EROSION_INTERVAL_MS = 900; // ms between simulation ticks
-
-// ─── App ─────────────────────────────────────────────────────────────────────
+const NOISES: NoiseType[] = ['perlin', 'value', 'worley', 'cellular'];
+const SHAPES: ShapingFn[] = ['linear', 'ridged', 'terrace', 'power'];
+const MAX_STEPS = 60;
 
 export default function App() {
-  // ── Noise state ──────────────────────────────────────────────────
-  const [layers,   setLayers]   = useState<NoiseLayer[]>(INITIAL_LAYERS);
-  const [settings, setSettings] = useState<GlobalSettings>(DEFAULT_SETTINGS);
-  const [viewMode, setViewMode] = useState<ViewMode>('3d');
+  const { lang, setLang, t } = useLang();
+  const [p, setP] = useState<Params>(DEFAULTS);
+  const [heightScale, setHeightScale] = useState(7);
+  const [drops, setDrops] = useState(400);
+  const set = <K extends keyof Params>(k: K) => (v: Params[K]) => setP((old) => ({ ...old, [k]: v }));
 
-  const noiseMap = useMemo(
-    () => computeNoiseMap(layers, settings.resolution),
-    [layers, settings.resolution]
-  );
+  const stages = useMemo(() => buildStages(p), [p]);
 
-  // ── Erosion simulation state ──────────────────────────────────────
-  const [erosionSettings, setErosionSettings] = useState<ErosionSettings>(DEFAULT_EROSION);
-  const erosionHistRef = useRef<Float32Array[]>([]); // history (refs avoid stale closures)
-  const [erosionStep,  setErosionStep]  = useState(-1);   // -1 = base noise
-  const [histLen,      setHistLen]      = useState(0);
-  const [isPlaying,    setIsPlaying]    = useState(false);
-  const erosionSettingsRef = useRef(erosionSettings);
-  erosionSettingsRef.current = erosionSettings;
-
-  // When layers / resolution changes → reset erosion
+  // Erosion runs step by step on top of the island stage. Results remember which stages they came
+  // from, so any change upstream simply starts over.
+  const [erosion, setErosion] = useState<{ of: Stages; map: Float32Array; steps: number; fallen: number } | null>(null);
+  const [rainingOn, setRainingOn] = useState<Stages | null>(null);
+  const eroded = erosion?.of === stages ? erosion : null;
+  const raining = rainingOn === stages && (eroded?.steps ?? 0) < MAX_STEPS;
   useEffect(() => {
-    erosionHistRef.current = [];
-    setErosionStep(-1);
-    setHistLen(0);
-    setIsPlaying(false);
-  }, [noiseMap]);
-
-  // One erosion tick
-  const runTick = useCallback(() => {
-    const hist = erosionHistRef.current;
-    if (hist.length >= MAX_EROSION_STEPS) { setIsPlaying(false); return; }
-    const source = hist.length > 0 ? hist[hist.length - 1] : noiseMap;
-    const next   = runErosionStep(source, settings.resolution, erosionSettingsRef.current);
-    hist.push(next);
-    const newLen  = hist.length;
-    setHistLen(newLen);
-    setErosionStep(newLen - 1); // always jump to latest
-  }, [noiseMap, settings.resolution]);
-
-  // Play interval
-  useEffect(() => {
-    if (!isPlaying) return;
-    const id = setInterval(runTick, EROSION_INTERVAL_MS);
+    if (!raining) return;
+    const id = setInterval(() => {
+      setErosion((prev) => {
+        const cur = prev?.of === stages ? prev : null;
+        if (cur && cur.steps >= MAX_STEPS) return prev;
+        const next = runErosionStep(cur?.map ?? stages.island, RES, { ...DEFAULT_EROSION, dropletsPerStep: drops });
+        return { of: stages, map: next, steps: (cur?.steps ?? 0) + 1, fallen: (cur?.fallen ?? 0) + drops };
+      });
+    }, 120);
     return () => clearInterval(id);
-  }, [isPlaying, runTick]);
+  }, [raining, stages, drops]);
 
-  // Displayed map: base noise OR eroded snapshot at chosen step
-  const displayMap = useMemo(() => {
-    if (erosionStep >= 0 && erosionHistRef.current[erosionStep]) {
-      return erosionHistRef.current[erosionStep];
-    }
-    return noiseMap;
-  // histLen is used to re-trigger memo when history changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noiseMap, erosionStep, histLen]);
+  const height = eroded?.map ?? stages.island;
+  const fallen = eroded?.fallen ?? 0;
 
-  // ── Explore / fly mode ────────────────────────────────────────────
-  const [exploreMode,  setExploreMode]  = useState(false);
-  const [flySpeed,     setFlySpeed]     = useState(0.08);
-  const [pointerLocked, setPointerLocked] = useState(false);
-
-  // ── Global keyboard shortcuts ─────────────────────────────────────
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      switch (e.code) {
-        case 'Tab':
-          e.preventDefault();
-          setViewMode(v => v === '2d' ? '3d' : '2d');
-          break;
-        case 'Space':
-          e.preventDefault();
-          setIsPlaying(p => !p);
-          break;
-        case 'KeyF':
-          setSettings(s => ({ ...s, wireframe: !s.wireframe }));
-          break;
-        case 'KeyG':
-          setExploreMode(e => !e);
-          break;
-        case 'KeyR':
-          // Reset erosion
-          erosionHistRef.current = [];
-          setErosionStep(-1);
-          setHistLen(0);
-          setIsPlaying(false);
-          break;
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  // ── Layer handlers ────────────────────────────────────────────────
-  const handleLayerChange = (id: string, patch: Partial<NoiseLayer>) =>
-    setLayers(ls => ls.map(l => l.id === id ? { ...l, ...patch } : l));
-  const handleLayerAdd    = (layer: NoiseLayer) => setLayers(ls => [...ls, layer]);
-  const handleLayerRemove = (id: string) => setLayers(ls => ls.filter(l => l.id !== id));
-  const handleReorder     = (next: NoiseLayer[]) => setLayers(next);
-
-  const setSetting = <K extends keyof GlobalSettings>(key: K, value: GlobalSettings[K]) =>
-    setSettings(s => ({ ...s, [key]: value }));
-
-  // ─────────────────────────────────────────────────────────────────
   return (
-    <div className="app">
+    <div className="app" style={{ background: PAPER }}>
+      <Canvas camera={{ position: [34, 26, 40], fov: 40 }} dpr={[1, 2]}>
+        <color attach="background" args={[PAPER]} />
+        <fog attach="fog" args={[PAPER, 80, 170]} />
+        <hemisphereLight args={['#ffffff', '#8a8072', 1.2]} />
+        <directionalLight position={[30, 40, 10]} intensity={1.7} />
+        <Island height={height} mask={stages.mask} noise={stages.noise} heightScale={heightScale} />
+        <OrbitControls makeDefault target={[0, 0, 0]} minDistance={15} maxDistance={140} />
+      </Canvas>
 
-      {/* ── Header ── */}
-      <header className="header">
-        <div className="header-left">
-          <span className="header-dot" />
-          <h1 className="site-title">Noise Explorer</h1>
-          <span className="header-tag">class_03</span>
+      <aside className="panel">
+        <header>
+          <h1>{t('title')}</h1>
+          <button className="lang" onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}>{lang === 'en' ? '中' : 'EN'}</button>
+        </header>
+        <p className="dim">{t('subtitle')}</p>
+        <p className="about">{t('about')}</p>
+
+        {/* The pipeline at a glance: every stage as a small map */}
+        <div className="stages">
+          {(['noise', 'shaped', 'mask', 'island'] as const).map((s, i) => (
+            <figure key={s}>
+              <MapThumb data={s === 'island' ? height : stages[s]} />
+              <figcaption>{i + 1} {t(`stage.${s}` as Key)}</figcaption>
+            </figure>
+          ))}
         </div>
 
-        {/* 2D / 3D toggle */}
-        <div className="view-toggle" role="group" aria-label="View mode">
-          <button className={`toggle-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>
-            2D Map
-          </button>
-          <button className={`toggle-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>
-            3D Terrain
-          </button>
+        <h2>{t('h.noise')}</h2>
+        <p className="dim small">{t('about.noise')}</p>
+        <div className="row tabs">
+          {NOISES.map((n) => (
+            <button key={n} className={p.noise === n ? 'on' : ''} onClick={() => set('noise')(n)}>{t(`n.${n}` as Key)}</button>
+          ))}
         </div>
+        <Slider label={t('scale')} value={p.scale} min={1} max={8} step={0.1} onChange={set('scale')} />
+        <Slider label={t('octaves')} value={p.octaves} min={1} max={8} step={1} onChange={set('octaves')} />
+        <Slider label={t('persistence')} value={p.persistence} min={0.2} max={0.8} step={0.01} onChange={set('persistence')} />
 
-        {/* Explore mode toggle (3D only) */}
-        {viewMode === '3d' && (
-          <button
-            className={`explore-btn ${exploreMode ? 'active' : ''}`}
-            onClick={() => setExploreMode(e => !e)}
-            title="Toggle explore mode — WASD / Arrow keys to fly through the landscape (G)"
-          >
-            {exploreMode ? '🧭 Explore ON' : '🧭 Explore'}
-          </button>
-        )}
-
-        <span className="header-meta">Design 4197-6197 · Ella Tao</span>
-      </header>
-
-      {/* ── Main ── */}
-      <main className="main">
-
-        {/* ── Viewport ── */}
-        <div className="viewport">
-          {viewMode === '2d'
-            ? <NoiseCanvas2D noiseMap={displayMap} resolution={settings.resolution} colorMode={settings.colorMode} />
-            : <Terrain3D
-                noiseMap={displayMap}
-                resolution={settings.resolution}
-                heightScale={settings.heightScale}
-                wireframe={settings.wireframe}
-                colorMode={settings.colorMode}
-                exploreMode={exploreMode}
-                flySpeed={flySpeed}
-                onLockChange={setPointerLocked}
-              />
-          }
-
-          {/* Explore mode — "click to lock" overlay (shown until pointer is locked) */}
-          {viewMode === '3d' && exploreMode && !pointerLocked && (
-            <div className="explore-overlay">
-              <div className="explore-overlay-card">
-                <p className="explore-overlay-title">🧭 Explore Mode</p>
-                <p className="explore-overlay-sub">Click anywhere on the canvas to start</p>
-                <div className="explore-key-grid">
-                  <span className="key-badge">W</span><span>Forward</span>
-                  <span className="key-badge">S</span><span>Backward</span>
-                  <span className="key-badge">A</span><span>Left</span>
-                  <span className="key-badge">D</span><span>Right</span>
-                  <span className="key-badge">Q</span><span>Up</span>
-                  <span className="key-badge">E</span><span>Down</span>
-                  <span className="key-badge">Esc</span><span>Exit explore</span>
-                </div>
-                <p className="explore-overlay-tip">Mouse controls your view direction</p>
-              </div>
-            </div>
-          )}
-
-          {/* Bottom timeline (erosion) */}
-          <BottomTimeline
-            step={erosionStep}
-            histLen={histLen}
-            isPlaying={isPlaying}
-            droplets={erosionSettings.dropletsPerStep}
-            onPlay={()  => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            onReset={() => {
-              erosionHistRef.current = [];
-              setErosionStep(-1);
-              setHistLen(0);
-              setIsPlaying(false);
-            }}
-            onScrub={s => { setIsPlaying(false); setErosionStep(s); }}
-          />
-
-          {/* Keyboard hint strip */}
-          <div className="canvas-hint">
-            {viewMode === '3d' && !exploreMode && 'Left drag · orbit  |  Scroll · zoom  |  '}
-            {viewMode === '3d' &&  exploreMode && pointerLocked && 'WASD · move  |  Mouse · look  |  Esc · exit  |  '}
-            Tab · 2D/3D &nbsp;·&nbsp; Space · erosion &nbsp;·&nbsp; F · wireframe &nbsp;·&nbsp; G · explore
-          </div>
+        <h2>{t('h.shape')}</h2>
+        <p className="dim small">{t('about.shape')}</p>
+        <div className="row tabs">
+          {SHAPES.map((s) => (
+            <button
+              key={s}
+              className={p.shaping === s ? 'on' : ''}
+              onClick={() => setP((old) => ({ ...old, shaping: s, shapingParam: s === 'terrace' ? 6 : s === 'power' ? 1.8 : old.shapingParam }))}
+            >
+              {t(`s.${s}` as Key)}
+            </button>
+          ))}
         </div>
+        {p.shaping === 'terrace' && <Slider label={t('steps')} value={p.shapingParam} min={2} max={14} step={1} onChange={set('shapingParam')} />}
+        {p.shaping === 'power' && <Slider label={t('exponent')} value={p.shapingParam} min={0.4} max={4} step={0.1} onChange={set('shapingParam')} />}
 
-        {/* ── Sidebar ── */}
-        <aside className="sidebar">
-          <div className="sidebar-inner">
+        <h2>{t('h.island')}</h2>
+        <p className="dim small">{t('about.island')}</p>
+        <Slider label={t('radius')} value={p.radius} min={0.4} max={1} step={0.01} onChange={set('radius')} />
+        <Slider label={t('edge')} value={p.edge} min={0.1} max={0.9} step={0.01} onChange={set('edge')} />
 
-            {/* 1. Erosion simulation (explainer + params only — timeline is at bottom) */}
-            <section className="sidebar-section">
-              <SimulationPanel
-                settings={erosionSettings}
-                onSettings={patch => setErosionSettings(s => ({ ...s, ...patch }))}
-              />
-            </section>
+        <h2>{t('h.erosion')}</h2>
+        <p className="dim small">{t('about.erosion')}</p>
+        <div className="row">
+          <button className="primary" onClick={() => setRainingOn(raining ? null : stages)}>{raining ? t('pause') : t('rain')}</button>
+          <button onClick={() => { setRainingOn(null); setErosion(null); }}>{t('reset')}</button>
+          <span className="dim small counter">{fallen.toLocaleString()} {t('fallen')}</span>
+        </div>
+        <Slider label={t('drops')} value={drops} min={100} max={2000} step={100} onChange={setDrops} />
 
-            {/* 2. Global terrain settings */}
-            <section className="sidebar-section">
-              <h3 className="section-title">Terrain Settings</h3>
-
-              <div className="ctrl-row">
-                <div className="ctrl-header">
-                  <span className="ctrl-label">Resolution</span>
-                  <span className="ctrl-value">{settings.resolution}²</span>
-                </div>
-                <p className="ctrl-hint">Higher = more detail, slower simulation.</p>
-                <input type="range" className="slider" min={16} max={256} step={16}
-                  value={settings.resolution}
-                  onChange={e => setSetting('resolution', Number(e.target.value))} />
-              </div>
-
-              {viewMode === '3d' && (
-                <div className="ctrl-row">
-                  <div className="ctrl-header">
-                    <span className="ctrl-label">Height Scale</span>
-                    <span className="ctrl-value">{settings.heightScale.toFixed(1)}×</span>
-                  </div>
-                  <p className="ctrl-hint">Vertical exaggeration — like stretching the terrain upward.</p>
-                  <input type="range" className="slider" min={0} max={5} step={0.1}
-                    value={settings.heightScale}
-                    onChange={e => setSetting('heightScale', Number(e.target.value))} />
-                </div>
-              )}
-
-              {viewMode === '3d' && exploreMode && (
-                <div className="ctrl-row">
-                  <div className="ctrl-header">
-                    <span className="ctrl-label">Fly Speed</span>
-                    <span className="ctrl-value">{flySpeed.toFixed(2)}</span>
-                  </div>
-                  <p className="ctrl-hint">How fast WASD / Arrow keys move the camera.</p>
-                  <input type="range" className="slider" min={0.01} max={0.4} step={0.01}
-                    value={flySpeed}
-                    onChange={e => setFlySpeed(Number(e.target.value))} />
-                </div>
-              )}
-
-              <div className="ctrl-row">
-                <div className="ctrl-header">
-                  <span className="ctrl-label">Color Mode</span>
-                </div>
-                <select className="select" value={settings.colorMode}
-                  onChange={e => setSetting('colorMode', e.target.value as ColorMode)}>
-                  <option value="grayscale">Grayscale — raw height values</option>
-                  <option value="terrain">Terrain — water → forest → snow</option>
-                  <option value="heatmap">Heatmap — blue (low) → red (high)</option>
-                </select>
-              </div>
-
-              {viewMode === '3d' && (
-                <label className="checkbox-row">
-                  <input type="checkbox" checked={settings.wireframe}
-                    onChange={e => setSetting('wireframe', e.target.checked)} />
-                  <span>Wireframe <span className="shortcut-badge">F</span></span>
-                </label>
-              )}
-            </section>
-
-            {/* 3. Noise layers */}
-            <section className="sidebar-section">
-              <LayerPanel
-                layers={layers}
-                onChange={handleLayerChange}
-                onAdd={handleLayerAdd}
-                onRemove={handleLayerRemove}
-                onReorder={handleReorder}
-              />
-            </section>
-
-          </div>
-        </aside>
-      </main>
+        <h2>{t('view')}</h2>
+        <Slider label={t('height')} value={heightScale} min={2} max={18} step={0.5} onChange={setHeightScale} />
+        <div className="row">
+          <button onClick={() => set('seed')(p.seed + 1)}>{t('seed')} · {p.seed}</button>
+        </div>
+        <p className="dim small">{t('hint')}</p>
+      </aside>
     </div>
+  );
+}
+
+/** A heightmap drawn as ink on paper: dark = high. */
+function MapThumb({ data }: { data: Float32Array }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const ctx = ref.current?.getContext('2d');
+    if (!ctx) return;
+    const img = ctx.createImageData(RES, RES);
+    for (let i = 0; i < data.length; i++) {
+      const v = Math.min(Math.max(data[i], 0), 1);
+      img.data[i * 4] = 239 - v * 212;
+      img.data[i * 4 + 1] = 232 - v * 206;
+      img.data[i * 4 + 2] = 216 - v * 192;
+      img.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  }, [data]);
+  return <canvas ref={ref} width={RES} height={RES} />;
+}
+
+function Slider({ label, value, min, max, step, onChange }: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void }) {
+  return (
+    <label className="slider">
+      <span>{label}</span>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+      <span className="dim">{Number.isInteger(step) ? value : value.toFixed(2)}</span>
+    </label>
   );
 }

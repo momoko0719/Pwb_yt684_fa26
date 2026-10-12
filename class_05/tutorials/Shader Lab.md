@@ -1,5 +1,21 @@
 # Class 05 — Shader Lab
 
+## 2026-10 rework: Glaze · Pearl · Glow 琉璃 · 珠光 · 荧光
+
+For the midterm atlas the app was rebuilt as three materials for Guixu, in the same paper, ink and vermilion style as the other class apps (EN/中文). The original twenty-study lab is in git history.
+
+Each material is one hand-written shader (`src/shaders.ts`) on a fitting subject (`src/Specimens.tsx`), with its key line of GLSL in the panel and a **Show mask** switch that draws the 0..1 value behind the colour:
+
+| Material | Subject | Technique | Mask |
+| --- | --- | --- | --- |
+| **Glaze 琉璃** | a leaning scholar's rock (welded, displaced icosahedron) | glaze gradient by height (deep teal → azure), Fresnel rim in gold, Blinn-Phong highlight | `pow(1 − N·V, power)` |
+| **Pearl 珠光** | a two-ring flower with cupped, frilled petals (after the silicone and pearl flowers in the moodboard) | thin-film interference: hue from `cos(2π(thickness·(1 − N·V) + phase))`, softened toward white and strongest at grazing angles; warm light through the petal when the light is behind it; the light circles the flower | `1 − N·V` |
+| **Glow 荧光** | a night sea with dark rocks (after the bioluminescent sea in Hong Kong) | waves in the vertex shader (sines + noise); plankton light up on crests (`smoothstep` on height × flickering noise) and in a ring spreading from where the mouse moves (or, when idle, where a fish breaks the surface) | the glow amount |
+
+The notes below describe the original lab.
+
+---
+
 A visual playground for the shader ideas from class: **see an effect → change one control → understand why it changed**.
 
 App: `class_05/react-app-ts/`

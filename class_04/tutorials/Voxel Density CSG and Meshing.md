@@ -8,6 +8,21 @@ Related: [Firebase — Auth, Firestore, Storage, Hosting](./Firebase%20Auth%20Fi
 
 ---
 
+## 2026-10 rework: Grotto Heaven 洞天
+
+For the midterm atlas the local app was rebuilt around one Guixu idea, in the same paper, ink and vermilion style as Classes 03, 06 and 07 (EN/中文). The Clay Studio (with Google sign-in and Firestore) stays live at https://pwb-class04-clay.web.app and in git history.
+
+- **Why voxels**: a heightmap holds one height per (x, z), so it cannot hold a cave. A density field (solid where the value is above zero) can, which is what a 洞天, a hidden world inside the mountain, needs. This is also the teacher's midterm advice for Guixu's terrain.
+- **1 Density** (`lib/grotto.ts`): an island SDF (a flattened dome smoothly joined to a hanging cone) roughened by 3D fBm.
+- **2 Carve (CSG)**: smooth subtraction of a winding cave (distance to a chain of points), a skylight shaft (cylinder) and a hollow under the rim (sphere); each can be switched off.
+- **3 Mesh** (`lib/buildMesh.ts`): culled-face blocks or marching cubes (vertices welded for smooth normals); triangle count and build time shown.
+- **Reading the field**: three slices in the panel (island section, carved section, cave level from above), ink for rock and a vermilion line where density = 0.
+- **Look**: grass on upward faces, stone walls darkening toward the tip, carved surfaces in warm ochre, and a warm light with small glows inside the cave.
+
+The notes below describe the original Clay Studio.
+
+---
+
 ## One-sentence summary
 
 Class 04 moves from **2D heightmaps** (Class 03) to **3D volumes**: every point can be solid or empty. You explore **density recipes**, **CSG cuts**, **meshing (how to draw)**, and **chunking (why big worlds must split)**.

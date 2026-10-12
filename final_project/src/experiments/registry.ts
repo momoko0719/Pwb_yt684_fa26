@@ -29,6 +29,11 @@ export interface ExperimentMeta {
   date: string;
   status: string;
   summary: Localized;
+  /** Atlas card: the repo's class number ("Class 03"), what it taught, how it feeds Guixu, a picture under public/. */
+  course?: string;
+  learned?: Localized;
+  guixu?: Localized;
+  image?: string;
 }
 
 /** Hand-written card pointing at a separately deployed site. */
@@ -51,4 +56,5 @@ export const experiments: Experiment[] = Object.entries(metas)
   .filter((e) => e.load)
   .sort((a, b) => byDateDesc(a.meta, b.meta));
 
-export const externalEntries = (external as ExternalEntry[]).slice().sort(byDateDesc);
+/** Class exercises in course order (the file's order), served from public/atlas/ (see scripts/build-atlas.mjs). */
+export const externalEntries = external as ExternalEntry[];

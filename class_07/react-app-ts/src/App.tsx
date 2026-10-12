@@ -8,7 +8,8 @@ type Page = 'pines' | 'chronicle';
 /** Class 07 has two assignments: switch between them at the top right. */
 export default function App() {
   const { lang, setLang, t } = useLang();
-  const [page, setPage] = useState<Page>('pines');
+  // `#chronicle` in the address opens Assignment 2 directly (the Guixu atlas links there).
+  const [page, setPage] = useState<Page>(() => (window.location.hash === '#chronicle' ? 'chronicle' : 'pines'));
   return (
     <>
       {page === 'pines' ? <Pines /> : <Chronicle />}

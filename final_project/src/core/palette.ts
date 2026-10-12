@@ -189,4 +189,14 @@ export const UI = {
   accent: PIGMENT.cinnabar,
 };
 
-export const palette = { world: getPalette, ui: UI };
+/** The atlas pages: paper ground and ink text, matching the class exercise apps (a research notebook). */
+export const ATLAS_UI = {
+  paper: '#efe8d8',
+  card: '#f7f2e6',
+  ink: '#1b1a18',
+  inkDim: '#7a746a',
+  rule: '#c9c0ac',
+  seal: '#b33a2a',
+};
+
+export const palette = { world: getPalette, ui: UI, atlas: ATLAS_UI };

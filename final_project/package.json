@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "atlas": "node scripts/build-atlas.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

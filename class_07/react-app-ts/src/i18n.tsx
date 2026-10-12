@@ -186,7 +186,8 @@ const LangContext = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (
 });
 
 export function LangProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>('zh');
+  // ?lang=en in the address (the Guixu atlas passes the site's language) picks the starting language.
+  const [lang, setLang] = useState<Lang>(() => (new URLSearchParams(window.location.search).get('lang') === 'en' ? 'en' : 'zh'));
   return <LangContext.Provider value={{ lang, setLang, t: (k) => DICTS[lang][k] }}>{children}</LangContext.Provider>;
 }
 
