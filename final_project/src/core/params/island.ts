@@ -36,6 +36,8 @@ export interface SurfaceParams {
   grassHeight: number;
   /** 0..1, how many Zhuyu flowers grow among the grass: 0 none. */
   flowerDensity: number;
+  /** Number of L-system pines on the ridges and the cliff edge. */
+  pineCount: number;
 }
 
 /**
@@ -71,4 +73,5 @@ export const DEFAULT_SURFACE: SurfaceParams = {
   grassDensity: 0.6,
   grassHeight: 0.5,
   flowerDensity: 0.5,
+  pineCount: 12,
 };

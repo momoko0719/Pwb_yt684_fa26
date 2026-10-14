@@ -1,4 +1,7 @@
-import { Color, Vector3 } from 'three';
+import { Color, DataTexture, LinearFilter, RGBAFormat, Vector3, type Texture } from 'three';
+import type { WindField } from '../generators/wind';
+import { WIND_GRID } from '../generators/wind';
+import { WIND_RANGE } from './atmosphere';
 import type { WorldPalette } from '../palette';
 
 /**
@@ -25,6 +28,8 @@ export function createWorldUniforms() {
     uSunDir: { value: new Vector3(0, 0.1, -1).normalize() },
     uTime: { value: 0 },
     uWind: { value: 0.5 },
+    uWindField: { value: null as Texture | null },
+    uWindHalf: { value: 0 },
   };
 }
 
@@ -57,4 +62,27 @@ export function setSunDirection(u: WorldUniforms, azimuth: number, elevationDeg:
 /** Puts the sun on the far side of `target` as seen from the camera, so the view is backlit. */
 export function placeSunBehind(u: WorldUniforms, camera: Vector3, target: Vector3, elevationDeg: number) {
   setSunDirection(u, Math.atan2(target.z - camera.z, target.x - camera.x), elevationDeg);
+}
+
+/** Packs the wind field into a small texture (RG = velocity in -WIND_RANGE..WIND_RANGE) for the shaders. */
+export function windTexture(wind: WindField): DataTexture {
+  const n = WIND_GRID * WIND_GRID;
+  const bytes = new Uint8Array(n * 4);
+  const pack = (v: number) => Math.round(Math.min(Math.max(v / WIND_RANGE, -1), 1) * 127.5 + 127.5);
+  for (let i = 0; i < n; i++) {
+    bytes[i * 4] = pack(wind.data[i * 2]);
+    bytes[i * 4 + 1] = pack(wind.data[i * 2 + 1]);
+    bytes[i * 4 + 3] = 255;
+  }
+  const texture = new DataTexture(bytes, WIND_GRID, WIND_GRID, RGBAFormat);
+  texture.magFilter = LinearFilter;
+  texture.minFilter = LinearFilter;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/** Points every material's wind at a new field. */
+export function setWindField(u: WorldUniforms, wind: WindField, texture: Texture) {
+  u.uWindField.value = texture;
+  u.uWindHalf.value = wind.half;
 }

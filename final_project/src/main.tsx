@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter, NavLink, Route, Routes } from 'react-router-dom';
-import { ATLAS_UI, UI } from './core/palette';
+import { ATLAS_UI, SILK_UI, UI } from './core/palette';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { LANGUAGES } from './i18n/strings';
 import Home from './pages/Home';
@@ -16,6 +16,9 @@ for (const [name, color] of Object.entries(UI)) {
 }
 for (const [name, color] of Object.entries(ATLAS_UI)) {
   document.documentElement.style.setProperty(`--atlas-${name}`, color);
+}
+for (const [name, color] of Object.entries(SILK_UI)) {
+  document.documentElement.style.setProperty(`--silk-${name}`, color);
 }
 
 function Header() {

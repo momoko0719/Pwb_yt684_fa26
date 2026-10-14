@@ -1,6 +1,6 @@
 import { useRef, type PointerEvent } from 'react';
 import { Components, createPlugin, useInputContext } from 'leva/plugin';
-import { UI } from '../core/palette';
+import { SILK_UI } from '../core/palette';
 
 const { Row, Label } = Components;
 
@@ -52,17 +52,17 @@ function SunArc() {
       <Label>{label}</Label>
       <svg ref={svg} viewBox={`0 0 ${W} ${H}`} width="100%" style={{ touchAction: 'none', cursor: 'grab' }}
         onPointerDown={drag} onPointerMove={drag}>
-        <line x1={0} x2={W} y1={CY} y2={CY} stroke={UI.line} />
-        <path d={arcPath(6, 18)} fill="none" stroke={UI.textDim} />
-        <path d={arcPath(18, 30)} fill="none" stroke={UI.line} strokeDasharray="3 4" />
+        <line x1={0} x2={W} y1={CY} y2={CY} stroke={SILK_UI.line} />
+        <path d={arcPath(6, 18)} fill="none" stroke={SILK_UI.textDim} />
+        <path d={arcPath(18, 30)} fill="none" stroke={SILK_UI.line} strokeDasharray="3 4" />
         {[0, 6, 12, 18].map((h) => {
           const [x, y] = pointOf(h);
-          return <circle key={h} cx={x} cy={y} r={2} fill={UI.textDim} />;
+          return <circle key={h} cx={x} cy={y} r={2} fill={SILK_UI.textDim} />;
         })}
-        <text x={CX} y={CY - 8} textAnchor="middle" fill={UI.text} fontSize={12}>
+        <text x={CX} y={CY - 8} textAnchor="middle" fill={SILK_UI.text} fontSize={12}>
           {`${Math.floor(value)}:${minutes} · ${settings.describe(value)}`}
         </text>
-        <circle cx={sx} cy={sy} r={7} fill={value >= 6 && value <= 18 ? UI.accent : UI.bg} stroke={UI.accent} />
+        <circle cx={sx} cy={sy} r={7} fill={value >= 6 && value <= 18 ? SILK_UI.seal : SILK_UI.bg} stroke={SILK_UI.seal} />
       </svg>
     </Row>
   );

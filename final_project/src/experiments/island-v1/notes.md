@@ -576,3 +576,191 @@ minimum, by at least 6 units and at least 0.2R (preset: clouds at -50.7).
   The shader paints by rise, so every peak gets ochre → malachite → azurite, with azurite scaled by
   0.35–1 of prominence and the jade tip only on peaks above 0.75 prominence. `uPeakHeight` is gone.
   Summits measure rise 1.00 and feet 0.00; the island mesh takes about 250 ms (was about 200).
+
+## Midterm round (2026-10-12): scale, camera, pines, wind field, solar terms
+
+Prompted by the midterm feedback (grass too tall next to the peaks; the camera clipping into the
+ground) and by the owner's wish to bring Sessions 6 and 7 onto the island.
+
+- **Grass scale.** Blade height at grassHeight 0..1 went from 0.25..1.4 to 0.1..0.6 world units
+  (about metres) on a radius-31 island: the default is now about 0.35, shin height for a 1.7 eye,
+  next to 7-unit peaks. Flower heads were 0.25 of the blade; now 0.55, so they keep their old size.
+- **Camera collision** (`core/camera.ts`, pure). After the orbit controls move the camera each
+  frame, `clearHeight` checks it against the top surface and the underside at its (x, z), out to
+  1.03 of the rim; inside the rock or within 1.5 units (scaled by radius / 31) of it, the camera
+  is moved out through the nearer surface. Walking already kept the eye 1.7 above the feet.
+- **Pines** (`core/generators/pine.ts`, `core/shaders/pine.ts`, `Pines.tsx`; Class 07). The Class 07
+  welcome-pine grammar (stochastic rules, 7 generations, golden-angle roll, gravity) grown with
+  createRng; four seeded variants per island. Placement: 1,500 candidate spots scored by height on
+  a peak, closeness to the rim and rockiness, none in pools or on slopes over 1.3, drawn by score
+  with a 4-unit gap; trees past 0.8 of the rim lean out 0.15–0.35 rad. Scale 0.46–0.72, so a pine
+  stands about 4–7 units: a scale reference for the whole island. LOD: three meshes per variant cut
+  by recursion depth (every twig; twigs merged into one pad per limb; trunk plus one pad per limb),
+  switched by three.js `LOD` at 28 and 75 units (scaled). Evergreen colours from `TREE` in the
+  palette; lit like the terrain; `uSnow` lays snow on the tops of the pads. Default 12 (`pineCount`).
+- **Wind as a vector field** (`core/generators/wind.ts`; Class 06). A 48 x 48 grid over 1.4 radii:
+  the prevailing wind along WIND_DIR, plus for each peak ideal flow past a cylinder of 0.7 x its
+  base radius (speed-up on the flanks, slow in front), a wake behind it (up to 60 % calmer), plus
+  curl noise at 0.12 (at 0.35 the eddies turned the streaks into loops). Packed into a 48 x 48
+  RGBA8 texture (-2.5..2.5) that `windAt` in the shared GLSL samples, so grass and flowers sway with
+  the local wind; gusts and flutter now follow the local direction. **Show wind** draws 900
+  particles reading the same field each frame, with 14-point trails sampled every 0.05 s (one
+  ground lookup per new point, not per frame).
+- **The 24 solar terms** (`core/season.ts`, `SeasonBar.tsx`). The year is a number 0..24 from the
+  Start of Spring (Feb 4), 15.2 days per term; it opens on the current term (Oct 12 → 16.4, Cold
+  Dew). Rules: green rises 惊蛰→立夏 and fades 处暑→霜降; gold rises 立秋→秋分 and fades by 立冬;
+  snow comes 小雪→冬至 and melts by 雨水; flowers are in season 惊蛰→白露; the sun is up to 9° higher
+  at the Summer Solstice and lower in winter. The meadow colour (terrain and grass both read
+  uMeadow) goes straw → theme green → gold → half under snow; grass is 45–100 % of its height;
+  terrain snow comes down each peak from the summit as uSnow grows. The bar under the island can be
+  dragged through 24 ticks, or played (one year in 120 s, checked at about 0.2 terms per second);
+  "Today" jumps back. Checked in the browser at Cold Dew (gold), Minor Cold (snow on peaks and
+  pines, straw meadow) and Grain in Ear (green).
+
+## Midterm round, part 2 (2026-10-13): view, grass, silk panels, footpath, pavilion
+
+- **Default view** about 35° above the horizon (was about 10°), so the top of the island reads.
+- **Grass density** doubled once the blades were shorter: 60 candidate sites per square unit
+  (cap 250,000, was 30 and 120,000); blades 0.14 of their height wide (was 0.10).
+- **Silk panels.** On the experiment page the UI colour variables become `SILK_UI` (translucent
+  silk, ink text, cinnabar accent) with a backdrop blur, and leva gets the same theme; the site
+  header stays ink. The panels now match the atlas and the class apps instead of a dark tech UI.
+- **Footpath** (`core/generators/path.ts`, `Path.tsx`; Class 06 paths). Landing: the gentlest of
+  64 spots at 0.9 of the rim. Lookout: the highest grid cell with slope under 0.12, at least half
+  a radius from the landing. A* on a 96 x 96 grid, step cost = length x (1 + 25 x grade²), pools and
+  grades over 0.9 blocked; Catmull-Rom through every second cell, resampled every 0.6 units and
+  draped on the ground; grade over 0.22 → steps. Flagstones (2–3 per sample, instanced
+  dodecahedra) and step slabs (instanced boxes) use a new prop shader lit like the terrain. Grass,
+  flowers and pines avoid the path (half its width + 0.15) and a 4-unit circle at the lookout.
+- **Pavilion** (`core/generators/pavilion.ts`, `Pavilion.tsx`). A shape grammar: plinth (one
+  stone per side + centre slab), three steps facing the arriving path, six columns, six beams, six
+  concave roof panels with corners lifted (flying eaves), a gilt finial: 30 blocks, each with its
+  place in the rule order. They drop in 0.16 s apart and settle in 0.55 s with a small bounce;
+  **Build the pavilion** (Surface) replays it. Colours from `PROPS` in the palette.
+
+## Midterm round, part 3 (2026-10-13): paper panels, drawn paths, varied pavilions
+
+Owner feedback on part 2: grey text on the translucent silk and ink lettering on the cinnabar
+button were hard to read; the pavilion was one fixed building with an animation, not procedural;
+the path looked preset because the visitor had no say.
+
+- **Panels, version D** (chosen from four mock-ups). Opaque paper (#f3ecdc) with a light SVG grain,
+  every label and value in ink (no grey), 1.5 px ink borders with a small offset shadow, ink
+  buttons with paper lettering (leva's buttons forced to paper text), ink slider fills. Cinnabar
+  only in small marks: the step numbers, a diamond on the Techniques button and the active tool.
+- **Drawn paths.** `routePath` takes any two points (clicks snap to the nearest walkable cell);
+  the first path keeps its automatic ends. Draw a path (bottom left): click a start (a cinnabar
+  marker), click an end; the route comes from A* as before. Cells on an existing path cost 0.35 of
+  fresh ground, so new paths join old ones and a network grows. Grass and flowers keep off every
+  path and pavilion (a 256 x 256 mask instead of scanning points); pines only avoid the first path
+  so they do not move while drawing. Clear paths removes the drawn ones.
+- **Every path ends in a pavilion, each different.** The grammar's numbers come from a seed: 4, 6
+  or 8 sides, column radius 1.3–1.8 and height 2–2.8, roof height 1.2–2.1, eave lift 0.25–0.65, and
+  a double eave 35 % of the time (Roof → lower skirt to an inner ring + upper roof).
+
+## Midterm round, part 4 (2026-10-13): bridges, the search made visible, static pavilions
+
+- **Pavilions** are static again (the owner felt the build animation was not procedural); the
+  double eave had a gap between the lower skirt and the upper roof: a wall (beam colour) now runs
+  from inside the skirt to above the upper eave.
+- **Bridges.** A* may leap 2–12 cells in a straight line when every cell between is a pool or lies
+  more than 1 unit below the deck, and the deck grade is under 0.3; a leap costs 1.4 x its length
+  + 3, so it is taken only where going round costs more. The route splits into walked runs
+  (smoothed) and bridges (straight); bridge samples follow the deck. Kind: over water a stone arch
+  up to 7 units, over a gully a stone arch up to 3.5, else a rope bridge. A path across the left
+  pool on Penglai came out as a 6.1-unit span (rope before the water rule, arch after it).
+  Stone arch: deck slabs with a hump of 0.1 x length, a ring of arch stones dropping 0.35 x length
+  toward the banks, posts on both sides. Rope bridge: four posts, planks sagging 0.08 x length,
+  hand ropes as short cylinder pieces.
+- **The search made visible.** A* records the cells it settles, in order. A new path first shows
+  them as ink dots (0.8–2.5 s, up to 6,000), then lays its pieces from start to end (0.03 s per
+  sample: flagstones, steps, bridge parts, all instanced and revealed as a prefix), then the dots
+  fade over 1.2 s.
+
+## Midterm round, part 5 (2026-10-13): guided paths, fewer pavilions, arch bridges only
+
+Owner feedback: the search dots covered the whole island and looked bad; the island should open
+by guiding the visitor; rope bridges came up too often (the ground is uneven) and had only two
+ropes; a pavilion on every path was too many.
+
+- **No search dots.** A* no longer records the cells it settles; a new path is simply laid from
+  start to end (0.03 s per sample).
+- **Guided start.** No path is drawn on load and the path tool is on. A prompt at the top shows
+  three steps (pick a start, pick an end, the path is laid) with a pulsing cinnabar dot while it
+  waits; after the path is laid it says whether a pavilion was built.
+- **Pavilions only where they make sense** (`worthAPavilion`): slope under 0.2 at the end, a view
+  (past 0.75 of the rim or higher than 0.4 x peak height), at least 10 units from another, at most
+  four. The pavilion appears when the stones reach it.
+- **Bridges are stone arches only.** A gully counts only if the ground is 2.5 units (was 1) below
+  the deck, and a span is at most 7 units.
+- **Techniques panel trimmed** from 15 cards to 13: Seeded randomness folded into the intro (and
+  the seed slider listed under Terrain), Rim light merged into the colour card; the intro is two
+  sentences; the path, pavilion, pines, wind and seasons texts were shortened.
+- **Follow-up: friendlier pavilions.** The two-point slope test (0.8 units apart) read small bumps
+  of the heightmap as too steep, so flat-looking ends rarely got a pavilion. The slope is now the
+  mean over a 3-unit patch (threshold 0.25), the view test is past 0.7 of the rim or above
+  0.3 x peak height, and a click is an intent: `pavilionSiteNear` searches a 4-unit disc (13 x 13
+  samples) for the nearest spot worth a pavilion, and the path ends there. Prompts are positive:
+  before the second click they say where pavilions go (high up or at the edge); afterwards either
+  "a pavilion stands there" or simply "the path is open". Checked: an end near the east edge and an
+  end on a peak shoulder both got a pavilion.
+
+## Midterm round, part 6: Huangshan pines, techniques audit
+
+Owner feedback, with photos of Huangshan pines and their needles: even the most detailed pine was
+a cluster of blobs. Huangshan pines have a bent trunk and flat top, long level limbs in layers
+(often one arm reaching far out), and short stiff needles in upward tufts like brush heads.
+
+- **L-system.** Eight generations (was seven). The trunk climbs, setting one or two limbs at the
+  golden angle; in the last three generations it stops and spreads into a crown of level limbs (the
+  flat top). Limb -> sprays to either side; spray -> a fan of twigs; twig -> one or three tufts.
+  Needle tufts also sit at the end of every shoot of depth 2 or more.
+- **Turtle.** Limbs are re-levelled every step (their left vector kept horizontal), so `+` and `-`
+  fan the sprays out flat in layers. The trunk wanders (bend 0.26) but keeps climbing; limbs sag
+  (0.05 per step); twigs turn up (0.14). Limbs on the tree's +x side grow up to 1.7x longer, and
+  `placePines` faces that side outward on the edge (the Welcoming Pine's long arm). The trunk base
+  flares (1.6x). Normals are written by hand: smooth bark, ellipsoid clouds, needles lit as part of
+  their tuft. The pine material is double-sided.
+- **Needles.** Each tuft is 22 thin triangles opening up to 0.8 rad around an axis halfway between
+  the shoot and the sky, dark at the base and light at the tip, over a flat dark core under each
+  spray so the layer still reads as one mass.
+- **LOD, cut at the sprays (depth 2).** LOD0: every twig and needle (about 10k-19k triangles per
+  variant). LOD1: 7 wider needles per tuft, one stick per spray (3k-5k). LOD2: one flat cloud per
+  spray (1.5k-2k). Switch distances 0 / 40 / 100 (were 0 / 28 / 75): at the opening view the
+  trees were all on the old LOD2, one blob per limb, which was the "cluster" the owner saw.
+- **Techniques audit.** The grass card still said its wind was a noise pattern; it now reads the
+  wind field (title "Grass", no longer overlapping the wind card). The wind card moved before
+  grass, since the intro promises the order the code runs. The intro now says everything but the
+  drawn paths comes from the seed. The colour card's what/where no longer repeat each other and
+  point to Peaks for the peaks' own colours. "Colour" spelled "Color" throughout the English.
+
+- **Follow-up: no cores, bottle-brush needles.** The owner saw the dark cores under the sprays as
+  discs with needles stuck in them (a cactus). Removed every cloud and core. Needles now grow along
+  every shoot of depth 2 or more (90 per unit of shoot at LOD0), standing out 0.6-0.95 rad from the
+  shoot, leaning up, 0.36 long; each tip closes into a brush of 14. A new rule level, E (a short
+  shoot), gives the sprays enough needles to read as a mass on their own. Needle green deepened to
+  #3a6340. LOD: 0 = every twig and needle (20k-37k triangles per variant); 1 = 14 per unit and 4
+  per tip, 2.6x wider, one stick per spray (4k-7k); 2 = three 7x-wide needles per tip (2k-3k).
+  Checked side by side: LOD0 and LOD1 match at 45 units, LOD2 keeps the layered outline at 90.
+  Switch distances moved to 0 / 60 / 180, so the opening view shows LOD1 and close-ups LOD0.
+
+## Midterm round, part 7: panel legibility, performance
+
+- **Panel.** The rule that made leva button text paper-coloured also hit the theme swatches, so
+  their names vanished; swatches are now excluded and drawn in the paper palette (seal-red frame on
+  the chosen one). Checkboxes were a 16 px box in the input colour with no border, and leva draws
+  the tick in ink on ink when checked: they now have an ink outline and a paper tick. The curve
+  and sun-arc controls still used the old dark UI colours; now SILK_UI.
+- **LOD check (in the page).** At the opening view (106 units out) all 12 trees are on LOD1; next
+  to a tree all are on LOD0 (every tree is within 60 units); 60 units from one tree it drops to
+  LOD1. LOD2 only shows when zoomed far out.
+- **Measured (this machine, canvas 1536 x 802).** GPU+CPU per frame with readPixels sync: 2.6 ms
+  at resolution 128, 2.9 ms at 256; terrain about 1.3-1.5 ms of it, cloud sea about 0.6-1.2 ms,
+  useFrame logic under 0.01 ms. Pixel ratio 1 / 1.2 / 1.5 / 2: 2.5 / 2.9 / 3.5 / 4.9 ms.
+  Terrain triangles 295k at 128, 1.18M at 256. Rebuild on a shape change: createIsland 0.3 s at
+  128, 0.97 s at 256, plus grassSites 0.15 s. A click: one raycast 6 ms at 128, 25 ms at 256;
+  route + masks + re-filtering grass and flowers about 60 ms.
+- **So the lag is rebuilding, not drawing.** Dragging a shape slider rebuilt the whole island on
+  every step (about 1.2 s each at 256). Shape values now settle for 250 ms before the island is
+  rebuilt (`useSettled` in controls.ts). The pixel ratio is capped at 1.5 (44% fewer pixels than 2x
+  on a retina screen). The resolution hint now gives the measured triangle counts and times.

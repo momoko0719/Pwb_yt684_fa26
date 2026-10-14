@@ -10,9 +10,9 @@ import { poolBasin } from './pools';
  */
 const GRID = 160; // height samples across the island's diameter
 const FRAME = 1.3; // the grid covers this many radii each way, enough for the widest headland
-const TARGET_DENSITY = 30; // candidate blades per square world unit
+const TARGET_DENSITY = 60; // candidate blades per square world unit (doubled once the blades got shorter)
 const PER_CELL: [number, number] = [1, 24]; // blades per grid cell, at least and at most
-const MAX_SITES = 120000; // the per-cell count shrinks so no island has more candidates than this
+const MAX_SITES = 250000; // the per-cell count shrinks so no island has more candidates than this
 const GRASS_SEED_SALT = 0x2c1b3c6d;
 
 export interface GrassSites {
@@ -151,4 +151,17 @@ function keepSites(sites: GrassSites, keep: (s: number, r: Float32Array) => bool
 function soft(a: number, b: number, x: number): number {
   const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
   return t * t * (3 - 2 * t);
+}
+
+/** Blades that do not stand in `avoid` (the footpath, the pavilion's ground). */
+export function clearBlades(blades: GrassBlades, avoid: (x: number, z: number) => boolean): GrassBlades {
+  const keep: number[] = [];
+  for (let i = 0; i < blades.count; i++) if (!avoid(blades.offset[i * 3], blades.offset[i * 3 + 2])) keep.push(i);
+  const offset = new Float32Array(keep.length * 3);
+  const shape = new Float32Array(keep.length * 4);
+  keep.forEach((k, i) => {
+    offset.set(blades.offset.subarray(k * 3, k * 3 + 3), i * 3);
+    shape.set(blades.shape.subarray(k * 4, k * 4 + 4), i * 4);
+  });
+  return { count: keep.length, offset, shape };
 }

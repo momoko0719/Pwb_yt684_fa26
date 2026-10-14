@@ -1,5 +1,5 @@
 import { Components, createPlugin, useInputContext } from 'leva/plugin';
-import { UI } from '../core/palette';
+import { SILK_UI } from '../core/palette';
 
 const { Row, Label } = Components;
 
@@ -30,14 +30,14 @@ function Curve() {
       <Label>{label}</Label>
       <div>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
-          <rect x={0.5} y={0.5} width={W - 1} height={H - 1} fill="none" stroke={UI.line} />
-          <path d={path} fill="none" stroke={UI.accent} strokeWidth={1.5} />
+          <rect x={0.5} y={0.5} width={W - 1} height={H - 1} fill="none" stroke={SILK_UI.line} />
+          <path d={path} fill="none" stroke={SILK_UI.accent} strokeWidth={1.5} />
         </svg>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <input type="range" min={min} max={max} step={step} value={value}
             onChange={(e) => onUpdate(parseFloat(e.target.value))}
-            style={{ flex: 1, accentColor: UI.accent }} />
-          <span style={{ color: UI.text, fontSize: 11, minWidth: 28, textAlign: 'right' }}>{value}</span>
+            style={{ flex: 1, accentColor: SILK_UI.accent }} />
+          <span style={{ color: SILK_UI.text, fontSize: 11, minWidth: 28, textAlign: 'right' }}>{value}</span>
         </div>
       </div>
     </Row>

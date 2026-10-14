@@ -18,7 +18,8 @@
     "fallCount": 3,
     "grassDensity": 0.6,
     "grassHeight": 0.5,
-    "flowerDensity": 0.5
+    "flowerDensity": 0.5,
+    "pineCount": 12
   },
   "scene": {
     "theme": "qinglv",

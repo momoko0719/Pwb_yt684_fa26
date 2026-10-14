@@ -4,7 +4,7 @@ import { ATMOSPHERE_GLSL } from './atmosphere';
 import type { WorldUniforms } from './uniforms';
 
 const SEGMENTS = 4; // rows along a blade, root to tip
-const BLADE_WIDTH = 0.1; // blade width at the root, as a share of its height
+const BLADE_WIDTH = 0.14; // blade width at the root, as a share of its height
 const LEAN: [number, number] = [0.15, 0.5]; // how far a blade curves over at rest, as a share of its height
 
 const vertexShader = /* glsl */ `

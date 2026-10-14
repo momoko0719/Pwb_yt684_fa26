@@ -174,3 +174,75 @@ h2 { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-top: 40px
 .technique-steps { margin-left: auto; display: flex; gap: 18px; }
 .technique-frame iframe { flex: 1; width: 100%; border: 0; display: block; }
 @media (max-width: 640px) { .technique-steps a:not(:last-child) { display: none; } }
+
+/* The year of solar terms under the island. */
+.season-bar {
+  position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6;
+  display: flex; align-items: center; gap: 12px; padding: 8px 14px; width: min(560px, calc(100% - 32px));
+  background: var(--bg); color: var(--text); border: 1px solid var(--line); font-size: 0.85rem;
+}
+.season-bar button {
+  font: inherit; background: none; color: var(--accent); border: 1px solid var(--accent); padding: 2px 10px; cursor: pointer;
+}
+.season-play { width: 38px; }
+.season-name { display: flex; flex-direction: column; min-width: 92px; line-height: 1.25; }
+.season-name b { font-weight: normal; font-size: 1.05rem; letter-spacing: 0.08em; }
+.season-name .dim { font-size: 0.7rem; }
+.season-bar input[type='range'] {
+  flex: 1; accent-color: var(--accent);
+  /* 24 ticks, one per solar term */
+  background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px calc(100% / 24));
+}
+.walk-hint { bottom: 84px; }
+
+/* Over the 3D world the panels are paper: opaque, a light grain, ink text and ink lines. Cinnabar
+   only in small marks. The experiment page redefines the UI colours for everything inside it. */
+.experiment {
+  --bg: var(--silk-bg); --text: var(--silk-text); --textDim: var(--silk-textDim); --line: var(--silk-line); --accent: var(--silk-accent);
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.35  0 0 0 0 0.3  0 0 0 0 0.2  0 0 0 0.16 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+.technique-panel, .season-bar, .technique-toggle, .leva-dock, .walk-hint, .tool-bar {
+  background-color: var(--silk-bg); background-image: var(--grain); color: var(--silk-text);
+  border: 1.5px solid var(--silk-text); box-shadow: 2px 2px 0 rgba(20, 18, 16, 0.22);
+}
+.experiment-caption { color: var(--silk-text); }
+.experiment-caption a, .experiment-caption span { background: var(--silk-bg); padding: 1px 8px; border: 1px solid var(--silk-text); }
+.technique-toggle { color: var(--silk-text); border-color: var(--silk-text); }
+.technique-toggle::before { content: '◆ '; color: var(--silk-seal); font-size: 0.7em; vertical-align: 2px; }
+.technique-step { color: var(--silk-seal); font-weight: bold; }
+.technique-label { color: var(--silk-text); font-weight: bold; }
+.technique-card h3 { font-weight: bold; }
+.season-bar button { color: var(--silk-text); border: 1.5px solid var(--silk-text); }
+.season-bar .season-play { background: var(--silk-text); color: var(--silk-bg); }
+.season-bar input[type='range'] { accent-color: var(--silk-text); }
+.season-name .dim { color: var(--silk-textDim); }
+/* leva buttons are ink: their lettering must be paper, not ink. */
+.leva-dock button:not(:disabled):not(.leva-swatch) { color: var(--silk-bg) !important; font-weight: bold; }
+/* Checkboxes: an ink outline so the empty box shows on paper; when ticked, a paper tick on ink. */
+.leva-dock input[type='checkbox'] + label { border: 1.5px solid var(--silk-text); box-sizing: border-box; }
+.leva-dock input[type='checkbox'] + label svg { stroke: var(--silk-bg) !important; }
+.leva-dock { font-weight: 500; }
+
+/* Draw-a-path tool, bottom left. */
+.tool-bar { position: absolute; left: 16px; bottom: 20px; z-index: 6; display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 0.85rem; max-width: calc(50% - 300px); flex-wrap: wrap; }
+.tool-bar button { font: inherit; background: none; color: var(--silk-text); border: 1.5px solid var(--silk-text); padding: 2px 10px; cursor: pointer; }
+.tool-bar button.on { background: var(--silk-text); color: var(--silk-bg); }
+.tool-bar button.on::before { content: '◆ '; color: var(--silk-seal); font-size: 0.7em; vertical-align: 2px; }
+.tool-hint { font-size: 0.8rem; }
+@media (max-width: 1100px) { .tool-bar { bottom: 84px; max-width: none; } }
+
+/* The guide at the top: which step the visitor is on, and a pulse while it waits for a click. */
+.path-prompt {
+  position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 7;
+  display: flex; align-items: center; gap: 12px; padding: 8px 16px; max-width: min(560px, calc(100% - 32px));
+  background-color: var(--silk-bg); background-image: var(--grain); color: var(--silk-text);
+  border: 1.5px solid var(--silk-text); box-shadow: 2px 2px 0 rgba(20, 18, 16, 0.22);
+  font-size: 0.95rem; animation: prompt-in 0.35s ease-out;
+}
+.path-steps { display: flex; gap: 5px; }
+.path-steps i { width: 8px; height: 8px; border: 1.5px solid var(--silk-text); transform: rotate(45deg); }
+.path-steps i.past { background: var(--silk-text); }
+.path-steps i.on { background: var(--silk-seal); border-color: var(--silk-seal); }
+.path-pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--silk-seal); animation: pulse 1.2s ease-out infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(184, 69, 47, 0.55); } 100% { box-shadow: 0 0 0 12px rgba(184, 69, 47, 0); } }
+@keyframes prompt-in { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }

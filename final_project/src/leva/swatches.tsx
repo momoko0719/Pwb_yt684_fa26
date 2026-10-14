@@ -1,5 +1,5 @@
 import { Components, createPlugin, useInputContext, useValue } from 'leva/plugin';
-import { UI } from '../core/palette';
+import { SILK_UI } from '../core/palette';
 
 const { Row, Label } = Components;
 
@@ -27,17 +27,18 @@ function Swatches() {
       <Label>{label}</Label>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 4 }}>
         {settings.options.map((option) => (
-          <button key={option.value} type="button" onClick={() => onUpdate(option.value)} title={option.label}
+          <button key={option.value} type="button" className="leva-swatch" onClick={() => onUpdate(option.value)} title={option.label}
             style={{
               padding: 3,
               background: 'none',
-              border: `1px solid ${option.value === value ? UI.accent : UI.line}`,
+              // The chosen theme gets a seal-red frame; the others a thin ink one.
+              border: option.value === value ? `2px solid ${SILK_UI.seal}` : `1px solid ${SILK_UI.line}`,
               cursor: 'pointer',
             }}>
             <div style={{ display: 'flex', height: 14 }}>
               {settings.colors(option.value, watched).map((c, i) => <div key={i} style={{ flex: 1, background: c }} />)}
             </div>
-            <div style={{ color: option.value === value ? UI.text : UI.textDim, fontSize: 10, marginTop: 2 }}>{option.label}</div>
+            <div style={{ color: SILK_UI.text, fontWeight: option.value === value ? 'bold' : 'normal', fontSize: 11, marginTop: 2 }}>{option.label}</div>
           </button>
         ))}
       </div>

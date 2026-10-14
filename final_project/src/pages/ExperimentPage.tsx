@@ -1,23 +1,28 @@
 import { lazy, Suspense, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Leva } from 'leva';
-import { UI } from '../core/palette';
+import { SILK_UI } from '../core/palette';
 import { useLanguage } from '../i18n/LanguageContext';
 import { experiments, externalEntries } from '../experiments/registry';
 
 const LEVA_THEME = {
   colors: {
-    elevation1: UI.bg,
-    elevation2: UI.bg,
-    elevation3: UI.line,
-    accent1: UI.accent,
-    accent2: UI.accent,
-    accent3: UI.accent,
-    highlight1: UI.textDim,
-    highlight2: UI.textDim,
-    highlight3: UI.text,
-    vivid1: UI.accent,
+    elevation1: SILK_UI.input,
+    elevation2: 'transparent', // the dock's paper background shows through
+    elevation3: SILK_UI.input,
+    accent1: SILK_UI.text,
+    accent2: SILK_UI.text,
+    accent3: SILK_UI.textDim,
+    highlight1: SILK_UI.textDim,
+    highlight2: SILK_UI.text,
+    highlight3: SILK_UI.text,
+    vivid1: SILK_UI.seal,
+    folderWidgetColor: SILK_UI.textDim,
+    folderTextColor: SILK_UI.text,
+    toolTipBackground: SILK_UI.text,
+    toolTipText: SILK_UI.input,
   },
+  fonts: { sans: "'Songti SC', 'Noto Serif SC', Georgia, serif" },
 };
 
 export default function ExperimentPage() {

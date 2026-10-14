@@ -173,6 +173,45 @@ function mixHex(a: string, b: string, t: number): string {
     .join('');
 }
 
+/**
+ * Pines (L-system, Class 07): evergreen, so they keep their colour through the seasons and stay a
+ * dark ink accent on the meadow; only snow on the pads changes with the solar term.
+ */
+export const TREE = {
+  bark: '#3a3029',
+  needle: '#3a6340',
+  needleShade: '#1d2b22',
+  snow: '#eef2f2',
+};
+
+/**
+ * The meadow through the solar terms (core/season.ts): the theme's green in summer, autumn gold,
+ * dry straw in winter and early spring; snow on the peaks, the pines and, deep in winter, the meadow.
+ */
+export const SEASON = {
+  gold: '#c4a24c',
+  dry: '#9c946e',
+  snow: '#eef2f2',
+};
+
+/**
+ * Built things: the footpath's flagstones and steps, and the pavilion at the lookout (cinnabar
+ * columns, dark beams, a glazed blue-green roof, a gilt finial), as in blue-green paintings.
+ */
+export const PROPS = {
+  stone: '#9c937f',
+  step: '#8c8370',
+  column: '#a3392a',
+  beam: '#3a2f2a',
+  roof: '#2f4a55',
+  roofEdge: '#4b6d6e',
+  finial: '#c9a14a',
+  plinth: '#c8bea6',
+};
+
+/** Wind streaks (the wind field made visible): a pale silk white, like mist. */
+export const WIND_STREAK = '#f4f1e8';
+
 /** Base pigments the UI is drawn from: ink, paper, and a cinnabar seal. */
 const PIGMENT = {
   ink: '#121619',
@@ -199,4 +238,19 @@ export const ATLAS_UI = {
   seal: '#b33a2a',
 };
 
-export const palette = { world: getPalette, ui: UI, atlas: ATLAS_UI };
+/**
+ * Panels floating over the 3D world (parameters, techniques, solar terms): opaque paper with a light
+ * grain, all text in ink (no grey), ink buttons with paper lettering. Cinnabar only in small marks
+ * (step numbers, a seal dot), never as a large fill.
+ */
+export const SILK_UI = {
+  bg: '#f3ecdc',
+  text: '#141210',
+  textDim: '#3d3730',
+  line: '#141210',
+  accent: '#141210',
+  input: '#e6dcc6',
+  seal: '#b8452f',
+};
+
+export const palette = { world: getPalette, ui: UI, atlas: ATLAS_UI, silk: SILK_UI };

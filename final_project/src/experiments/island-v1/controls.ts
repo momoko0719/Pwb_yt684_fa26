@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { button, useControls } from 'leva';
 import { ridgeCurve } from '../../core/generators/island';
 import { getPalette, nearestTimeOfDay, THEMES, type Theme } from '../../core/palette';
@@ -18,9 +18,24 @@ export interface ViewParams {
   walk: boolean;
   /** Walking speed in world units per second on a radius-31 island (Shift runs faster). */
   walkSpeed: number;
+  /** Draw the wind field as drifting streaks. */
+  showWind: boolean;
 }
 
-const ridgePreview = (s: number): [number, number][] =>
+/** Milliseconds a shape value must stay unchanged before the island is rebuilt. */
+const REBUILD_DELAY = 250;
+
+/** `value`, but only once it has stopped changing for `delay` ms. */
+function useSettled(value: string, delay: number): string {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setSettled(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return settled;
+}
+
+const ridgePreview =(s: number): [number, number][] =>
   Array.from({ length: 49 }, (_, i) => [i / 48, ridgeCurve((i / 48) * 2 - 1, s)]);
 
 /** Colors a theme swatch shows: sky, horizon, meadow, rock, mineral, key light. */
@@ -60,12 +75,15 @@ export function useIslandControls(): IslandPreset & { view: ViewParams } {
     grassDensity: { value: PRESET.surface.grassDensity, min: 0, max: 1, step: 0.05, ...text('grassDensity') },
     grassHeight: { value: PRESET.surface.grassHeight, min: 0, max: 1, step: 0.05, ...text('grassHeight') },
     flowerDensity: { value: PRESET.surface.flowerDensity, min: 0, max: 1, step: 0.05, ...text('flowerDensity') },
+    pineCount: { value: PRESET.surface.pineCount, min: 0, max: 30, step: 1, ...text('pineCount') },
     fallCount: { value: PRESET.surface.fallCount, min: 0, max: 6, step: 1, ...text('fallCount') },
     poolCount: field('poolCount', 0, 8, 1),
   }, [language]);
   // A new object only when a value changes: the island mesh and everything built from it are
   // memoized on this object, and regenerating them on every render would cost ~200 ms each time.
-  const islandKey = JSON.stringify({ ...shape, poolCount });
+  // Rebuilding the island takes 0.3 s at resolution 128 and about 1 s at 256, so while a shape
+  // slider is being dragged nothing is rebuilt; the island follows once it rests for REBUILD_DELAY.
+  const islandKey = useSettled(JSON.stringify({ ...shape, poolCount }), REBUILD_DELAY);
   const island: IslandParams = useMemo(() => JSON.parse(islandKey), [islandKey]);
   const surfaceKey = JSON.stringify(surfaceValues);
   const surface: SurfaceParams = useMemo(() => JSON.parse(surfaceKey), [surfaceKey]);
@@ -80,6 +98,7 @@ export function useIslandControls(): IslandPreset & { view: ViewParams } {
       ...text('theme'),
     }),
     wind: { value: PRESET.scene.wind, min: 0, max: 1, step: 0.05, ...text('wind') },
+    showWind: { value: false, ...text('showWind') },
   }, [language]);
 
   const view = useControls('Camera', {
@@ -100,6 +119,7 @@ export function useIslandControls(): IslandPreset & { view: ViewParams } {
           grassDensity: get('Surface.grassDensity'),
           grassHeight: get('Surface.grassHeight'),
           flowerDensity: get('Surface.flowerDensity'),
+          pineCount: get('Surface.pineCount'),
         },
         scene: { theme: get('Atmosphere.theme'), hour: get('Atmosphere.hour'), wind: get('Atmosphere.wind') },
       };
@@ -114,5 +134,5 @@ export function useIslandControls(): IslandPreset & { view: ViewParams } {
     hour: atmosphere.hour,
     wind: atmosphere.wind,
   };
-  return { island, surface, scene, view: view as ViewParams };
+  return { island, surface, scene, view: { ...(view as Omit<ViewParams, 'showWind'>), showWind: atmosphere.showWind } };
 }

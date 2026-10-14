@@ -1,4 +1,5 @@
-import { ShaderMaterial } from 'three';
+import { Color, ShaderMaterial } from 'three';
+import { SEASON } from '../palette';
 import { ATMOSPHERE_GLSL } from './atmosphere';
 import { SURFACE_RULES } from '../params/island';
 import type { WorldUniforms } from './uniforms';
@@ -25,6 +26,8 @@ uniform float uDepth;
 uniform float uGrassLine;
 uniform float uRimY;
 uniform float uSeamBand;
+uniform float uSnow;
+uniform vec3 uSnowColor;
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 varying float vRim;
@@ -98,6 +101,12 @@ void main() {
   // The hanging root darkens with depth.
   albedo *= mix(1.0, 0.6, smoothstep(0.0, uDepth, -vWorldPos.y));
 
+  // Snow in the cold terms: first on the summits, then further down each peak as uSnow grows;
+  // it settles on faces turned up and slides off steep ones.
+  float snowLine = 1.0 - 0.75 * uSnow;
+  float snow = uSnow * smoothstep(snowLine - 0.05, snowLine + 0.1, rise) * (0.35 + 0.65 * smoothstep(0.15, 0.7, n.y));
+  albedo = mix(albedo, uSnowColor, snow * (vWorldPos.y > uRimY ? 1.0 : 0.0));
+
   // Warm key on sunlit faces, cool fill everywhere else. The fill is half-desaturated so it
   // cools the shadows without turning ochre rock and green meadow into the same grey-green.
   vec3 fill = mix(vec3(1.0), tint(uShadowCool), FILL_TINT);
@@ -118,7 +127,15 @@ void main() {
  */
 export function createTerrainMaterial(uniforms: WorldUniforms): ShaderMaterial {
   return new ShaderMaterial({
-    uniforms: { ...uniforms, uDepth: { value: 1 }, uGrassLine: { value: 0 }, uRimY: { value: 0 }, uSeamBand: { value: 1 } },
+    uniforms: {
+      ...uniforms,
+      uDepth: { value: 1 },
+      uGrassLine: { value: 0 },
+      uRimY: { value: 0 },
+      uSeamBand: { value: 1 },
+      uSnow: { value: 0 },
+      uSnowColor: { value: new Color(SEASON.snow) },
+    },
     vertexShader,
     fragmentShader,
   });

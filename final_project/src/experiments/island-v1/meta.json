@@ -6,18 +6,142 @@
     "zh": "蓬莱 Island v1"
   },
   "session": 6,
-  "techniques": ["seeded rng", "simplex fbm", "ridged shaping", "distance mask", "slope mask", "fresnel rim", "smooth union", "flowing noise"],
+  "techniques": [
+    "seeded rng",
+    "simplex fbm",
+    "ridged shaping",
+    "distance mask",
+    "slope mask",
+    "fresnel rim",
+    "smooth union",
+    "flowing noise",
+    "L-system pines",
+    "24 solar terms",
+    "wind vector field",
+    "A* footpath",
+    "pavilion shape grammar"
+  ],
   "techniqueMap": [
-    { "id": "seed", "source": "outside", "params": ["seed"] },
-    { "id": "terrain", "source": "class-03", "stages": ["noise", "fbm", "ridged", "height"], "params": ["frequency", "ridgeSharpness", "radius", "resolution"] },
-    { "id": "peaks", "source": "class-05", "derived": true, "stages": ["peaks"], "params": ["peakHeight", "peakCount", "peakSpread"] },
-    { "id": "underside", "source": "class-03", "derived": true, "stages": ["underside"], "params": ["undersideDepth", "rockCount", "taper"] },
-    { "id": "falls", "source": "class-05", "derived": true, "params": ["fallCount"] },
-    { "id": "pools", "source": "class-05", "derived": true, "params": ["poolCount"] },
-    { "id": "slope", "source": "class-05", "stages": ["slope"], "params": ["meadowLine"] },
-    { "id": "grass", "source": "class-05", "derived": true, "params": ["grassDensity", "grassHeight", "wind", "meadowLine"] },
-    { "id": "flowers", "source": "class-05", "derived": true, "params": ["flowerDensity", "timeOfDay", "wind"] },
-    { "id": "rimLight", "source": "class-05", "params": [] }
+    {
+      "id": "terrain",
+      "source": "class-03",
+      "stages": [
+        "noise",
+        "fbm",
+        "ridged",
+        "height"
+      ],
+      "params": [
+        "seed",
+        "frequency",
+        "ridgeSharpness",
+        "radius",
+        "resolution"
+      ]
+    },
+    {
+      "id": "peaks",
+      "source": "class-05",
+      "derived": true,
+      "stages": [
+        "peaks"
+      ],
+      "params": [
+        "peakHeight",
+        "peakCount",
+        "peakSpread"
+      ]
+    },
+    {
+      "id": "underside",
+      "source": "class-03",
+      "derived": true,
+      "stages": [
+        "underside"
+      ],
+      "params": [
+        "undersideDepth",
+        "rockCount",
+        "taper"
+      ]
+    },
+    {
+      "id": "slope",
+      "source": "class-05",
+      "stages": [
+        "slope"
+      ],
+      "params": [
+        "meadowLine"
+      ]
+    },
+    {
+      "id": "pools",
+      "source": "class-05",
+      "derived": true,
+      "params": [
+        "poolCount"
+      ]
+    },
+    {
+      "id": "falls",
+      "source": "class-05",
+      "derived": true,
+      "params": [
+        "fallCount"
+      ]
+    },
+    {
+      "id": "windField",
+      "source": "class-06",
+      "params": [
+        "wind",
+        "showWind"
+      ]
+    },
+    {
+      "id": "grass",
+      "source": "class-05",
+      "derived": true,
+      "params": [
+        "grassDensity",
+        "grassHeight",
+        "wind",
+        "meadowLine"
+      ]
+    },
+    {
+      "id": "flowers",
+      "source": "class-05",
+      "derived": true,
+      "params": [
+        "flowerDensity",
+        "timeOfDay",
+        "wind"
+      ]
+    },
+    {
+      "id": "pines",
+      "source": "class-07",
+      "params": [
+        "pineCount"
+      ]
+    },
+    {
+      "id": "path",
+      "source": "class-06",
+      "params": []
+    },
+    {
+      "id": "pavilion",
+      "source": "outside",
+      "params": []
+    },
+    {
+      "id": "seasons",
+      "source": "outside",
+      "params": []
+    }
   ],
   "date": "2026-09-27",
   "status": "in-progress",
@@ -31,8 +155,8 @@
     "zh": "把各项技术合到一座岛上：地形、石峰、瀑布、水池、草和花，每一样都是一条带参数的规则。"
   },
   "guixu": {
-    "en": "The first of the five mountains. Next: voxel terrain with caves, a real wind field, pines, and weather by the 24 solar terms.",
-    "zh": "五座仙山的第一座。下一步：带山洞的体素地形、真正的风场、松树，以及按二十四节气变化的天气。"
+    "en": "The first of the five mountains, now with L-system pines, a wind field and a year of 24 solar terms. Next: voxel terrain with caves (grotto-heavens).",
+    "zh": "五座仙山的第一座，现在有了 L 系统松树、风场和二十四节气的一年。下一步：带山洞（洞天）的体素地形。"
   },
   "image": "atlas-img/penglai-island-v1.jpg"
 }

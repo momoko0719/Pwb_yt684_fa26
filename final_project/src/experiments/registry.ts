@@ -5,7 +5,7 @@ import external from './external.json';
 export type Localized = Record<Language, string>;
 export type EntryKind = 'class-exercise' | 'world-study';
 
-export type TechniqueSource = 'class-03' | 'class-04' | 'class-05' | 'outside';
+export type TechniqueSource = 'class-03' | 'class-04' | 'class-05' | 'class-06' | 'class-07' | 'outside';
 
 /** One step of an experiment's pipeline, shown in its Techniques panel. Text lives in strings.ts under tech.<id>.*. */
 export interface TechniqueEntry {
