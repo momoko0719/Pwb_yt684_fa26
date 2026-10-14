@@ -2,6 +2,21 @@
 
 Final project for Cornell Tech DESIGN 6197 Procedural World Building: a procedurally generated Chinese mythological world of five floating mountains drifting on a sea of cloud above the abyss of Guixu.
 
+Live: [https://guixu-yt684.web.app](https://guixu-yt684.web.app). The world's premise and rules are in [`docs/world-concept.md`](docs/world-concept.md).
+
+## What is built (midterm, Oct 14)
+
+- **Atlas**: the class exercises 03–07, each reworked around Guixu and opened inside the site.
+- **Penglai Island v1** (`src/experiments/island-v1/`), everything from one seed except the paths the visitor draws:
+  - terrain: Simplex → fBm → ridged shaping → heightmap; peaks by distance masks and smooth union; an upside-down heightmap for the cliff and hanging rocks;
+  - surface: slope and height masks for meadow, rock and cliff; rock pools; thin falls;
+  - life: instanced grass and Zhuyu flowers; Huangshan pines from an L-system with three levels of detail;
+  - wind: a vector field around the peaks, read by every shader;
+  - time: the 24 solar terms (growth, autumn gold, snow, flowering, sun height) and the hour of day;
+  - paths and pavilions: A* routes between two clicked points, stone arches over pools and gullies, pavilions from a shape grammar at ends worth one.
+
+  The techniques panel in the page explains each one (what, where, how, which class). Every change and its measurements are logged in [`src/experiments/island-v1/notes.md`](src/experiments/island-v1/notes.md).
+
 ## Run
 
 ```bash

@@ -8,6 +8,25 @@ This is a repo for **Design 4197-6197: Special Topics in Design 2026 — Procedu
 
 Newest first. Each entry is a short snapshot of what I explored that week.
 
+### 2026-10 · Midterm — Guixu 归墟: the atlas, and a living Penglai
+
+For the midterm exhibition (Oct 14) the site became one **atlas**: the class exercises 03–07 were reworked around Guixu and now open inside the site (back / previous / next), each card saying what I learned and what it becomes in the world. Then Penglai, the first island, got the techniques from Sessions 6 and 7 and a year to live in:
+
+- **Huangshan pines (L-systems + LOD, Session 7).** Weighted rules grow a bent trunk that stops and spreads into a flat crown, level limbs in layers, one long arm reaching over the void, and short stiff needles all along the young shoots, closing into a brush at each tip (after photos of Huangshan pines and their needles). Three LODs, all cut at the same branch level so the outline never jumps: about 29k → 6k → 3k triangles per tree.
+- **Wind as a vector field (Session 6).** Prevailing wind + ideal flow around every peak (faster on the flanks, calm in the wake) + curl noise, packed into one small texture that every shader reads; optional drifting streaks show it.
+- **The 24 solar terms.** The year is one number from 0 to 24: grass grows and turns gold, snow settles on the summits and the pines, the Zhuyu flowers bloom only in season, the sun climbs and sinks. It opens on today's term; drag the bar or let the year play (two minutes a year).
+- **Paths and pavilions (Session 6 paths + a shape grammar).** The visitor clicks two points; A* on the terrain chooses the route, stone steps where it climbs, a stone arch where a pool or deep gully is in the way, and the stones are laid one by one. If the end is flat ground with a view, the path snaps to it and a pavilion is built there from a small grammar (4, 6 or 8 sides, single or double eaves), every one different.
+- **Feedback from class, addressed.** Grass was too tall next to the peaks (now 0.1–0.6 m); the camera no longer clips into the rock.
+- **Interface.** A paper-and-ink panel (rice-paper ground, ink text, cinnabar used sparingly), a guided first path, and a techniques panel checked for repeats and contradictions.
+- **Performance, measured.** Drawing a frame takes about 3 ms; the lag came from rebuilding the island on every step of a slider (about 1.2 s each at mesh resolution 256). The island now rebuilds once the slider rests, and the pixel ratio is capped at 1.5 for retina screens.
+
+![Guixu — Penglai at Cold Dew: a drawn stone path, a pavilion on the east edge, L-system pines](docs/weekly/2026-10-midterm-penglai-island.jpg)
+
+- **AI workflow**: Claude Code built; I directed and judged each round from screenshots and reference photos. Several things were rejected and redone: a pavilion that assembled itself (not procedural, so removed), rope bridges (too frequent, now stone arches only), ink "search" dots over the whole island (removed), and pines whose needle pads read as cactus discs (rebuilt as needles along the shoots). I asked for numbers before any optimization, which showed the slowdown was rebuilding, not drawing.
+- **Next**: creatures for Session 9 (Shanhaijing entries, "shaped like A but with B"), then the other four islands and the voxel caves of Daiyu.
+- App: [`final_project/`](final_project/) · Live: [https://guixu-yt684.web.app](https://guixu-yt684.web.app)
+- Notes: [`final_project/src/experiments/island-v1/notes.md`](final_project/src/experiments/island-v1/notes.md)
+
 ### 2026-10 · Class 07 — Penglai Pines 蓬莱松 & Guixu Chronicle 归墟编年 (L-systems · LOD · branching worlds)
 
 Two small pieces, one per assignment, in one app (switch at the top right, EN/中文).
