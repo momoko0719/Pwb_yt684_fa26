@@ -1,5 +1,6 @@
 import type { IslandParams } from '../params/island';
 import type { IslandField } from './island';
+import { SIZES } from '../scale';
 
 /**
  * Footpaths between two points the visitor picks (Class 06, paths). Pure: same ends, same path.
@@ -9,22 +10,22 @@ import type { IslandField } from './island';
  *    path winds along the slopes the way a mountain path does; pools and sheer rock are walls.
  *    This is the terrain shaping the line.
  *    Where a pool or a deep gully blocks the way, a step may leap straight across it: a bridge.
- * 3. Line: the grid route is smoothed with a Catmull-Rom spline and resampled every STEP units,
+ * 3. Line: the grid route is smoothed with a Catmull-Rom spline and resampled every STEP metres,
  *    then draped on the ground. Where the grade is steep the path becomes stone steps.
  *    The line then shapes the world in turn: grass and flowers keep off it.
  */
 const GRID = 96;
-const STEP = 0.6; // world units between path samples, on a radius-31 island
+const STEP = SIZES.path.sample; // metres between path samples
 const STEEP = 0.22; // grade (rise over run) above which the path turns into steps
 const WALL_SLOPE = 0.9; // steeper than this cannot be walked
-export const PATH_WIDTH = 1.2; // world units, on a radius-31 island
+export const PATH_WIDTH = SIZES.path.width; // metres (GB 51192: stair paths at least 1.5 m)
 const REUSE = 0.35; // walking on an existing path costs this share of fresh ground
 const LEAP_MAX = 12; // longest leap, in grid cells (also limited by SPAN_MAX)
-const SPAN_MAX = 7; // longest stone arch, in world units on a radius-31 island
-const GAP_DEPTH = 2.5; // ground this far below the deck (on a radius-31 island) counts as a deep gully
+const SPAN_MAX = SIZES.path.spanMax; // longest stone arch, metres
+const GAP_DEPTH = SIZES.path.gullyDepth; // metres below the deck that count as a deep gully
 const BRIDGE_GRADE = 0.3; // a bridge's deck may not climb steeper than this
 const BRIDGE_COST = 1.4; // a metre of bridge costs this much more than a metre of flat ground
-const BRIDGE_FIXED = 3; // plus this, once per bridge (on a radius-31 island)
+const BRIDGE_FIXED = 3; // plus this many metres' worth, once per bridge
 
 
 export interface PathPoint {
@@ -68,9 +69,11 @@ export interface PathMask {
   has(x: number, z: number): boolean;
 }
 
+const MASK_CELL = 1; // metres per cell of the path mask
+
 export function pathMask(paths: IslandPath[], p: IslandParams, margin: number, clearings: [number, number, number][] = []): PathMask {
-  const N = 256;
   const extent = p.radius * 1.4;
+  const N = Math.min(Math.ceil((2 * extent) / MASK_CELL), 2048);
   const cell = (2 * extent) / N;
   const grid = new Uint8Array(N * N);
   const mark = (x: number, z: number, r: number) => {
@@ -83,7 +86,7 @@ export function pathMask(paths: IslandPath[], p: IslandParams, margin: number, c
       }
     }
   };
-  const half = (PATH_WIDTH * p.radius) / 31 / 2 + margin;
+  const half = PATH_WIDTH / 2 + margin;
   for (const path of paths) for (const q of path.points) mark(q.x, q.z, half);
   for (const [x, z, r] of clearings) mark(x, z, r);
   return {
@@ -103,7 +106,6 @@ const inPoolOf = (field: IslandField) => (x: number, z: number) => field.pools.s
  * join old ones and a network grows, like paths trodden into a hillside.
  */
 export function routePath(field: IslandField, p: IslandParams, from2: [number, number], to2: [number, number], reuse?: PathMask): IslandPath | null {
-  const s = p.radius / 31;
   const extent = p.radius * 1.05;
   const cell = (2 * extent) / GRID;
   const inPool = inPoolOf(field);
@@ -155,7 +157,7 @@ export function routePath(field: IslandField, p: IslandParams, from2: [number, n
   const h = (n: number) => Math.hypot((n % GRID) - ei, Math.floor(n / GRID) - ej) * cell;
   const open: { n: number; f: number }[] = [{ n: start, f: h(start) }];
   cost[start] = 0;
-  const gapDepth = GAP_DEPTH * s;
+  const gapDepth = GAP_DEPTH;
   const relax = (n: number, m: number, c: number, leap: 0 | 1) => {
     if (c < cost[m]) {
       cost[m] = c;
@@ -194,7 +196,7 @@ export function routePath(field: IslandField, p: IslandParams, from2: [number, n
           const t = lj * GRID + li;
           if (Number.isNaN(height[t])) continue;
           const span = Math.hypot(di, dj) * L * cell;
-          if (span > SPAN_MAX * s) break;
+          if (span > SPAN_MAX) break;
           if (Math.abs(height[t] - height[n]) / span > BRIDGE_GRADE) break;
           let gap = true;
           for (let q = 1; q < L && gap; q++) {
@@ -202,7 +204,7 @@ export function routePath(field: IslandField, p: IslandParams, from2: [number, n
             const deck = height[n] + ((height[t] - height[n]) * q) / L;
             gap = !Number.isNaN(ground[c]) && (pool[c] === 1 || ground[c] < deck - gapDepth);
           }
-          if (gap) relax(n, t, cost[n] + span * BRIDGE_COST + BRIDGE_FIXED * s, 1);
+          if (gap) relax(n, t, cost[n] + span * BRIDGE_COST + BRIDGE_FIXED, 1);
           break; // the first walkable cell along the line ends the leap either way
         }
       }
@@ -243,7 +245,7 @@ export function routePath(field: IslandField, p: IslandParams, from2: [number, n
     return dense;
   };
 
-  const step = STEP * s;
+  const step = STEP;
   const points: PathPoint[] = [];
   const bridges: Bridge[] = [];
   for (const piece of pieces) {
@@ -284,7 +286,7 @@ export function routePath(field: IslandField, p: IslandParams, from2: [number, n
   }
 
   // Nearness on a coarse grid of the path's samples.
-  const width = PATH_WIDTH * s;
+  const width = PATH_WIDTH;
   const near = (x: number, z: number, margin = 0) => points.some((q) => Math.hypot(x - q.x, z - q.z) < width / 2 + margin);
   return { points, landing, lookout, near, bridges, heightAt: (x, z) => field.top(x, z) ?? 0 };
 }

@@ -764,3 +764,91 @@ a cluster of blobs. Huangshan pines have a bent trunk and flat top, long level l
   every step (about 1.2 s each at 256). Shape values now settle for 250 ms before the island is
   rebuilt (`useSettled` in controls.ts). The pixel ratio is capped at 1.5 (44% fewer pixels than 2x
   on a retina screen). The resolution hint now gives the measured triangle counts and times.
+
+## After the midterm, part 1: a scale system
+
+Feedback at the midterm (Oct 14): scale. The island was a 62 m hilltop with a 7 m main peak, while
+pines and pavilions were life-size, so a pine stood almost as tall as the peak. Props were also
+sized on a radius-31 island and scaled with the radius, so a bigger island only made them bigger.
+
+- **`core/scale.ts`**: 1 unit = 1 m; `SCALE_TARGET` holds the target size of every kind of thing
+  with its source (Welcoming Pine 10.02 m; island rows provisional), plus `niceStep` and
+  `withinTarget`. Explained in `docs/scale.md`.
+- **Scale view** (button in the tool bar): a ground grid and contour lines in the terrain shader
+  (`uSurvey`, steps from `surveySteps`: about 12 cells across, 8 contours up the main peak, drawn
+  with `fwidth` so they stay a pixel wide); a wireframe box with a height label on every peak,
+  pine and pavilion, measured from the meshes (`userData.scaleId`) every 0.5 s; two 1.7 m cinnabar
+  figures; a legend with now / target / share of the main peak, out-of-range sizes in cinnabar,
+  and a scale bar true at the island centre's depth.
+- **Measured, Penglai preset**: island 69 m across, main peak 7 m, spires 3.1–4.4 m, cliff and
+  hanging rock 41 m, pools 4.7–7.5 m across, pines 3.9–6.6 m (94% of the main peak; target 7%),
+  path 1.2 m, grass 0.17–0.4 m, Zhuyu 0.21–0.5 m.
+- Nothing is resized yet. Moving the terrain to the target scale is the next step, once the owner
+  picks the island size.
+
+## After the midterm, part 2: real scale (step 1)
+
+Owner chose the ~1 km island (2026-10-21) and asked that every size be checked against real data
+first; sources are in docs/scale.md.
+
+- **`core/scale.ts` `SIZES`**: all props in metres, no more `radius / 31`. Pines by site (cliff
+  edge 4–8 m, plateau 8–15 m, sheltered 15–20 m with 30% chance on gentle off-peak spots), gap
+  15 m, LOD at 80 / 300 m. Pavilion columns 2.6–3.2 m, ring 1.6–2.4 m, roof 1.4–2.2 m; 40 m apart,
+  at most six, site search 8 m. Path 1.5 m, arches up to 20 m over gullies 4 m deep, mask cells
+  1 m, laying capped at 8 s. Pools 5–12 m radius. Falls 3 m at the lip, launched 0.5 m out.
+  Walking 1.3 m/s, eye 1.6 m. Camera clearance 2 m.
+- **Preset**: radius 500, peak 120, underside 260 (300 gave 409 m of cliff and rock, over the
+  400 m target). Plateau relief 0.03 of the radius.
+- **Grass**: a 40 m disc around where the view meets the ground (or under the walker), on a fixed
+  2 m world grid seeded per cell; 60 candidates/m² inside 12 m, 15% of that at the edge; a cell
+  makes only the sites it keeps. 50 ms per regrow, 45k blades at the default density; regrows
+  after the focus moves 10 m, nothing when the camera is over 250 m away. Flower clumps 12 m.
+- **Camera and sky**: far 20 km, near = 0.1 × height above ground (0.1–50 m), zoom to cursor, min
+  distance 3 m; sky sphere 16 km; cloud plane 32 km with its pattern and horizon fade scaled by
+  radius / 31.
+- **Measured** (scale view): island 1116 m, main peak 120 m, spires 52–75 m, cliff and rock
+  369 m, pools 11–18 m, pines 6.3–16.5 m (14% of the peak; was 94%), grass 0.09–0.2 m. Every row
+  inside its target.
+
+## After the midterm, part 3: water system, lake, forest
+
+Owner, after the real-scale step: the world looked bare and the pools "ridiculously small", and
+asked for a lake and a more representative water system (there may not be time for five islands).
+Looked up first: Huangshan is 98.29% forest; natural Huangshan pine stands carry 750–1514
+trees/ha at 3.7–10.2 m mean height; the Emerald Pool is about 15 x 8 m (so our pools were
+realistic, only isolated); Flying-Over Rock is 12 m.
+
+- **Lake** (`pools.ts`): the first pool is a lake, radius 60–100 m tried widest first, allowed to
+  reach the foot of a peak (lift up to 0.15 of peakHeight). Its bed is cut only below its water
+  (`poolBasin` with the ground height: cut down to level − 8 m, shallowing to the shore, easing
+  off over the outer fifth), so no carved wall shows above water; the outline wavers by three
+  sines. The shore mesh uses one ray per 4 m of shore (up to 256).
+- **Water system** (`generators/water.ts`, 90–110 ms): heights on a 256 x 256 grid; priority
+  flood from the island's edge with a 1 mm slope over filled flats; D8 steepest descent; cells
+  from high to low add their area downstream. Streams start at 6000 m² upstream, width
+  0.6 m x sqrt(area / 6000 m²) up to 6 m, traced from each source to a junction or the rim,
+  broken where water stands in the lake and pools, smoothed by two rounds of corner cutting.
+  Exits are sorted by area; the falls (`createWaterfalls`, new `exits` argument) take the
+  largest that are apart, as wide as their stream (at least 3 m).
+- **Land cover** (`generators/cover.ts`, 0.3 s): 512 x 512 RGBA map. G forest = no cliffs (slope
+  0.35–0.7), thinning up the peaks (0.2–0.55 of peak height), open at the rim (0.86–0.96),
+  times max(clearing noise at 140 m with threshold 0.32, 0.85 x wetness); none in water. B
+  wetness from log upstream area (2000–40,000 m²). R stream coverage, rasterised from the stream
+  lines with their widths. Result: 54% forest, 37% open, 8,200 m² of running water.
+- **Plants and stones** (`generators/forest.ts`): forest pines on a 3 m world grid kept by
+  density (48,769, about 1100/ha of forest, 4.3–10 m, taller where wet, shorter up the peaks);
+  rhododendron thickets on a 5 m grid at forest edges and rocky ledges (5,546, 1–3 m); boulders
+  on a 22 m grid on rocky ground, size cubed toward 2 m (119, 2–12 m).
+- **Rendering** (`Vegetation.tsx`): instanced pines in three levels re-sorted every 0.3 s or
+  4 m of camera travel: grown L-system pine (lightest level) within 40 m, a 44-triangle
+  three-tier stand-in to 220 m, a 24-triangle two-tier crown beyond; crown 0.6 of the height
+  across. The pine shader now supports instancing. Shrubs and boulders are static instanced
+  meshes (prop material). Terrain shader: forest floor (smoothstep 0.1–0.45 of density, so a
+  half-dense stand does not mix olive with the autumn meadow), greener wet ground, streams as
+  sky-reflecting water with a drifting ripple. 56–57 fps far and close in the browser pane.
+- Grass keeps out of the forest (density x (1 − 0.9 forest)) and running water; lone pines avoid
+  water. New technique cards: Water, Forest; pools and falls cards updated.
+- **Follow-up: forest kept to 10–20%.** The owner found the 54% forest claustrophobic, uniform
+  and slow, with no room to build. Clearing threshold 0.32 → 0.72 and wet-ground forest 0.85 →
+  0.25: mean forest 15.7% of the top, 78% open, 14,007 trees. The Wonderland direction moves to
+  its own Atlas island (docs/wonderland.md); Penglai stays as the realistic-scale study.

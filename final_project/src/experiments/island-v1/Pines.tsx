@@ -3,9 +3,10 @@ import { Group, LOD, Mesh, Quaternion, Vector3, type ShaderMaterial } from 'thre
 import type { IslandField } from '../../core/generators/island';
 import { expandPine, interpretPine, pineGeometry, placePines, PINE_LODS, PINE_VARIANTS } from '../../core/generators/pine';
 import type { IslandParams } from '../../core/params/island';
+import { SIZES } from '../../core/scale';
 
-/** Switch distances in world units on a radius-31 island: every needle up close, flat clouds far away. */
-const LOD_DISTANCE = [0, 60, 180];
+/** Switch distances in metres (core/scale.ts): every needle up close, a few broad needles far away. */
+const LOD_DISTANCE = [0, ...SIZES.pine.lod];
 const UP = new Vector3(0, 1, 0);
 
 /**
@@ -27,10 +28,10 @@ export default function Pines({ field, island, count, material, avoid }: { field
   const spots = useMemo(() => placePines(field, island, count, avoid), [field, island, count, avoid]);
   const group = useMemo(() => {
     const root = new Group();
-    const s = island.radius / 31;
     for (const spot of spots) {
       const tree = new LOD();
-      variants[spot.variant].forEach((geometry, lod) => tree.addLevel(new Mesh(geometry, material), LOD_DISTANCE[lod] * s));
+      tree.userData.scaleId = 'pine'; // measured by the scale view
+      variants[spot.variant].forEach((geometry, lod) => tree.addLevel(new Mesh(geometry, material), LOD_DISTANCE[lod]));
       tree.position.set(spot.x, spot.y, spot.z);
       // Lean away from the centre (about an axis across the outward direction), then turn the tree so
       // its reaching side (+x in its own frame) faces `facing`.

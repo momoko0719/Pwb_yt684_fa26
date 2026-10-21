@@ -1,5 +1,5 @@
-import { Color, ShaderMaterial } from 'three';
-import { SEASON } from '../palette';
+import { Color, ShaderMaterial, type Texture } from 'three';
+import { GROUND, SCALE_VIEW, SEASON } from '../palette';
 import { ATMOSPHERE_GLSL } from './atmosphere';
 import { SURFACE_RULES } from '../params/island';
 import type { WorldUniforms } from './uniforms';
@@ -28,6 +28,19 @@ uniform float uRimY;
 uniform float uSeamBand;
 uniform float uSnow;
 uniform vec3 uSnowColor;
+// Scale view: a survey drawn on the ground. uSurvey 0 off, 1 on; grid steps and the contour
+// interval in metres; ink colors from the palette (SCALE_VIEW).
+uniform float uSurvey;
+uniform float uGridMinor;
+uniform float uGridMajor;
+uniform float uContour;
+uniform vec3 uGridColor;
+uniform vec3 uContourColor;
+// Land cover (generators/cover.ts): R running water, G forest, B wetness, over a square of
+// half-width uCoverHalf; uForestFloor is the ground colour under the stands.
+uniform sampler2D uCover;
+uniform float uCoverHalf;
+uniform vec3 uForestFloor;
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 varying float vRim;
@@ -55,6 +68,17 @@ float luma(vec3 c) {
 /** A light's tint at unit brightness. */
 vec3 tint(vec3 c) {
   return c / max(luma(c), 0.001);
+}
+
+/**
+ * 0..1 coverage of lines every \`spacing\` along \`coord\`, \`px\` pixels wide at any distance (screen
+ * derivatives). Lines that would crowd closer than a few pixels fade out instead of turning to mush.
+ */
+float surveyLine(float coord, float spacing, float px) {
+  float c = coord / spacing;
+  float w = fwidth(c);
+  float d = abs(fract(c - 0.5) - 0.5) / max(w, 1e-5);
+  return (1.0 - clamp(d / px, 0.0, 1.0)) * (1.0 - smoothstep(0.08, 0.25, w));
 }
 
 void main() {
@@ -98,6 +122,15 @@ void main() {
   float shadow = 1.0 - smoothstep(-0.2, 0.05, facing);
   albedo = mix(albedo, uMineral, max(vRim * MINERAL_MIX, shadow * bare * SHADOW_MINERAL));
 
+  // Land cover on the top: forest floor under the stands, greener ground where it is wet. From
+  // afar, where single trees blur together, the floor is what makes a stand read as forest.
+  vec2 coverUv = vWorldPos.xz / (2.0 * max(uCoverHalf, 0.001)) + 0.5;
+  vec4 cover = uCoverHalf > 0.0 ? texture2D(uCover, coverUv) : vec4(0.0);
+  float onTop = step(uRimY - 0.5, vWorldPos.y) * (1.0 - face);
+  // The floor takes over quickly: a half-dense stand already shades the ground (no olive half-mix).
+  albedo = mix(albedo, uForestFloor, smoothstep(0.1, 0.45, cover.g) * onTop);
+  albedo = mix(albedo, albedo * vec3(0.85, 1.0, 0.85), cover.b * 0.35 * onTop * (1.0 - bare));
+
   // The hanging root darkens with depth.
   albedo *= mix(1.0, 0.6, smoothstep(0.0, uDepth, -vWorldPos.y));
 
@@ -115,7 +148,32 @@ void main() {
   // Rim light belongs on the silhouette: cliffs, peak flanks, hanging rocks. From a low camera
   // flat ground is also seen edge-on, and there it would wash the meadow and rock toward white.
   float upright = 1.0 - smoothstep(0.5, 0.9, n.y);
-  gl_FragColor = vec4(albedo * light + rimLight(n, v) * upright, 1.0);
+  vec3 color = albedo * light + rimLight(n, v) * upright;
+
+  // Running water: the streams are painted into the ground, a mirror of the sky like the pools
+  // (Fresnel), darker where seen from above, with a ripple drifting downstream.
+  float stream = cover.r * step(uRimY - 0.5, vWorldPos.y);
+  if (stream > 0.0) {
+    vec3 r = reflect(-v, vec3(0.0, 1.0, 0.0));
+    vec3 sky = mix(uSkyHorizon, uSkyMid, smoothstep(0.0, 0.3, max(r.y, 0.0)));
+    float fresnel = 0.45 + 0.55 * pow(1.0 - max(v.y, 0.0), 3.0);
+    vec3 water = mix(uMineral * 0.45, sky, fresnel);
+    water += uRimColor * 0.25 * smoothstep(0.6, 0.9, windNoise(vWorldPos.xz * 0.6 + uTime * 0.8));
+    color = mix(color, water, stream);
+  }
+
+  // Scale view: a metre grid on the top (minor and major lines) and contour lines everywhere,
+  // every fifth one heavier, so heights and distances can be read off the ground.
+  if (uSurvey > 0.5) {
+    float onTop = step(uRimY - 0.5, vWorldPos.y);
+    float minor = max(surveyLine(vWorldPos.x, uGridMinor, 0.8), surveyLine(vWorldPos.z, uGridMinor, 0.8));
+    float major = max(surveyLine(vWorldPos.x, uGridMajor, 1.6), surveyLine(vWorldPos.z, uGridMajor, 1.6));
+    float grid = onTop * max(minor * 0.35, major * 0.7);
+    float contour = max(surveyLine(vWorldPos.y, uContour, 0.9) * 0.45, surveyLine(vWorldPos.y, uContour * 5.0, 1.4) * 0.75);
+    color = mix(color, uContourColor, contour);
+    color = mix(color, uGridColor, grid);
+  }
+  gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>
 }
 `;
@@ -135,6 +193,15 @@ export function createTerrainMaterial(uniforms: WorldUniforms): ShaderMaterial {
       uSeamBand: { value: 1 },
       uSnow: { value: 0 },
       uSnowColor: { value: new Color(SEASON.snow) },
+      uSurvey: { value: 0 },
+      uGridMinor: { value: 10 },
+      uGridMajor: { value: 100 },
+      uContour: { value: 1 },
+      uGridColor: { value: new Color(SCALE_VIEW.grid) },
+      uContourColor: { value: new Color(SCALE_VIEW.contour) },
+      uCover: { value: null as Texture | null },
+      uCoverHalf: { value: 0 },
+      uForestFloor: { value: new Color(GROUND.forestFloor) },
     },
     vertexShader,
     fragmentShader,

@@ -19,7 +19,7 @@ const COLORS: Record<PartKind, string> = {
  * The pavilion at the end of a path, from the grammar in core/generators/pavilion.ts. It appears
  * `delay` seconds after it mounts, when the path's stones reach it.
  */
-export default function Pavilion({ position, facing, scale, uniforms, seed, delay = 0 }: { position: Vector3; facing: number; scale: number; uniforms: WorldUniforms; seed: number; delay?: number }) {
+export default function Pavilion({ position, facing, uniforms, seed, delay = 0 }: { position: Vector3; facing: number; uniforms: WorldUniforms; seed: number; delay?: number }) {
   const materials = useMemo(() => {
     const m = Object.fromEntries(Object.entries(COLORS).map(([k, c]) => [k, createPropMaterial(uniforms, c)])) as Record<PartKind, ShaderMaterial>;
     m.roof.side = DoubleSide;
@@ -27,9 +27,10 @@ export default function Pavilion({ position, facing, scale, uniforms, seed, dela
   }, [uniforms]);
   useEffect(() => () => Object.values(materials).forEach((m) => m.dispose()), [materials]);
 
-  const blocks = useMemo(() => createPavilion(scale, facing, seed), [scale, facing, seed]);
+  const blocks = useMemo(() => createPavilion(facing, seed), [facing, seed]);
   const group = useMemo(() => {
     const root = new Group();
+    root.userData.scaleId = 'pavilion'; // measured by the scale view
     for (const b of blocks) {
       const mesh = new Mesh(b.geometry, materials[b.kind]);
       mesh.matrixAutoUpdate = false;

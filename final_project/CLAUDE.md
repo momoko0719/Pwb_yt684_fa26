@@ -9,6 +9,9 @@ Read before planning or recommending next steps:
 - `README.md` — layout and rules (all randomness through `core/rng.ts`, pure generators, colors
   only from `core/palette.ts`, all visible text from `i18n/strings.ts` in English and Chinese).
 - `src/experiments/island-v1/notes.md` — history of every change and its measurements.
+- `docs/scale.md` and `src/core/scale.ts` — 1 unit = 1 m; the target size of every kind of thing.
+  Scale was the professor's main criticism at the midterm: check sizes and ratios (peak : pine :
+  person) before adding or resizing anything.
 - `docs/roadmap.md` — deferred ideas the owner asked to be reminded of (for example weather as the
   24 solar terms). Mention the relevant ones when proposing the next round of work.
 

@@ -1,5 +1,6 @@
 import type { IslandField } from './generators/island';
 import type { IslandParams } from './params/island';
+import { SIZES } from './scale';
 
 /**
  * Walking on an island: a first-person visitor who follows the ground, cannot climb steep rock,
@@ -7,10 +8,10 @@ import type { IslandParams } from './params/island';
  * the browser: same state and input, same next state.
  */
 
-/** Tuning, in world units for a radius-31 island; lengths and speeds scale with the radius. */
+/** Tuning, in metres and seconds (core/scale.ts): a person's eye height and running speed. */
 export const WALK = {
-  eyeHeight: 1.7,
-  runFactor: 2.5,
+  eyeHeight: SIZES.person.eye,
+  runFactor: SIZES.person.runFactor,
   /** How quickly speed follows the keys, per second: a short start and a short stop. */
   accel: 8,
   /** How quickly the eye follows the ground up and down, per second. */
@@ -21,7 +22,6 @@ export const WALK = {
   edge: 0.97,
   /** How far the feet sink below a pool's surface while wading. */
   wade: 0.35,
-  referenceRadius: 31,
 };
 
 export interface Walker {
@@ -42,9 +42,6 @@ export interface WalkInput {
   /** Heading of the camera: the horizontal direction it looks along, as an angle (atan2(z, x)). */
   heading: number;
 }
-
-/** Scale of the walker on this island. */
-const scaleOf = (p: IslandParams) => p.radius / WALK.referenceRadius;
 
 /**
  * Height of the feet at a point: the ground, or while wading, a little under the pool's surface.
@@ -88,7 +85,7 @@ export function spawnWalker(field: IslandField, p: IslandParams): { walker: Walk
     const score = slope * 4 + away + field.lift(x, z) / Math.max(p.peakHeight, 1);
     if (score < best.score) best = { x, z, score };
   }
-  const y = (feetAt(field, best.x, best.z) ?? 0) + WALK.eyeHeight * scaleOf(p);
+  const y = (feetAt(field, best.x, best.z) ?? 0) + WALK.eyeHeight;
   return {
     walker: { x: best.x, z: best.z, y, vx: 0, vz: 0 },
     heading: Math.atan2(main.z - best.z, main.x - best.x),
@@ -99,8 +96,7 @@ export function spawnWalker(field: IslandField, p: IslandParams): { walker: Walk
  * One step of `dt` seconds. Speed eases toward what the keys ask for; a blocked move slides
  * along whichever axis is still free; the eye eases toward the feet plus the eye height.
  */
-export function stepWalker(field: IslandField, p: IslandParams, w: Walker, input: WalkInput, speed: number, dt: number): Walker {
-  const scale = scaleOf(p);
+export function stepWalker(field: IslandField, w: Walker, input: WalkInput, speed: number, dt: number): Walker {
   const fx = Math.cos(input.heading);
   const fz = Math.sin(input.heading);
   // Right of the heading, for strafing (y up, so right is (-fz, fx) turned the other way).
@@ -110,7 +106,7 @@ export function stepWalker(field: IslandField, p: IslandParams, w: Walker, input
   let dz = fz * input.forward + rz * input.strafe;
   const len = Math.hypot(dx, dz);
   if (len > 0) [dx, dz] = [dx / len, dz / len];
-  const target = speed * scale * (input.run ? WALK.runFactor : 1);
+  const target = speed * (input.run ? WALK.runFactor : 1);
   const ease = 1 - Math.exp(-dt * WALK.accel);
   let vx = w.vx + (dx * target - w.vx) * ease;
   let vz = w.vz + (dz * target - w.vz) * ease;
@@ -123,7 +119,7 @@ export function stepWalker(field: IslandField, p: IslandParams, w: Walker, input
   else if (canStep(field, x, z, x, nz)) [z, vx] = [nz, 0];
   else [vx, vz] = [0, 0];
 
-  const eye = (feetAt(field, x, z) ?? w.y - WALK.eyeHeight * scale) + WALK.eyeHeight * scale;
+  const eye = (feetAt(field, x, z) ?? w.y - WALK.eyeHeight) + WALK.eyeHeight;
   const y = w.y + (eye - w.y) * (1 - Math.exp(-dt * WALK.settle));
   return { x, z, y, vx, vz };
 }

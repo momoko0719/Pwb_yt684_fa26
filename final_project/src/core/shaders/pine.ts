@@ -9,9 +9,13 @@ varying vec2 vTone;
 varying vec3 vNormal;
 varying vec3 vWorldPos;
 void main() {
-  vec4 world = modelMatrix * vec4(position, 1.0);
+  mat4 m = modelMatrix;
+  #ifdef USE_INSTANCING
+    m = modelMatrix * instanceMatrix; // the forest: one tree shape drawn many times
+  #endif
+  vec4 world = m * vec4(position, 1.0);
   vWorldPos = world.xyz;
-  vNormal = normalize(mat3(modelMatrix) * normal);
+  vNormal = normalize(mat3(m) * normal);
   vTone = aTone;
   gl_Position = projectionMatrix * viewMatrix * world;
 }

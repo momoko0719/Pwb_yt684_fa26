@@ -5,6 +5,7 @@ import { getPalette, nearestTimeOfDay, THEMES, type Theme } from '../../core/pal
 import type { IslandParams, SurfaceParams } from '../../core/params/island';
 import type { IslandPreset, SceneParams } from '../../core/params/scene';
 import penglai from '../../core/presets/penglai.json';
+import { SIZES } from '../../core/scale';
 import { useLanguage } from '../../i18n/LanguageContext';
 import type { StringKey } from '../../i18n/strings';
 import { curve } from '../../leva/curve';
@@ -16,7 +17,7 @@ const PRESET = penglai as IslandPreset;
 export interface ViewParams {
   /** First-person walk on the island instead of the orbit view. */
   walk: boolean;
-  /** Walking speed in world units per second on a radius-31 island (Shift runs faster). */
+  /** Walking speed in metres per second (Shift runs 2.5 times faster). */
   walkSpeed: number;
   /** Draw the wind field as drifting streaks. */
   showWind: boolean;
@@ -56,14 +57,14 @@ export function useIslandControls(): IslandPreset & { view: ViewParams } {
 
   const shape = useControls('Shape', {
     seed: field('seed', 0, 9999, 1),
-    radius: field('radius', 6, 120, 0.5),
+    radius: field('radius', 50, 1200, 10),
     taper: field('taper', 0, 1, 0.05),
-    peakHeight: field('peakHeight', 0, 30, 0.5),
+    peakHeight: field('peakHeight', 0, 300, 5),
     peakCount: field('peakCount', 0, 8, 1),
     peakSpread: field('peakSpread', 0, 1, 0.05),
     frequency: field('frequency', 0.2, 6, 0.05),
     ridgeSharpness: curve({ current: PRESET.island.ridgeSharpness, min: 0, max: 1, step: 0.05, shape: ridgePreview, ...text('ridgeSharpness') }),
-    undersideDepth: field('undersideDepth', 2, 100, 0.5),
+    undersideDepth: field('undersideDepth', 20, 800, 10),
     rockCount: field('rockCount', 1, 6, 1),
     resolution: field('resolution', 16, 256, 1),
   }, [language]);
@@ -104,7 +105,7 @@ export function useIslandControls(): IslandPreset & { view: ViewParams } {
   const view = useControls('Camera', {
     walk: { value: false, ...text('walk') },
     walkSpeed: {
-      value: 4, min: 1, max: 12, step: 0.5, ...text('walkSpeed'),
+      value: SIZES.person.walk, min: 0.5, max: 5, step: 0.1, ...text('walkSpeed'),
       render: (get) => get('Camera.walk'),
     },
   }, [language]);

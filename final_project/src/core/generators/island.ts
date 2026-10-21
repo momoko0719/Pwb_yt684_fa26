@@ -9,7 +9,7 @@ export const OCTAVES = 7;
 
 /** Plateau, cliff and root profile. Lengths are fractions of `radius` unless noted. */
 const PLATEAU_EDGE = 0.78; // fraction of the rim radius where the plateau starts to roll over
-const PLATEAU_RELIEF = 0.06;
+const PLATEAU_RELIEF = 0.03; // ±15 m on a 500 m island: rolling ground, not hills
 const SHOULDER_DROP = 0.1;
 const SHOULDER_POWER = 2.5;
 const RIM_WOBBLE = 0.3;
@@ -124,7 +124,10 @@ export function createIslandField(p: IslandParams): IslandField {
 
   // Pools are placed on the uncarved ground, then their bowls are cut into it.
   const pools = placePools((x, z) => inside(x, z, groundAt), lift, rim, p);
-  const heightAt = (x: number, z: number, t: number) => groundAt(x, z, t) - poolBasin(pools, x, z);
+  const heightAt = (x: number, z: number, t: number) => {
+    const ground = groundAt(x, z, t);
+    return ground - poolBasin(pools, x, z, ground);
+  };
   const top = (x: number, z: number) => inside(x, z, heightAt);
 
   // Underside. Angular noise is sampled on circles (cos, sin), so no direction is favored.

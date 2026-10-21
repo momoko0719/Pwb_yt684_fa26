@@ -19,7 +19,10 @@
     "24 solar terms",
     "wind vector field",
     "A* footpath",
-    "pavilion shape grammar"
+    "pavilion shape grammar",
+    "flow accumulation",
+    "land cover",
+    "instanced forest LOD"
   ],
   "techniqueMap": [
     {
@@ -84,6 +87,15 @@
       ]
     },
     {
+      "id": "water",
+      "source": "class-03",
+      "derived": true,
+      "params": [
+        "poolCount",
+        "fallCount"
+      ]
+    },
+    {
       "id": "falls",
       "source": "class-05",
       "derived": true,
@@ -119,6 +131,12 @@
         "timeOfDay",
         "wind"
       ]
+    },
+    {
+      "id": "forest",
+      "source": "class-07",
+      "derived": true,
+      "params": []
     },
     {
       "id": "pines",

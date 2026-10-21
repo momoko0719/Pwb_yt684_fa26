@@ -54,14 +54,14 @@ export const SURFACE_RULES = {
 
 export const DEFAULT_ISLAND: IslandParams = {
   seed: 1,
-  radius: 20,
+  radius: 500,
   taper: 0.6,
-  peakHeight: 8,
+  peakHeight: 120,
   peakCount: 5,
   peakSpread: 0.4,
   frequency: 1.0,
   ridgeSharpness: 0.6,
-  undersideDepth: 45,
+  undersideDepth: 300,
   rockCount: 3,
   poolCount: 4,
   resolution: 128,

@@ -89,7 +89,7 @@ export default function Walk({ field, island, speed, sun, restore, onLockChange 
       heading: Math.atan2(look.z, look.x),
     };
     // Clamp the step so a stalled frame never jumps the walker across a cliff edge.
-    walker.current = stepWalker(field, island, w, input, speed, Math.min(delta, 0.05));
+    walker.current = stepWalker(field, w, input, speed, Math.min(delta, 0.05));
     camera.position.set(walker.current.x, walker.current.y, walker.current.z);
   });
 

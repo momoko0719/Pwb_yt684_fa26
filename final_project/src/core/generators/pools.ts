@@ -1,16 +1,18 @@
 import { BufferGeometry, Float32BufferAttribute } from 'three';
 import { createRng } from '../rng';
+import { SIZES } from '../scale';
 import type { IslandParams } from '../params/island';
 import type { IslandField } from './island';
 
 /**
- * Rock pools: small pockets of standing water on the plateau. Each sits in a natural hollow,
- * which is then carved a little deeper into a bowl so the pool is large enough to read.
+ * Standing water on the plateau: one lake and a few rock pools. Each sits in a natural hollow,
+ * which is then carved a little deeper into a bowl. The lake takes the hollow with room for the
+ * widest bowl; the pools take the rest.
  */
 const GRID = 40; // hollow search grid, cells across the radius
 const SEARCH_EDGE = 0.72; // only search inside this fraction of the rim, clear of the shoulder
 const PEAK_CLEAR = 0.05; // skip ground lifted by the peaks more than this fraction of peakHeight
-const POOL_RADIUS: [number, number] = [0.09, 0.14]; // bowl radius, fraction of radius
+const POOL_RADIUS = SIZES.pool.radius; // bowl radius in metres (core/scale.ts)
 const POOL_FLOOR = 0.55; // the bowl is flat out to this fraction of its radius, then rises to the rim
 const POOL_DEPTH = 0.35; // world units of water at the deepest point
 const SHORE_MARGIN = 0.05; // world units the water stays below the lowest point of the bowl's rim
@@ -19,11 +21,16 @@ const SHRINK = 0.8; // a bowl that does not fit is tried again this much smaller
 const SIZE_TRIES = 3;
 const JITTER = 0.5; // how much the seeded random term competes with hollow depth when picking
 const RIM_SAMPLES = 96; // points around the bowl's rim checked for the lowest one, dense enough to catch narrow dips
-const RAYS = 48; // shoreline directions per pool
+const RAYS = 48; // shoreline directions per pool, at least
+const SHORE_SPACING = 4; // metres of shore per direction on a large pool
 const RINGS = 6; // rings from the center to the shore
 const MARCH = 32; // steps when searching for the shore along a ray
 const LIFT = 0.02; // world units the water sits above its level, so it never flickers with the ground
 const POOL_SEED_SALT = 0x165667b1;
+const LAKE_RADIUS = SIZES.lake.radius; // metres (core/scale.ts)
+const LAKE_DEPTH = SIZES.lake.depth; // metres of water at the deepest point
+const LAKE_PEAK_CLEAR = 0.15; // the lake's shore may reach the foot of a peak, lifted up to this share of peakHeight
+const LAKE_TRIES = 6; // radii tried, widest first, before the lake gives up on a hollow
 
 export interface Pool {
   x: number;
@@ -34,6 +41,10 @@ export interface Pool {
   depth: number;
   /** Water surface height. */
   level: number;
+  /** The island's lake (the first entry), rather than a rock pool. */
+  lake: boolean;
+  /** Phases of the lake's wavy outline (a few sines around it), so it is not a circle. */
+  shape?: [number, number, number];
 }
 
 type Height = (x: number, z: number) => number | null;
@@ -51,7 +62,6 @@ export function placePools(
   p: IslandParams,
 ): Pool[] {
   const count = Math.max(Math.round(p.poolCount), 0);
-  if (count === 0) return [];
   const rng = createRng((p.seed ^ POOL_SEED_SALT) >>> 0);
   const cell = p.radius / GRID;
   const neighbours = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
@@ -80,39 +90,72 @@ export function placePools(
     .sort((a, b) => b.rank - a.rank);
 
   // The whole bowl must sit on open plateau, clear of peaks and the shoulder; returns its lowest rim point.
-  const rimLow = (cx: number, cz: number, radius: number) => {
+  const rimLow = (cx: number, cz: number, radius: number, peakClear = PEAK_CLEAR) => {
     let low = Infinity;
     for (let k = 0; k < RIM_SAMPLES; k++) {
       const a = (k / RIM_SAMPLES) * Math.PI * 2;
       const x = cx + Math.cos(a) * radius;
       const z = cz + Math.sin(a) * radius;
       const h = top(x, z);
-      if (h === null || lift(x, z) > PEAK_CLEAR * p.peakHeight || Math.hypot(x, z) > SEARCH_EDGE * rim(Math.atan2(z, x))) return null;
+      if (h === null || lift(x, z) > peakClear * p.peakHeight || Math.hypot(x, z) > SEARCH_EDGE * rim(Math.atan2(z, x))) return null;
       low = Math.min(low, h);
     }
     return low;
   };
 
   const pools: Pool[] = [];
+  // The lake first: the best-ranked hollow that has room for a wide bowl.
   for (const { c } of ranked) {
-    if (pools.length >= count) break;
-    let radius = p.radius * (POOL_RADIUS[0] + (POOL_RADIUS[1] - POOL_RADIUS[0]) * rng());
+    let placed = false;
+    for (let k = 0; k < LAKE_TRIES && !placed; k++) {
+      const radius = LAKE_RADIUS[1] - ((LAKE_RADIUS[1] - LAKE_RADIUS[0]) * k) / (LAKE_TRIES - 1);
+      const low = rimLow(c.x, c.z, radius, LAKE_PEAK_CLEAR);
+      if (low === null) continue;
+      const level = low - SHORE_MARGIN;
+      pools.push({ x: c.x, z: c.z, radius, level, depth: LAKE_DEPTH, lake: true, shape: [rng() * 6.28, rng() * 6.28, rng() * 6.28] });
+      placed = true;
+    }
+    if (placed) break;
+  }
+  for (const { c } of ranked) {
+    if (pools.filter((q) => !q.lake).length >= count) break;
+    let radius = POOL_RADIUS[0] + (POOL_RADIUS[1] - POOL_RADIUS[0]) * rng();
     for (let attempt = 0; attempt < SIZE_TRIES; attempt++, radius *= SHRINK) {
       if (!pools.every((q) => Math.hypot(q.x - c.x, q.z - c.z) >= SPACING * (q.radius + radius))) continue;
       const low = rimLow(c.x, c.z, radius);
       if (low === null) continue;
       const level = low - SHORE_MARGIN;
-      pools.push({ x: c.x, z: c.z, radius, level, depth: Math.max(c.h - level, 0) + POOL_DEPTH });
+      pools.push({ x: c.x, z: c.z, radius, level, depth: Math.max(c.h - level, 0) + POOL_DEPTH, lake: false });
       break;
     }
   }
   return pools;
 }
 
-/** How much the pool bowls lower the ground at a point: flat-bottomed, rising smoothly to the rim. */
-export function poolBasin(pools: Pool[], x: number, z: number): number {
+/**
+ * How much the pool bowls lower the ground at a point: flat-bottomed, rising smoothly to the rim.
+ * The lake is different: its bed is only ever cut down to below its water (level minus its depth,
+ * shallowing to the shore), never into dry ground above it, so no carved wall shows above the
+ * water; its outline wavers around the island's centre so it is not a circle. Without `ground`,
+ * the lake answers whether the point is inside its outline (1) or not (0).
+ */
+export function poolBasin(pools: Pool[], x: number, z: number, ground?: number): number {
   let cut = 0;
   for (const q of pools) {
+    if (q.lake) {
+      const a = Math.atan2(z - q.z, x - q.x);
+      const [p1, p2, p3] = q.shape ?? [0, 0, 0];
+      const reach = q.radius * (1 + 0.16 * Math.sin(2 * a + p1) + 0.1 * Math.sin(3 * a + p2) + 0.06 * Math.sin(5 * a + p3)) * 0.8;
+      const u = Math.hypot(x - q.x, z - q.z) / reach;
+      if (u >= 1) continue;
+      if (ground === undefined) { cut = Math.max(cut, 1); continue; }
+      const t = Math.min(Math.max((u - POOL_FLOOR) / (1 - POOL_FLOOR), 0), 1);
+      const bed = q.level - q.depth * (1 - t * t * (3 - 2 * t)) - SHORE_MARGIN * 4;
+      // Toward the outline the cut eases off, so the bank slopes into the water instead of stepping.
+      const ease = 1 - Math.min(Math.max((u - 0.8) / 0.2, 0), 1) ** 2;
+      cut = Math.max(cut, (ground - bed) * ease);
+      continue;
+    }
     const u = Math.hypot(x - q.x, z - q.z) / q.radius;
     if (u >= 1) continue;
     const t = Math.min(Math.max((u - POOL_FLOOR) / (1 - POOL_FLOOR), 0), 1);
@@ -143,12 +186,13 @@ export function createPools(field: IslandField): BufferGeometry {
       depths.push(level - (field.top(px, pz) ?? level + 1));
     };
     push(x, z, 0);
-    const angles = Array.from({ length: RAYS }, (_, r) => (r / RAYS) * Math.PI * 2);
+    const rays = Math.min(Math.max(Math.round((Math.PI * 2 * radius) / SHORE_SPACING), RAYS), 256);
+    const angles = Array.from({ length: rays }, (_, r) => (r / rays) * Math.PI * 2);
     const found = angles.map((a) => shoreDistance(field.top, x, z, a, level, radius));
     const reaches = found.map((reach, r) => {
       if (reach !== null) return reach;
-      for (let o = 1; o < RAYS; o++) {
-        const near = [found[(r + o) % RAYS], found[(r - o + RAYS) % RAYS]].filter((v): v is number => v !== null);
+      for (let o = 1; o < rays; o++) {
+        const near = [found[(r + o) % rays], found[(r - o + rays) % rays]].filter((v): v is number => v !== null);
         if (near.length) return Math.min(...near);
       }
       return radius * POOL_FLOOR;
@@ -160,8 +204,8 @@ export function createPools(field: IslandField): BufferGeometry {
       }
     });
     // Center fan to the first ring, then quads ring to ring.
-    const at = (r: number, k: number) => start + 1 + (r % RAYS) * RINGS + (k - 1);
-    for (let r = 0; r < RAYS; r++) {
+    const at = (r: number, k: number) => start + 1 + (r % rays) * RINGS + (k - 1);
+    for (let r = 0; r < rays; r++) {
       indices.push(start, at(r + 1, 1), at(r, 1));
       for (let k = 1; k < RINGS; k++) indices.push(at(r, k), at(r + 1, k), at(r, k + 1), at(r + 1, k), at(r + 1, k + 1), at(r, k + 1));
     }

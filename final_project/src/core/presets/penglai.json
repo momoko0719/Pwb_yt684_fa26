@@ -1,14 +1,14 @@
 {
   "island": {
     "seed": 684,
-    "radius": 31,
+    "radius": 500,
     "taper": 0,
-    "peakHeight": 7,
+    "peakHeight": 120,
     "peakCount": 4,
     "peakSpread": 0.75,
     "frequency": 1.0,
     "ridgeSharpness": 0.6,
-    "undersideDepth": 38,
+    "undersideDepth": 260,
     "rockCount": 4,
     "poolCount": 4,
     "resolution": 128

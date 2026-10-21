@@ -8,8 +8,12 @@ import { createPropMaterial } from '../../core/shaders/prop';
 import type { WorldUniforms } from '../../core/shaders/uniforms';
 
 const UP = new Vector3(0, 1, 0);
-/** Seconds per path sample while the stones are laid, start to end. */
-export const LAY_PER_POINT = 0.03;
+/** Seconds per path sample while the stones are laid, start to end; a long path is laid faster. */
+const LAY_PER_POINT = 0.03;
+const LAY_MAX = 8; // seconds, however long the path
+
+/** How long laying this path takes. */
+export const layTime = (path: IslandPath) => Math.min(path.points.length * LAY_PER_POINT, LAY_MAX);
 
 /** One kind of piece (flagstone, step, arch stone, plank…): an instanced mesh, each copy tagged with the path sample it belongs to. */
 interface Part {
@@ -22,21 +26,21 @@ interface Part {
  * The footpath, laid from start to end when it appears: flagstones on gentle ground, steps where it
  * climbs, and a stone arch where it crosses a pool or a deep gully.
  */
-export default function Path({ path, scale, uniforms, seed }: { path: IslandPath; scale: number; uniforms: WorldUniforms; seed: number }) {
+export default function Path({ path, uniforms, seed }: { path: IslandPath; uniforms: WorldUniforms; seed: number }) {
   const materials = useMemo(() => {
     const m = (c: string) => createPropMaterial(uniforms, c);
     return { stone: m(PROPS.stone), step: m(PROPS.step), arch: m(PROPS.plinth) };
   }, [uniforms]);
   useEffect(() => () => Object.values(materials).forEach((m) => m.dispose()), [materials]);
 
-  const { group, parts } = useMemo(() => buildPath(path, scale, seed, materials), [path, scale, seed, materials]);
+  const { group, parts } = useMemo(() => buildPath(path, seed, materials), [path, seed, materials]);
   useEffect(() => () => parts.forEach((p) => p.mesh.geometry.dispose()), [parts]);
 
   // The animation clock starts when this path appears.
   const start = useRef<number | null>(null);
   useFrame(({ clock }) => {
     if (start.current === null) start.current = clock.elapsedTime;
-    const laid = Math.floor((clock.elapsedTime - start.current) / LAY_PER_POINT);
+    const laid = Math.floor(((clock.elapsedTime - start.current) / layTime(path)) * path.points.length);
     for (const p of parts) {
       let n = 0;
       while (n < p.at.length && p.at[n] <= laid) n++;
@@ -47,9 +51,10 @@ export default function Path({ path, scale, uniforms, seed }: { path: IslandPath
   return <primitive object={group} />;
 }
 
-function buildPath(path: IslandPath, s: number, seed: number, mat: Record<'stone' | 'step' | 'arch', ShaderMaterial>) {
+/** Sizes in metres; the step slabs rise about 0.15–0.18 m each, at the path's sample spacing. */
+function buildPath(path: IslandPath, seed: number, mat: Record<'stone' | 'step' | 'arch', ShaderMaterial>) {
   const rng = createRng(seed + 505);
-  const width = PATH_WIDTH * s;
+  const width = PATH_WIDTH;
   const m = new Matrix4();
   const q = new Quaternion();
   const shade = new Color();
@@ -75,18 +80,18 @@ function buildPath(path: IslandPath, s: number, seed: number, mat: Record<'stone
   path.points.forEach((p, i) => {
     if (p.bridge >= 0) return;
     if (p.step) {
-      const depth = 0.4 * s;
-      steps.push({ at: i, tone: 0.9 + rng() * 0.2, matrix: m.clone().compose(new Vector3(p.x, p.y - depth / 2 + 0.06 * s, p.z), yaw(p.tx, p.tz), new Vector3(width, depth, 0.62 * s)) });
+      const depth = 0.4;
+      steps.push({ at: i, tone: 0.9 + rng() * 0.2, matrix: m.clone().compose(new Vector3(p.x, p.y - depth / 2 + 0.06, p.z), yaw(p.tx, p.tz), new Vector3(width, depth, 0.62)) });
       return;
     }
     const across = new Vector3(-p.tz, 0, p.tx);
     const count = rng() < 0.4 ? 3 : 2;
     for (let k = 0; k < count; k++) {
       const offset = ((k + 0.5) / count - 0.5) * width + (rng() - 0.5) * 0.15 * width;
-      const pos = new Vector3(p.x, p.y + 0.02 * s, p.z).addScaledVector(across, offset);
+      const pos = new Vector3(p.x, p.y + 0.02, p.z).addScaledVector(across, offset);
       const size = (0.55 + rng() * 0.25) * (width / count);
       const turn = new Quaternion().setFromAxisAngle(UP, Math.atan2(p.tx, p.tz) + (rng() - 0.5) * 0.8);
-      flags.push({ at: i, tone: 0.85 + rng() * 0.25, matrix: m.clone().compose(pos, turn, new Vector3(size, 0.06 * s, size * (0.8 + rng() * 0.4))) });
+      flags.push({ at: i, tone: 0.85 + rng() * 0.25, matrix: m.clone().compose(pos, turn, new Vector3(size, 0.06, size * (0.8 + rng() * 0.4))) });
     }
   });
   part(new DodecahedronGeometry(1, 0), mat.stone, flags);
@@ -106,21 +111,21 @@ function buildPath(path: IslandPath, s: number, seed: number, mat: Record<'stone
     const hump = 0.1 * b.length;
     const drop = 0.35 * b.length;
     const deck = (t: number) => deckAt(t).setY(a.y + (e.y - a.y) * t + hump * Math.sin(Math.PI * t));
-    const n = Math.max(Math.ceil(b.length / (0.5 * s)), 4);
+    const n = Math.max(Math.ceil(b.length / (0.5)), 4);
     for (let k = 0; k < n; k++) {
       const t = (k + 0.5) / n;
       const d = deck(t);
-      arch.push({ at: atOf(t), tone: 0.85 + rng() * 0.25, matrix: m.clone().compose(d.clone().setY(d.y - 0.08 * s), face, new Vector3(width * 1.05, 0.22 * s, (b.length / n) * 0.96)) });
+      arch.push({ at: atOf(t), tone: 0.85 + rng() * 0.25, matrix: m.clone().compose(d.clone().setY(d.y - 0.08), face, new Vector3(width * 1.05, 0.22, (b.length / n) * 0.96)) });
       // Arch stone under this slab: tilted along the ring, a little uneven.
-      const ring = (u: number) => deck(u).setY(deck(u).y - 0.3 * s - drop * (1 - Math.sin(Math.PI * u)));
+      const ring = (u: number) => deck(u).setY(deck(u).y - 0.3 - drop * (1 - Math.sin(Math.PI * u)));
       const p0 = ring(k / n), p1 = ring((k + 1) / n);
       const mid = p0.clone().add(p1).multiplyScalar(0.5);
       const tilt = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), p1.clone().sub(p0).normalize());
       const size = p0.distanceTo(p1) * (0.92 + rng() * 0.1);
-      arch.push({ at: atOf(t), tone: 0.8 + rng() * 0.25, matrix: m.clone().compose(mid, tilt, new Vector3(width * 0.9, 0.4 * s * (0.9 + rng() * 0.3), size)) });
+      arch.push({ at: atOf(t), tone: 0.8 + rng() * 0.25, matrix: m.clone().compose(mid, tilt, new Vector3(width * 0.9, 0.4 * (0.9 + rng() * 0.3), size)) });
       if (k % 2 === 0) {
         for (const side of [-1, 1]) {
-          arch.push({ at: atOf(t), tone: 0.8 + rng() * 0.2, matrix: m.clone().compose(d.clone().addScaledVector(across, side * width * 0.5).setY(d.y + 0.25 * s), face, new Vector3(0.18 * s, 0.5 * s, 0.18 * s)) });
+          arch.push({ at: atOf(t), tone: 0.8 + rng() * 0.2, matrix: m.clone().compose(d.clone().addScaledVector(across, side * width * 0.5).setY(d.y + 0.25), face, new Vector3(0.18, 0.5, 0.18)) });
         }
       }
     }

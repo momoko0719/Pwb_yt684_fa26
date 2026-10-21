@@ -1,9 +1,14 @@
 import { BufferGeometry, Float32BufferAttribute, Quaternion, Vector3 } from 'three';
 import type { IslandParams } from '../params/island';
 import { createRng } from '../rng';
+import { SIZES, within } from '../scale';
 import type { IslandField } from './island';
 
 export const PINE_VARIANTS = 4;
+/** Share of gentle, off-peak spots that hold a tall sheltered pine. */
+const SHELTERED_SHARE = 0.3;
+/** Metres between the height samples used for a site's slope. */
+const SLOPE_STEP = 3;
 
 export interface PineSpot {
   x: number;
@@ -23,12 +28,15 @@ export interface PineSpot {
  * Where pines grow: few of them, on ridges, peak shoulders and the cliff edge (Huangshan pines grow
  * out of rock, not on the meadow), never in pools, never on sheer faces, and apart from each other.
  * Candidates are scored, then drawn by score with a minimum spacing.
+ *
+ * Height depends on the site (core/scale.ts SIZES.pine): wind-stunted on the cliff edge (4–8 m),
+ * 8–15 m on the plateau (the Welcoming Pine is 10–13 m), and now and then 15–20 m in a sheltered,
+ * gentle spot off the peaks (the species reaches 15–25 m in forest).
  */
 export function placePines(field: IslandField, p: IslandParams, count: number, avoid?: (x: number, z: number) => boolean): PineSpot[] {
   const rng = createRng(p.seed * 31 + 7);
-  const s = p.radius / 31;
-  const step = 0.6 * s;
-  const candidates: { x: number; z: number; y: number; score: number; rho: number }[] = [];
+  const step = SLOPE_STEP;
+  const candidates: { x: number; z: number; y: number; score: number; rho: number; slope: number; onPeak: number }[] = [];
   for (let i = 0; i < 1500; i++) {
     const angle = rng() * Math.PI * 2;
     const rho = Math.sqrt(0.05 + rng() * 0.9);
@@ -44,23 +52,25 @@ export function placePines(field: IslandField, p: IslandParams, count: number, a
     const onPeak = Math.min(field.lift(x, z) / Math.max(p.peakHeight, 1), 1);
     const edge = rho ** 4;
     const rocky = Math.min(slope / 0.5, 1);
-    candidates.push({ x, z, y, rho, score: 0.15 + onPeak * 1.2 + edge * 1.1 + rocky * 0.6 });
+    candidates.push({ x, z, y, rho, slope, onPeak, score: 0.15 + onPeak * 1.2 + edge * 1.1 + rocky * 0.6 });
   }
   const spots: PineSpot[] = [];
-  const minGap = 4 * s;
+  const minGap = SIZES.pine.minGap;
   const total = () => candidates.reduce((sum, c) => sum + c.score, 0);
   while (spots.length < count && candidates.length) {
     let pick = rng() * total();
     const i = Math.max(0, candidates.findIndex((c) => (pick -= c.score) <= 0));
     const c = candidates.splice(i, 1)[0];
     if (spots.some((t) => Math.hypot(t.x - c.x, t.z - c.z) < minGap)) continue;
-    const yaw = Math.atan2(c.z, c.x);
     const edge = c.rho > 0.8;
+    const yaw = Math.atan2(c.z, c.x);
+    const sheltered = !edge && c.onPeak < 0.05 && c.slope < 0.2 && rng() < SHELTERED_SHARE;
+    const height = within(edge ? SIZES.pine.edge : sheltered ? SIZES.pine.sheltered : SIZES.pine.plateau, rng());
     spots.push({
       x: c.x,
-      y: c.y - 0.1 * s,
+      y: c.y - 0.3, // the root sits a little into the rock
       z: c.z,
-      scale: (0.46 + rng() * 0.26) * s,
+      scale: height / GROWN_PINE_HEIGHT,
       // On the edge the long limb reaches out over the void, like the Welcoming Pine; inland, anywhere.
       facing: edge ? yaw + (rng() - 0.5) * 0.6 : rng() * Math.PI * 2,
       yaw,
@@ -370,3 +380,60 @@ function finish(pos: number[], nor: number[], tone: number[]): BufferGeometry {
   g.computeBoundingSphere();
   return g;
 }
+
+
+/**
+ * Stand-ins for forest pines seen from further away, one unit tall (scale by the tree's height):
+ * a few flat needle tiers, the widest 0.3 of the height out (a crown about 0.6 of the height across), like the layered crowns of a
+ * Huangshan pine stand. 'mid' has a trunk and three tiers (44 triangles); 'far' only the two upper
+ * tiers (24). Same `aTone` as the grown pines, so they share the pine material and its snow.
+ */
+export function forestPineModel(level: 'mid' | 'far'): BufferGeometry {
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const tone: number[] = [];
+  const tri = (a: Vector3, b: Vector3, c: Vector3, kind: number, shade: number) => {
+    const n = new Vector3().subVectors(b, a).cross(new Vector3().subVectors(c, a)).normalize();
+    for (const v of [a, b, c]) {
+      pos.push(v.x, v.y, v.z);
+      nor.push(n.x, n.y, n.z);
+      tone.push(kind, shade);
+    }
+  };
+  // A tier: a shallow six-sided cap above the ring and a flatter one below, dark underneath.
+  const tier = (y: number, r: number, turn: number) => {
+    const top = new Vector3(0, y + r * 0.22, 0), under = new Vector3(0, y - r * 0.08, 0);
+    const ring = Array.from({ length: 6 }, (_, k) => {
+      const a = turn + (k / 6) * Math.PI * 2;
+      return new Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
+    });
+    for (let k = 0; k < 6; k++) {
+      const a = ring[k], b = ring[(k + 1) % 6];
+      tri(top, b, a, 1, 0.85);
+      tri(under, a, b, 1, 0.1);
+    }
+  };
+  if (level === 'mid') {
+    // Trunk: a thin four-sided post up to the top tier.
+    const r = 0.02;
+    const corners = [[r, r], [-r, r], [-r, -r], [r, -r]];
+    for (let k = 0; k < 4; k++) {
+      const [ax, az] = corners[k], [bx, bz] = corners[(k + 1) % 4];
+      const a0 = new Vector3(ax, 0, az), b0 = new Vector3(bx, 0, bz), a1 = new Vector3(ax * 0.6, 0.85, az * 0.6), b1 = new Vector3(bx * 0.6, 0.85, bz * 0.6);
+      tri(a0, b0, b1, 0, 0.5);
+      tri(a0, b1, a1, 0, 0.5);
+    }
+    tier(0.5, 0.3, 0.3);
+  }
+  tier(0.7, 0.26, 0.9);
+  tier(0.88, 0.18, 0.1);
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new Float32BufferAttribute(nor, 3));
+  g.setAttribute('aTone', new Float32BufferAttribute(tone, 2));
+  g.computeBoundingSphere();
+  return g;
+}
+
+/** Height of a grown pine skeleton before scaling, for scaling one to a given height. */
+export const GROWN_PINE_HEIGHT = 7.5;

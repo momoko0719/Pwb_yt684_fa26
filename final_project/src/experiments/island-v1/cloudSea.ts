@@ -4,6 +4,9 @@ import type { WorldUniforms } from '../../core/shaders/uniforms';
 
 const fragmentShader = /* glsl */ `
 varying vec3 vWorldPos;
+// Cloud masses are landscape-sized: their pattern and the distance where the sea fades into the
+// horizon grow with the island (1 on a 31 m island, about 16 on a 500 m one).
+uniform float uCloudScale;
 ${ATMOSPHERE_GLSL}
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
@@ -23,10 +26,11 @@ float clouds(vec2 p) {
 }
 
 void main() {
-  vec2 p = vWorldPos.xz * 0.025 + vec2(uTime * 0.02, uTime * 0.008);
+  vec2 xz = vWorldPos.xz / uCloudScale;
+  vec2 p = xz * 0.025 + vec2(uTime * 0.02, uTime * 0.008);
   float c = clouds(p);
   // Large, slow swells decide which parts of the sea catch the light.
-  float swell = clouds(vWorldPos.xz * 0.006 - vec2(uTime * 0.004, 0.0));
+  float swell = clouds(xz * 0.006 - vec2(uTime * 0.004, 0.0));
 
   // Cloud tops that catch the light are warm gold, the troughs lavender (palette cloud colors).
   float lit = smoothstep(0.3, 0.75, 0.6 * c + 0.4 * swell);
@@ -40,7 +44,7 @@ void main() {
   color += uRimColor * smoothstep(0.55, 0.8, c) * backlit * 0.25;
 
   // Far out the clouds flatten into the sky's horizon color, so the plane has no visible edge.
-  float far = smoothstep(300.0, 750.0, length(vWorldPos.xz - cameraPosition.xz));
+  float far = smoothstep(300.0, 750.0, length(vWorldPos.xz - cameraPosition.xz) / uCloudScale);
   gl_FragColor = vec4(mix(color, uSkyHorizon, far), 1.0);
   #include <colorspace_fragment>
 }
@@ -48,11 +52,12 @@ void main() {
 
 /**
  * A flat, slowly drifting sea of cloud: gold where it catches the light and toward the sun,
- * lavender in its troughs, flattening into the sky's horizon color far out.
+ * lavender in its troughs, flattening into the sky's horizon color far out. Set `uCloudScale` to
+ * the island's radius / 31.
  */
 export function createCloudSeaMaterial(uniforms: WorldUniforms): ShaderMaterial {
   return new ShaderMaterial({
-    uniforms: { ...uniforms },
+    uniforms: { ...uniforms, uCloudScale: { value: 1 } },
     vertexShader: WORLD_POSITION_VERT,
     fragmentShader,
   });

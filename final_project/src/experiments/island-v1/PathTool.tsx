@@ -7,7 +7,15 @@ export type PathStage = 'start' | 'end' | 'laying' | 'built' | 'done' | 'fail';
  * Drawing paths. A prompt at the top guides the visitor step by step (the island opens on it); the
  * bar at the bottom left turns the tool off (to look around freely) or clears the drawn paths.
  */
-export default function PathTool({ drawing, stage, onToggle, onClear }: { drawing: boolean; stage: PathStage; onToggle: () => void; onClear: () => void }) {
+export default function PathTool({ drawing, stage, onToggle, onClear, scaleOn, onScale }: {
+  drawing: boolean;
+  stage: PathStage;
+  onToggle: () => void;
+  onClear: () => void;
+  /** The scale view's toggle shares the bar. */
+  scaleOn: boolean;
+  onScale: () => void;
+}) {
   const { t } = useLanguage();
   const step = stage === 'start' || stage === 'built' || stage === 'done' || stage === 'fail' ? 1 : stage === 'end' ? 2 : 3;
   return (
@@ -26,6 +34,7 @@ export default function PathTool({ drawing, stage, onToggle, onClear }: { drawin
       <div className="tool-bar">
         <button type="button" className={drawing ? 'on' : ''} onClick={onToggle}>{t('path.draw')}</button>
         <button type="button" onClick={onClear}>{t('path.clear')}</button>
+        <button type="button" className={scaleOn ? 'on' : ''} onClick={onScale}>{t('scale.toggle')}</button>
       </div>
     </>
   );

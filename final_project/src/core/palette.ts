@@ -209,6 +209,27 @@ export const PROPS = {
   plinth: '#c8bea6',
 };
 
+/**
+ * The scale view: an ink survey drawn over the world. Grid and contours in ink, measured boxes in
+ * ink, the 1.7 m figures in cinnabar so the eye finds them first.
+ */
+export const SCALE_VIEW = {
+  grid: '#141210',
+  contour: '#3d3730',
+  box: '#141210',
+  person: '#b8452f',
+};
+
+/**
+ * Ground cover: the forest floor under the pines (seen from afar, where single trees blur into the
+ * stand), rhododendron thickets, and granite boulders a little paler than the rock they sit on.
+ */
+export const GROUND = {
+  forestFloor: '#2f3d2c',
+  shrub: '#3a4a30',
+  boulder: '#a39b8a',
+};
+
 /** Wind streaks (the wind field made visible): a pale silk white, like mist. */
 export const WIND_STREAK = '#f4f1e8';
 

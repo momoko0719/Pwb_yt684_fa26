@@ -1,6 +1,7 @@
 import { BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, Float32BufferAttribute, Matrix4, Quaternion, SphereGeometry, Vector3 } from 'three';
 import type { IslandParams } from '../params/island';
 import { createRng } from '../rng';
+import { SIZES, within } from '../scale';
 import type { IslandField } from './island';
 
 /**
@@ -18,7 +19,8 @@ import type { IslandField } from './island';
  * The grammar's numbers come from a seed, so every pavilion differs: 4, 6 or 8 sides, taller or
  * squatter columns, a steep or shallow roof, sharper or flatter eaves, and sometimes a double eave
  * (Roof → lower skirt + upper roof).
- * Pure: same seed, same blocks. Sizes are in world units on a radius-31 island (scaled by s).
+ * Pure: same seed, same blocks. Sizes in metres from core/scale.ts (SIZES.pavilion): the eave about
+ * 3 m up, 4.5–6.5 m to the finial, 3.2–4.8 m across the columns.
  */
 export type PartKind = 'plinth' | 'step' | 'column' | 'beam' | 'roof' | 'finial';
 
@@ -59,17 +61,18 @@ function roofPanel(a: Vector3, b: Vector3, c: Vector3, d: Vector3, lift: number)
   return g;
 }
 
-export function createPavilion(s: number, facing: number, seed: number): Block[] {
+export function createPavilion(facing: number, seed: number): Block[] {
+  const size = SIZES.pavilion;
   const rng = createRng(seed * 97 + 13);
   const sides = [4, 6, 6, 8][Math.floor(rng() * 4)];
   const doubleEave = rng() < 0.35;
-  const roofH = (1.2 + rng() * 0.9) * s;
-  const lift = (0.25 + rng() * 0.4) * s;
+  const roofH = within(size.roof, rng());
+  const lift = within(size.eaveLift, rng());
   const blocks: Block[] = [];
   let order = 0;
-  const R = (1.3 + rng() * 0.5) * s; // column ring radius
-  const plinthH = 0.45 * s;
-  const columnH = (2 + rng() * 0.8) * s;
+  const R = within(size.ring, rng()); // column ring radius
+  const plinthH = size.plinth;
+  const columnH = within(size.column, rng());
   const corner = (r: number, i: number, y: number) => {
     const a = facing + Math.PI / sides + (i / sides) * Math.PI * 2;
     return new Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
@@ -83,7 +86,7 @@ export function createPavilion(s: number, facing: number, seed: number): Block[]
     const a = corner(plinthR, i, 0), b = corner(plinthR, i + 1, 0);
     const mid = a.clone().add(b).multiplyScalar(0.5).multiplyScalar(0.92);
     const len = a.distanceTo(b);
-    place('plinth', new BoxGeometry(len, plinthH, 0.45 * s), new Vector3(mid.x, plinthH / 2, mid.z), -Math.atan2(b.z - a.z, b.x - a.x));
+    place('plinth', new BoxGeometry(len, plinthH, 0.45), new Vector3(mid.x, plinthH / 2, mid.z), -Math.atan2(b.z - a.z, b.x - a.x));
     order++;
   }
   place('plinth', new CylinderGeometry(plinthR * 0.9, plinthR * 0.9, plinthH * 0.9, sides), new Vector3(0, plinthH * 0.45, 0), -facing - Math.PI / sides);
@@ -92,29 +95,29 @@ export function createPavilion(s: number, facing: number, seed: number): Block[]
   // Steps: three slabs climbing to the plinth on the side facing the path.
   const out = new Vector3(Math.cos(facing), 0, Math.sin(facing));
   for (let k = 0; k < 3; k++) {
-    const d = plinthR * 0.95 + (2.5 - k) * 0.3 * s;
+    const d = plinthR * 0.95 + (2.5 - k) * 0.3;
     const h = ((k + 1) / 3) * plinthH;
-    place('step', new BoxGeometry(1.4 * s, h, 0.3 * s), new Vector3(out.x * d, h / 2, out.z * d), -facing + Math.PI / 2);
+    place('step', new BoxGeometry(1.4, h, 0.3), new Vector3(out.x * d, h / 2, out.z * d), -facing + Math.PI / 2);
     order++;
   }
 
   // Columns at the corners, then beams on their tops.
   for (let i = 0; i < sides; i++) {
     const c = corner(R, i, plinthH + columnH / 2);
-    place('column', new CylinderGeometry(0.12 * s, 0.14 * s, columnH, 10), c);
+    place('column', new CylinderGeometry(0.12, 0.14, columnH, 10), c);
     order++;
   }
-  const beamY = plinthH + columnH + 0.1 * s;
+  const beamY = plinthH + columnH + 0.1;
   for (let i = 0; i < sides; i++) {
     const a = corner(R, i, beamY), b = corner(R, i + 1, beamY);
     const mid = a.clone().add(b).multiplyScalar(0.5);
-    place('beam', new BoxGeometry(a.distanceTo(b) + 0.2 * s, 0.22 * s, 0.2 * s), mid, -Math.atan2(b.z - a.z, b.x - a.x));
+    place('beam', new BoxGeometry(a.distanceTo(b) + 0.2, 0.22, 0.2), mid, -Math.atan2(b.z - a.z, b.x - a.x));
     order++;
   }
 
   // Roof: panels from the eave (outside the columns) up to the apex. A double eave first lays a
   // lower skirt up to a ring inside the columns, then the upper roof rises from a step above it.
-  let eaveY = beamY + 0.15 * s;
+  let eaveY = beamY + 0.15;
   if (doubleEave) {
     const ringY = eaveY + roofH * 0.35;
     for (let i = 0; i < sides; i++) {
@@ -123,10 +126,10 @@ export function createPavilion(s: number, facing: number, seed: number): Block[]
     }
     // The wall between the two eaves: it rises from inside the lower skirt to above the upper eave,
     // so the two roofs are one building, with no gap between them.
-    const drumTop = ringY + 0.55 * s;
-    place('beam', new CylinderGeometry(R * 0.86, R * 0.86, drumTop - ringY + 0.15 * s, sides), new Vector3(0, (ringY - 0.15 * s + drumTop) / 2, 0), -facing - Math.PI / sides);
+    const drumTop = ringY + 0.55;
+    place('beam', new CylinderGeometry(R * 0.86, R * 0.86, drumTop - ringY + 0.15, sides), new Vector3(0, (ringY - 0.15 + drumTop) / 2, 0), -facing - Math.PI / sides);
     order++;
-    eaveY = ringY + 0.45 * s;
+    eaveY = ringY + 0.45;
   }
   const eaveR = doubleEave ? R * 1.15 : R * 1.55;
   const apex = new Vector3(0, eaveY + roofH * (doubleEave ? 0.8 : 1), 0);
@@ -136,26 +139,26 @@ export function createPavilion(s: number, facing: number, seed: number): Block[]
   }
 
   // Finial: a gilt bead on a short spike.
-  place('finial', new ConeGeometry(0.12 * s, 0.5 * s, 8), apex.clone().add(new Vector3(0, 0.2 * s, 0)));
-  place('finial', new SphereGeometry(0.16 * s, 12, 8), apex.clone().add(new Vector3(0, 0.5 * s, 0)));
+  place('finial', new ConeGeometry(0.12, 0.5, 8), apex.clone().add(new Vector3(0, 0.2, 0)));
+  place('finial', new SphereGeometry(0.16, 12, 8), apex.clone().add(new Vector3(0, 0.5, 0)));
   return blocks;
 }
 
-const PAVILION_GAP = 10; // world units between pavilions, on a radius-31 island
-const PAVILION_MAX = 4;
-const SITE_SEARCH = 4; // how far from the click to look for a site, on a radius-31 island
+const PAVILION_GAP = SIZES.pavilion.gap; // metres between pavilions
+const PAVILION_MAX = SIZES.pavilion.max;
+const SITE_SEARCH = SIZES.pavilion.search; // metres from the click to look for a site
+const SITE_PATCH = 3; // metres each way over which the ground must be flat enough to build on
 
 /**
  * Whether a spot is worth a pavilion, as people chose where to build them: flat enough to build on
- * (the mean slope over a 3-unit patch, so small bumps in the heightmap do not count), with a view
+ * (the mean slope over a 3 m patch, so small bumps in the heightmap do not count), with a view
  * (high on the island or out at the cliff edge), and not crowding another pavilion. Pure.
  */
 export function worthAPavilion(field: IslandField, p: IslandParams, at: [number, number, number], others: [number, number][]): boolean {
-  const s = p.radius / 31;
   const [x, y, z] = at;
   if (others.length >= PAVILION_MAX) return false;
-  if (others.some(([ox, oz]) => Math.hypot(x - ox, z - oz) < PAVILION_GAP * s)) return false;
-  const h = 1.5 * s;
+  if (others.some(([ox, oz]) => Math.hypot(x - ox, z - oz) < PAVILION_GAP)) return false;
+  const h = SITE_PATCH / 2;
   const e = field.top(x + h, z), w = field.top(x - h, z), n = field.top(x, z + h), so = field.top(x, z - h);
   if (e === null || w === null || n === null || so === null) return false;
   if (Math.hypot(e - w, n - so) / (2 * h) > 0.25) return false;
@@ -168,7 +171,7 @@ export function worthAPavilion(field: IslandField, p: IslandParams, at: [number,
  * pavilion. Returns that place, or null if there is none nearby (the path then ends at the click).
  */
 export function pavilionSiteNear(field: IslandField, p: IslandParams, x: number, z: number, others: [number, number][]): [number, number, number] | null {
-  const r = SITE_SEARCH * (p.radius / 31);
+  const r = SITE_SEARCH;
   let best: [number, number, number] | null = null;
   let bestD = Infinity;
   for (let j = -6; j <= 6; j++) {
