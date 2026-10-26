@@ -20,6 +20,8 @@ export interface IslandParams {
   rockCount: number;
   /** Number of small rock pools carved into hollows of the plateau. */
   poolCount: number;
+  /** Whether the widest hollow holds a lake (Penglai: yes; omitted means yes). */
+  lake?: boolean;
   /** Number of rings from center to rim (angular segments = 3x this). */
   resolution: number;
 }

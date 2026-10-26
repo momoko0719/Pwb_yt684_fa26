@@ -1,5 +1,5 @@
 import type { IslandParams } from '../params/island';
-import type { IslandField } from './island';
+import { PLATEAU_EDGE, type IslandField } from './island';
 import { poolBasin } from './pools';
 import type { WaterSystem } from './water';
 
@@ -8,20 +8,25 @@ import type { WaterSystem } from './water';
  * the ground is. The terrain shader paints from it (forest floor, streams); grass, trees and shrubs
  * place themselves by it. Pure: same field and water, same map.
  *
- * Forest grows on gentle and moderate ground; it thins on the peaks (their upper flanks are bare
- * granite with a few lone pines) and on the cliff edge, opens into meadow clearings where a
- * low-frequency noise says so, and closes in again along the streams, where the ground is wet.
+ * Forest grows where trees would: along the streams and in wet hollows, at the feet of the peaks
+ * (shelter, soil washed down), in patches of every size where a noise of several scales, warped,
+ * favours it; not on the open plateau's high ground, the peaks' bare upper flanks or steep rock;
+ * and never past the meadow line, where the plateau starts to roll over into the cliff (trees had
+ * grown down it). Its edges thin out gradually, a few trees standing out beyond. (A single noise
+ * at one scale, cut at one threshold, made evenly sized round patches: the owner's "Dalmatian".)
  * Penglai keeps forest to 10–20% of its top (owner's choice: Huangshan's scenic area is 98% forest,
  * but here the meadow, the rock and open space come first).
  */
 export const COVER_SIZE = 512; // texels across: about 2.7 m each on a 500 m island
-const CLEARING_SIZE = 140; // metres: about the size of a meadow clearing
-const FOREST_SHARE = 0.72; // where the clearing noise is below this, the ground stays open
+const PATCHES = [150, 60, 22]; // metres: the scales of the noise that favours forest here or there
+const PATCH_WEIGHTS = [0.55, 0.3, 0.15];
+const WARP = 30; // metres the patches' noise is pushed about (so their edges are not round)
+const SUIT = { wet: 0.9, foot: 0.55, patch: 0.75, threshold: 0.5, edge: 0.14 }; // suitability: weights, and where forest begins (edges thinning over ±edge)
+const FOOT: [number, number, number] = [0.02, 0.12, 0.3]; // share of the peak's height: the foot band rises over the first two, ends by the third
 const BARE_SLOPE: [number, number] = [0.35, 0.7]; // slope (1 - normal.y) over which forest gives way to rock
 const BARE_PEAK: [number, number] = [0.2, 0.55]; // share of the peak's height over which forest gives way to rock
-const OPEN_RIM: [number, number] = [0.86, 0.96]; // share of the rim radius over which the edge opens
+const MEADOW_LINE: [number, number] = [PLATEAU_EDGE - 0.08, PLATEAU_EDGE - 0.02]; // share of the rim radius: forest ends before the plateau rolls over
 const WET_AREA: [number, number] = [2000, 40000]; // m² upstream from damp to wet ground
-const WET_FOREST = 0.25; // how much forest the wettest ground holds outside the groves
 
 export interface LandCover {
   size: number;
@@ -60,9 +65,14 @@ export function createLandCover(field: IslandField, p: IslandParams, water: Wate
       const rho = Math.hypot(x, z) / field.rim(Math.atan2(z, x));
       const area = water.areaAt(x, z);
       const wet = smooth(Math.log(WET_AREA[0]), Math.log(WET_AREA[1]), Math.log(area + 1));
-      const clearing = smooth(FOREST_SHARE - 0.1, FOREST_SHARE + 0.1, field.noise(x / CLEARING_SIZE + 17, z / CLEARING_SIZE - 41) * 0.5 + 0.5);
-      const ground = (1 - smooth(BARE_SLOPE[0], BARE_SLOPE[1], slope)) * (1 - smooth(BARE_PEAK[0], BARE_PEAK[1], onPeak)) * (1 - smooth(OPEN_RIM[0], OPEN_RIM[1], rho));
-      const forest = poolBasin(field.pools, x, z) > 0 ? 0 : ground * Math.max(clearing, wet * WET_FOREST);
+      // Where trees can stand at all; then how much the place favours them.
+      const ground = (1 - smooth(BARE_SLOPE[0], BARE_SLOPE[1], slope)) * (1 - smooth(BARE_PEAK[0], BARE_PEAK[1], onPeak)) * (1 - smooth(MEADOW_LINE[0], MEADOW_LINE[1], rho));
+      const foot = smooth(FOOT[0], FOOT[1], onPeak) * (1 - smooth(FOOT[1], FOOT[2], onPeak));
+      const wx = x + WARP * field.noise(x / 90 + 3.1, z / 90 - 7.7), wz = z + WARP * field.noise(x / 90 - 5.3, z / 90 + 2.9);
+      let patch = 0;
+      PATCHES.forEach((size, k) => { patch += PATCH_WEIGHTS[k] * (field.noise(wx / size + 17 + k * 31, wz / size - 41 - k * 13) * 0.5 + 0.5); });
+      const suit = SUIT.wet * wet + SUIT.foot * foot + SUIT.patch * patch;
+      const forest = poolBasin(field.pools, x, z) > 0 ? 0 : ground * smooth(SUIT.threshold - SUIT.edge, SUIT.threshold + SUIT.edge, suit);
       const k = (j * size + i) * 4;
       data[k + 1] = Math.round(forest * 255);
       data[k + 2] = Math.round(wet * 255);

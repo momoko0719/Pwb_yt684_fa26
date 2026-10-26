@@ -24,10 +24,10 @@ export interface ViewParams {
 }
 
 /** Milliseconds a shape value must stay unchanged before the island is rebuilt. */
-const REBUILD_DELAY = 250;
+export const REBUILD_DELAY = 250;
 
 /** `value`, but only once it has stopped changing for `delay` ms. */
-function useSettled(value: string, delay: number): string {
+export function useSettled(value: string, delay: number): string {
   const [settled, setSettled] = useState(value);
   useEffect(() => {
     const id = setTimeout(() => setSettled(value), delay);
@@ -53,7 +53,7 @@ export function useIslandControls(): IslandPreset & { view: ViewParams } {
   const { language, t } = useLanguage();
   const text = (key: string) => ({ label: t(`leva.${key}` as StringKey), hint: t(`hint.${key}` as StringKey) });
   const field = (key: keyof IslandParams, min: number, max: number, step: number) =>
-    ({ value: PRESET.island[key], min, max, step, ...text(key) });
+    ({ value: PRESET.island[key] as number, min, max, step, ...text(key) });
 
   const shape = useControls('Shape', {
     seed: field('seed', 0, 9999, 1),

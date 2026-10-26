@@ -8,7 +8,7 @@ import { placePools, poolBasin, type Pool } from './pools';
 export const OCTAVES = 7;
 
 /** Plateau, cliff and root profile. Lengths are fractions of `radius` unless noted. */
-const PLATEAU_EDGE = 0.78; // fraction of the rim radius where the plateau starts to roll over
+export const PLATEAU_EDGE = 0.78; // fraction of the rim radius where the plateau starts to roll over
 const PLATEAU_RELIEF = 0.03; // ±15 m on a 500 m island: rolling ground, not hills
 const SHOULDER_DROP = 0.1;
 const SHOULDER_POWER = 2.5;
@@ -73,6 +73,22 @@ const PEAK_SEED_SALT = 0x9e3779b9;
 type Range = [number, number];
 export interface Peak { x: number; z: number; radius: number; height: number }
 
+/**
+ * How an island arranges its landform, when it differs from Penglai's: its own peak placement,
+ * and extra height laid on the plateau (a raised terrace, say). Both optional; Penglai uses none.
+ */
+export interface IslandLayout {
+  peaks?: (p: IslandParams, rim: (angle: number) => number) => Peak[];
+  /** Metres added to the plateau at a point, before the shoulder rolls over into the cliff. */
+  lift?: (x: number, z: number) => number;
+  /** 0..1: how much of the plateau's noise relief to keep at a point (1 where omitted). */
+  relief?: (x: number, z: number) => number;
+  /** Metres added on top of everything (pools included), e.g. travertine laid by water. */
+  detail?: (x: number, z: number) => number;
+  /** Metres the island's own mesh is lowered at a point, under a finer mesh drawn there instead. */
+  meshDrop?: (x: number, z: number) => number;
+}
+
 /** The island as functions of world position, shared by the mesh and the 2D technique maps. */
 export interface IslandField {
   noise: Noise2D;
@@ -98,14 +114,14 @@ export interface IslandField {
   depthAt(x: number, z: number, rho: number, wallPower: number): number;
 }
 
-export function createIslandField(p: IslandParams): IslandField {
+export function createIslandField(p: IslandParams, layout?: IslandLayout): IslandField {
   const noise = createNoise2D(p.seed);
   const rims = new Map<number, number>();
   const rim = (angle: number) => {
     if (!rims.has(angle)) rims.set(angle, rimRadius(noise, p, angle));
     return rims.get(angle)!;
   };
-  const peaks = placePeaks(p, rim);
+  const peaks = layout?.peaks ? layout.peaks(p, rim) : placePeaks(p, rim);
   const rimY = -SHOULDER_DROP * p.radius;
   const plateau = (x: number, z: number) => plateauNoise(noise, p, x, z);
   const blend = PEAK_BLEND * p.peakHeight;
@@ -114,7 +130,7 @@ export function createIslandField(p: IslandParams): IslandField {
   // t is the fraction of the rim radius at this point's angle.
   const groundAt = (x: number, z: number, t: number) => {
     const drop = shoulderDrop(t);
-    const relief = PLATEAU_RELIEF * p.radius * (2 * plateau(x, z) - 1);
+    const relief = PLATEAU_RELIEF * p.radius * (2 * plateau(x, z) - 1) * (layout?.relief?.(x, z) ?? 1) + (layout?.lift?.(x, z) ?? 0);
     return (relief + lift(x, z)) * (1 - drop) + rimY * drop;
   };
   const inside = (x: number, z: number, height: (x: number, z: number, t: number) => number) => {
@@ -126,7 +142,7 @@ export function createIslandField(p: IslandParams): IslandField {
   const pools = placePools((x, z) => inside(x, z, groundAt), lift, rim, p);
   const heightAt = (x: number, z: number, t: number) => {
     const ground = groundAt(x, z, t);
-    return ground - poolBasin(pools, x, z, ground);
+    return ground - poolBasin(pools, x, z, ground) + (layout?.detail?.(x, z) ?? 0);
   };
   const top = (x: number, z: number) => inside(x, z, heightAt);
 
@@ -170,8 +186,8 @@ type Surface = (angle: number, t: number) => [number, number, number, number];
  * spires, dropping over a near-vertical cliff under which a few blunt rocks hang.
  * Pure function: same params, same geometry.
  */
-export function createIsland(p: IslandParams): BufferGeometry {
-  const field = createIslandField(p);
+export function createIsland(p: IslandParams, layout?: IslandLayout): BufferGeometry {
+  const field = createIslandField(p, layout);
   const { rim, rimY, depthAt } = field;
 
   const top: Surface = (angle, t) => {
@@ -179,7 +195,7 @@ export function createIsland(p: IslandParams): BufferGeometry {
     const x = Math.cos(angle) * r;
     const z = Math.sin(angle) * r;
     const edge = Math.min(Math.max((t - PLATEAU_EDGE) / (1 - PLATEAU_EDGE), 0), 1);
-    return [x, field.heightAt(x, z, t), z, smoothstep(0, 0.6, edge)];
+    return [x, field.heightAt(x, z, t) - (layout?.meshDrop?.(x, z) ?? 0), z, smoothstep(0, 0.6, edge)];
   };
 
   // One ray from the rim (t = 0) to the center (t = 1), sampled densely, then resampled at equal

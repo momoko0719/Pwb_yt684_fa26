@@ -1,0 +1,32 @@
+{
+  "id": "wonderland-terrain",
+  "kind": "world-study",
+  "title": {
+    "en": "Wonderland Island",
+    "zh": "Wonderland 白瓷岛"
+  },
+  "session": 8,
+  "techniques": [
+    "height map",
+    "CDLOD",
+    "baked light",
+    "water graph",
+    "potential flow",
+    "contact map"
+  ],
+  "date": "2026-10-25",
+  "status": "in-progress",
+  "summary": {
+    "en": "The second island, in white porcelain: a meadow and a range of peaks as a height map drawn with continuous level of detail; a terrace of three pools whose water spills, falls and divides into streams that pour over the rim into the cloud; and a creature whose daily walks, drinks and rests slowly turn the stone it touches to jade.",
+    "zh": "第二座岛，白瓷质地：草地和山脉用高度图、以连续 LOD 绘制；三层阶梯水池的水溢出、落下、分成小溪，从岛边落入云海；一只生灵日复一日地行走、饮水、休息，它接触过的石头慢慢变成玉。"
+  },
+  "course": "World study",
+  "learned": {
+    "en": "Each kind of ground gets the representation that suits it; water is a graph before it is a surface; a place takes its character from what lives there.",
+    "zh": "每种地形用最适合它的表示方法；水先是一张图，然后才是一层表面；一个地方的性格来自在那里生活的东西。"
+  },
+  "guixu": {
+    "en": "Wonderland beside Penglai: where living somewhere leaves a mark (栖居成玉).",
+    "zh": "与蓬莱对照的 Wonderland：栖居在一处，就会在那里留下痕迹（栖居成玉）。"
+  }
+}

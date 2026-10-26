@@ -852,3 +852,15 @@ realistic, only isolated); Flying-Over Rock is 12 m.
   and slow, with no room to build. Clearing threshold 0.32 → 0.72 and wet-ground forest 0.85 →
   0.25: mean forest 15.7% of the top, 78% open, 14,007 trees. The Wonderland direction moves to
   its own Atlas island (docs/wonderland.md); Penglai stays as the realistic-scale study.
+
+## Forest by where trees grow (owner: trees down the cliff; "Dalmatian" patches)
+
+- Trees had grown down the plateau's roll-over: forest only opened at 86–96% of the rim radius,
+  while the plateau rolls over at 78% (25% of the forest lay past that line). Now it ends by the
+  meadow line (70–76%, before the roll-over): none past it.
+- One noise at one scale (140 m) cut at one threshold made evenly sized round patches. Now a
+  suitability: wet ground along the streams (0.9), the peaks' feet (0.55), and patches of a
+  noise of three scales (150 / 60 / 22 m), warped 30 m (0.75); forest where it passes 0.5, the
+  edges thinning over ±0.14, so a few trees stand out beyond. Bare peaks and steep rock as before.
+- Coverage kept near the owner's 10–20%: 14.2% of the top (it was 15.8%, a quarter of it on the
+  cliff), tuned by the threshold (0.78: 4%, 0.6: 7.9%, 0.5: 14.2%, 0.46: 17.9%).

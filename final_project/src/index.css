@@ -270,3 +270,26 @@ h2 { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-top: 40px
 .path-pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--silk-seal); animation: pulse 1.2s ease-out infinite; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(184, 69, 47, 0.55); } 100% { box-shadow: 0 0 0 12px rgba(184, 69, 47, 0); } }
 @keyframes prompt-in { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* Wonderland's plan map, bottom left above the tool bar. */
+.plan-map {
+  position: absolute; left: 16px; bottom: 76px; z-index: 6; padding: 10px 12px; font-size: 0.78rem; width: 324px;
+  background-color: var(--silk-bg); background-image: var(--grain); color: var(--silk-text);
+  border: 1.5px solid var(--silk-text); box-shadow: 2px 2px 0 rgba(20, 18, 16, 0.22);
+}
+.plan-map canvas { display: block; width: 300px; height: 300px; }
+.plan-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; }
+.plan-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; border: 1px solid var(--silk-text); }
+.plan-sites { margin: 6px 0 0 18px; padding: 0; columns: 2; }
+.plan-note { margin-top: 4px; font-weight: bold; }
+@media (max-width: 1100px) { .plan-map { bottom: 140px; } }
+
+/* Wonderland blockout: a zone's colour in the legend. */
+.scale-swatch {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  margin-right: 0.35em;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  vertical-align: baseline;
+}

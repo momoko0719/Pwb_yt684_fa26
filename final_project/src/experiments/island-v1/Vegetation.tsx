@@ -8,7 +8,6 @@ import { SIZES } from '../../core/scale';
 import { createPropMaterial } from '../../core/shaders/prop';
 import type { WorldUniforms } from '../../core/shaders/uniforms';
 
-const [NEAR, MID] = SIZES.forest.lod; // metres: grown pines inside NEAR, three-tier stand-ins inside MID, two-tier crowns beyond
 const REBUCKET = 0.3; // seconds between sorting trees into their level of detail
 const MOVE = 4; // ...or as soon as the camera has moved this far
 const UP = new Vector3(0, 1, 0);
@@ -20,14 +19,17 @@ const UP = new Vector3(0, 1, 0);
  * (its lightest level) up close, a three-tier stand-in in the middle distance, a two-tier crown far
  * away. Shrubs and boulders are single instanced meshes.
  */
-export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial, uniforms }: {
+export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial, uniforms, lod = SIZES.forest.lod }: {
   trees: Plant[];
   shrubs: Plant[];
   boulders: Plant[];
   seed: number;
   pineMaterial: ShaderMaterial;
   uniforms: WorldUniforms;
+  /** Metres: grown pines inside the first, three-tier stand-ins inside the second, two-tier crowns beyond. */
+  lod?: [number, number];
 }) {
+  const [NEAR, MID] = lod;
   // Shapes: the grown pine variants (same seeds as the lone pines) and the two stand-ins.
   const shapes = useMemo(() => ({
     near: Array.from({ length: PINE_VARIANTS }, (_, v) => {

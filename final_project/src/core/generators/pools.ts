@@ -105,7 +105,7 @@ export function placePools(
 
   const pools: Pool[] = [];
   // The lake first: the best-ranked hollow that has room for a wide bowl.
-  for (const { c } of ranked) {
+  for (const { c } of p.lake === false ? [] : ranked) {
     let placed = false;
     for (let k = 0; k < LAKE_TRIES && !placed; k++) {
       const radius = LAKE_RADIUS[1] - ((LAKE_RADIUS[1] - LAKE_RADIUS[0]) * k) / (LAKE_TRIES - 1);

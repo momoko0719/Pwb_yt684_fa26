@@ -230,6 +230,99 @@ export const GROUND = {
   boulder: '#a39b8a',
 };
 
+/**
+ * Wonderland's plan map: a quiet map in the porcelain palette (docs/wonderland.md), zones by tone,
+ * water in blue, sites in cinnabar.
+ */
+export const PLAN_VIEW = {
+  plateau: '#e9e4d8',
+  terrace: '#c3ded8',
+  peak: '#9fa8a9',
+  pass: '#c9a45c',
+  rim: '#d3cec2',
+  water: '#4f86a3',
+  site: '#b8452f',
+  ink: '#141210',
+};
+
+/**
+ * Wonderland by day: white porcelain (docs/wonderland.md). One body colour; light faces go to
+ * white, faces turned away cool, creases darker still; a soft sheen at grazing angles.
+ */
+/**
+ * Wonderland's blockout (the placeholders in experiments/wonderland-terrain/blocks.tsx): one plain colour per zone, so the
+ * layout reads at a glance. Placeholders only, not the island's look.
+ */
+export const BLOCKOUT = {
+  base: '#D9D3C7',
+  meadow: '#B9C9A3',
+  terrace: '#EDE7DA',
+  lake: '#7DB8B2',
+  peaks: '#F6F3EE',
+  stair: '#CFE0DA',
+  water: '#8CC3BC',
+  fall: '#FFFFFF',
+  grove: '#9DB8A8',
+  building: '#C9A45C',
+  bridge: '#F4F1EA',
+  site: '#C0492F',
+  creature: '#FFFFFF',
+  roam: '#DCE6CF',
+  underside: '#C8C2B6',
+  person: '#2B2B2B',
+  label: '#2B2B2B',
+  skyLight: '#FFFFFF',
+  groundLight: '#B8B0A2',
+};
+
+export const PORCELAIN = {
+  body: '#F4F1EA',
+  warmShadow: '#DCD8CF',
+  coolShadow: '#BAC4C5',
+  crease: '#8E9496',
+  sheen: '#FFFFFF',
+  /** The one cool color: milky jade water, light enough to sit with the white. */
+  water: '#93C7C0',
+  /** Deep water's own colour (light scattered back from within it): a clear teal blue. */
+  waterDeep: '#3FA6B8',
+  /** What a metre of water lets through (white light in, this out): red goes first, so shallow water over the cream floor turns cyan. */
+  waterTint: '#CBEAEA',
+  /**
+   * Stone turned jade by dwelling (栖居成玉), restrained: where it walks, a pale celadon; where
+   * it drinks, a grey-green (灰青); where it rests, a bluish white (青白).
+   */
+  jadeWalk: '#CAD9D1',
+  jadeDrink: '#A8C1B8',
+  jadeRest: '#C6D8D2',
+  /** A creature's soft shadow on the ground. */
+  contactShadow: '#8E9496',
+  /** Pines on the white island: a restrained grey-green crown, a grey-brown trunk. */
+  pineBark: '#6B625A',
+  pineNeedle: '#7E9184',
+  pineNeedleShade: '#4C5A52',
+};
+
+/** The dwelling's debug view: where it walks, drinks, rests (the contact map's three channels). */
+export const WEAR_DEBUG = {
+  walk: '#D9534F',
+  drink: '#2E86C1',
+  rest: '#E5A92B',
+};
+
+/** Wonderland's zones, the debug view (zones.ts order, outside first). */
+export const ZONE_DEBUG = [
+  '#2A2E36', // outside
+  '#3FA6B8', // water
+  '#96CDD7', // terrace
+  '#5F5A58', // cliff
+  '#968C82', // ridge
+  '#C3BCB0', // rock slope
+  '#78AA8C', // wet shore
+  '#466E50', // woodland
+  '#E6AA50', // habitat
+  '#F5F2EB', // open stone
+];
+
 /** Wind streaks (the wind field made visible): a pale silk white, like mist. */
 export const WIND_STREAK = '#f4f1e8';
 

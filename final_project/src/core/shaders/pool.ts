@@ -10,6 +10,11 @@ void main() {
   vec4 world = modelMatrix * vec4(position, 1.0);
   vWorldPos = world.xyz;
   vDepth = aDepth;
+#ifdef FIELD_DEPTH
+  // Drawn a little toward the eye: the ground's mesh is only a shell that may stand proud of the
+  // true surface; whether water shows is then decided per pixel by fieldDepth.
+  world.xyz += normalize(cameraPosition - world.xyz) * FIELD_BIAS;
+#endif
   gl_Position = projectionMatrix * viewMatrix * world;
 }
 `;
@@ -18,12 +23,17 @@ const fragmentShader = /* glsl */ `
 varying vec3 vWorldPos;
 varying float vDepth;
 ${ATMOSPHERE_GLSL}
+`;
+
+const fragmentMain = /* glsl */ `
 
 const float SHALLOW = 0.35; // water shallower than this (world units) shows the stone below
 const float EDGE = 0.06; // the last few centimetres of water fade out, so the shore has no hard line
 const float RIPPLE = 0.12; // how far the ripples tilt the water normal
 const float GLINT = 60.0; // sharpness of the sun's reflection
 const float SPARKLE = 0.965; // noise above this twinkles: small glints that come and go
+const float FINE_NEAR = 25.0; // metres: ripples and twinkles in full within this
+const float FINE_FAR = 90.0; // and gone beyond this
 
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -43,7 +53,10 @@ void main() {
   vec2 q = vWorldPos.xz * 3.0;
   float rx = valueNoise(q + vec2(uTime * 0.3, 0.0)) - valueNoise(q * 1.7 - vec2(0.0, uTime * 0.25));
   float rz = valueNoise(q.yx + vec2(0.0, uTime * 0.3)) - valueNoise(q.yx * 1.7 + vec2(uTime * 0.2, 0.0));
-  vec3 n = normalize(vec3(rx * RIPPLE, 1.0, rz * RIPPLE));
+  // Ripples and twinkles are finer than a pixel far off (a few per metre): there they would only
+  // speckle, so they fade out with distance and the water is a calm mirror.
+  float near = 1.0 - smoothstep(FINE_NEAR, FINE_FAR, length(cameraPosition - vWorldPos));
+  vec3 n = normalize(vec3(rx * RIPPLE * near, 1.0, rz * RIPPLE * near));
   vec3 v = normalize(cameraPosition - vWorldPos);
 
   // The mirror: the sky gradient in the reflected direction.
@@ -52,8 +65,15 @@ void main() {
   vec3 sky = mix(uSkyHorizon, uSkyMid, smoothstep(0.0, 0.3, up));
   sky = mix(sky, uSkyTop, smoothstep(0.3, 1.0, up));
 
-  // Depth: dark mineral water where it is deep; where it is shallow the stone shows through.
-  float shallow = 1.0 - smoothstep(0.0, SHALLOW, vDepth);
+  // Depth: per vertex, or per pixel from the ground's own field when one is given (a crisp shore).
+#ifdef FIELD_DEPTH
+  float depth = fieldDepth(vWorldPos);
+#else
+  float depth = vDepth;
+#endif
+
+  // Dark mineral water where it is deep; where it is shallow the stone shows through.
+  float shallow = 1.0 - smoothstep(0.0, SHALLOW, depth);
   vec3 below = mix(uMineral * 0.5, uRock * 0.75, shallow);
 
   // Class 05 Fresnel: seen from above more of the depth shows, seen edge-on more of the sky.
@@ -62,25 +82,30 @@ void main() {
   vec3 color = mix(below, sky, fresnel * (1.0 - 0.4 * shallow));
 
   // A wet, bright band where the water is only just covering the stone.
-  color += uRimColor * 0.3 * (1.0 - smoothstep(EDGE, EDGE * 3.0, vDepth));
+  color += uRimColor * 0.3 * (1.0 - smoothstep(EDGE, EDGE * 3.0, depth));
 
   // The sun's reflection, plus small twinkles that drift with the ripples.
   color += uRimColor * 1.5 * pow(max(dot(r, uSunDir), 0.0), GLINT);
-  color += uRimColor * 0.8 * step(SPARKLE, valueNoise(q * 4.0 + vec2(uTime * 0.7, -uTime * 0.5)));
+  color += uRimColor * 0.8 * near * step(SPARKLE, valueNoise(q * 4.0 + vec2(uTime * 0.7, -uTime * 0.5)));
 
   // Fade by depth: exactly transparent where the ground meets the water, so the shore is soft.
-  float alpha = smoothstep(0.0, EDGE, vDepth);
+  float alpha = smoothstep(0.0, EDGE, depth);
   gl_FragColor = vec4(color, alpha);
   #include <colorspace_fragment>
 }
 `;
 
-/** Rock pools: small mirrors of the sky, dark when seen from above, bright when seen edge-on. */
-export function createPoolMaterial(uniforms: WorldUniforms): ShaderMaterial {
+/**
+ * Rock pools: small mirrors of the sky, dark when seen from above, bright when seen edge-on.
+ * `field` optionally gives GLSL defining `float fieldDepth(vec3 p)` (the water's depth below a
+ * point of its surface) and the uniforms it reads, so the shore is found per pixel.
+ */
+export function createPoolMaterial(uniforms: WorldUniforms, field?: { glsl: string; uniforms: Record<string, { value: unknown }> }): ShaderMaterial {
   return new ShaderMaterial({
-    uniforms: { ...uniforms },
+    uniforms: { ...uniforms, ...field?.uniforms },
+    defines: field ? { FIELD_DEPTH: '', FIELD_BIAS: '0.35' } : {},
     vertexShader,
-    fragmentShader,
+    fragmentShader: fragmentShader + (field?.glsl ?? '') + fragmentMain,
     transparent: true,
   });
 }
