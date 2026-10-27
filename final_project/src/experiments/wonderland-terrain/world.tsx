@@ -55,13 +55,15 @@ export function World({ hour, clouds: cloudHeight = -70, children }: { hour: num
     skyRef.current?.position.copy(camera.position);
     cloudRef.current?.position.set(camera.position.x, cloudHeight, camera.position.z);
   });
+  // Skip raycast so OrbitControls zoomToCursor hits terrain, not sky / cloud sea.
+  const noHit = () => {};
   return (
     <>
-      <mesh ref={skyRef} material={sky} frustumCulled={false}>
+      <mesh ref={skyRef} material={sky} frustumCulled={false} raycast={noHit}>
         <sphereGeometry args={[FAR * 0.8, 32, 16]} />
       </mesh>
       {children(uniforms)}
-      <mesh ref={cloudRef} material={clouds} rotation-x={-Math.PI / 2} frustumCulled={false}>
+      <mesh ref={cloudRef} material={clouds} rotation-x={-Math.PI / 2} frustumCulled={false} raycast={noHit}>
         <planeGeometry args={[FAR * 1.6, FAR * 1.6]} />
       </mesh>
     </>
@@ -84,7 +86,7 @@ export function StatsPanel({ rows = [], title }: { rows?: [string, string][]; ti
     return () => { meterCells.fps = null; meterCells.gpu = null; };
   }, []);
   return (
-    <div className="scale-legend">
+    <div className="stats-panel">
       <div className="scale-head">{title}</div>
       <table>
         <tbody>

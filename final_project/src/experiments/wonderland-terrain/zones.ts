@@ -1,6 +1,6 @@
 import { createNoise2D } from '../../core/noise';
 import { sampleGrid, type HeightGrid } from '../../core/terrain/heightGrid';
-import { walkable } from './dwelling';
+import { walkable, waterDepth } from './dwelling';
 import type { Water } from './water';
 
 /**
@@ -13,11 +13,10 @@ import type { Water } from './water';
  * - ridge: how far it stands above the ground round it (a 14 m ring), high up;
  * - reach: dry, walkable ground (the creature's own test), flood-filled into connected regions.
  *
- * The zone is the first rule that holds: water; terrace; cliff (bare rock, too steep for anything);
- * ridge; rock slope; wet shore (near water, gentle); woodland (where trees would take: moist,
- * sheltered, gentle, and in clumps, with clearings between; groves smaller than `minGrove` left
- * open); habitat (dry, near level, sheltered, within a walk of water, on reachable ground); and the
- * rest open stone, the white ground left empty (留白).
+ * The zone is the first rule that holds: water; terrace plate footprint (梯池干台 — dry seats on
+ * the stepped pools' plates; steep faces on the plate reclass to cliff/rockSlope); cliff; ridge;
+ * rock slope; wet shore; woodland (clumps with clearings); habitat (placement candidate only —
+ * no special surface colour); open stone (留白).
  *
  * Pure: the same ground, water and seed give the same zones.
  */
@@ -75,11 +74,10 @@ export function buildZones(grid: HeightGrid, water: Water, terrace: (x: number, 
   const x0 = -half, z0 = -half;
   const at = (i: number) => x0 + (i + 0.5) * cell, atZ = (j: number) => z0 + (j + 0.5) * cell;
   const world = { grid, water, terrace, seed };
-  // The water mask is per texel of the height grid.
-  const wetAt = (x: number, z: number) => {
-    const i = Math.round(x / grid.texel + (grid.size - 1) / 2), j = Math.round(z / grid.texel + (grid.size - 1) / 2);
-    return i >= 0 && j >= 0 && i < grid.size && j < grid.size && water.mask[j * grid.size + i] > 0;
-  };
+  // Water where its level stands above the ground: the creature's own test (dwelling.ts). (Not the
+  // water mask: water.ts blurs it ~5 m outward for far paint, which widened the water zone up the
+  // banks, and then no shore cell lay within a muzzle's reach of real water: no drinking stand.)
+  const wetAt = (x: number, z: number) => waterDepth(world, x, z) > 0;
   const inside = new Uint8Array(n), wet = new Uint8Array(n), onTerrace = new Uint8Array(n);
   const h = new Float32Array(n), slope = new Float32Array(n);
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
@@ -157,8 +155,14 @@ export function buildZones(grid: HeightGrid, water: Water, terrace: (x: number, 
     if (!inside[t]) continue;
     moisture[t] = Math.exp(-Math.max(toWater[t] - RULE.moisture.near, 0) / RULE.moisture.fade);
     if (wet[t]) { zone[t] = ZONE.water; continue; }
-    if (onTerrace[t]) { zone[t] = ZONE.terrace; continue; }
     const s = slope[t];
+    // Terrace plate footprint (lowest plate SDF): dry seats stay terrace; steep weirs/faces on the
+    // plate are cliff or rockSlope — do not paint all non-water plate cells as one flat "台地".
+    if (onTerrace[t]) {
+      if (s > RULE.cliff) { zone[t] = ZONE.cliff; continue; }
+      if (s > RULE.rockSlope) { zone[t] = ZONE.rockSlope; continue; }
+      zone[t] = ZONE.terrace; continue;
+    }
     if (s > RULE.cliff) { zone[t] = ZONE.cliff; continue; }
     if (h[t] > RULE.ridge.above && h[t] - ring(x, z, RULE.ridge.ring) > RULE.ridge.rise) { zone[t] = ZONE.ridge; continue; }
     if (s > RULE.rockSlope) { zone[t] = ZONE.rockSlope; continue; }

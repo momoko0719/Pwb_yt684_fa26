@@ -82,6 +82,8 @@ export function DwellingView({ dwelling, ground, run, speed, show, calls, onStat
   });
 
   const { drink, homes } = dwelling.sites;
+  const home = homes[Math.min(dwelling.home, homes.length - 1)];
+  const muzzleWater = dwelling.stand?.water;
   return (
     <>
       <CreatureFigure ref={body} />
@@ -89,11 +91,31 @@ export function DwellingView({ dwelling, ground, run, speed, show, calls, onStat
         <group>
           <SiteMark x={drink.x} z={drink.z} y={groundY(dwelling, drink.x, drink.z)} colour={WEAR_DEBUG.drink} />
           {homes.map((h, k) => <SiteMark key={k} x={h.x} z={h.z} y={groundY(dwelling, h.x, h.z)} colour={WEAR_DEBUG.rest} big={k === dwelling.home} />)}
+          {home && <RestRing x={home.x} z={home.z} y={groundY(dwelling, home.x, home.z)} radius={0.7} />}
+          {muzzleWater && (
+            <mesh position={[muzzleWater[0], muzzleWater[1] + 0.05, muzzleWater[2]]} renderOrder={21}>
+              <sphereGeometry args={[0.12, 10, 8]} />
+              <meshBasicMaterial color={WEAR_DEBUG.drink} depthTest={false} transparent opacity={0.85} />
+            </mesh>
+          )}
           <WalkingWay dwelling={dwelling} />
         </group>
       )}
     </>
   );
+}
+
+/** Allowed rest jitter around the active home (matches nearHome reach 0.7 m). Default off with Contact debug. */
+function RestRing({ x, y, z, radius }: { x: number; y: number; z: number; radius: number }) {
+  const pts = useMemo(() => {
+    const n = 48, out: Vector3[] = [];
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      out.push(new Vector3(x + Math.cos(a) * radius, y + 0.08, z + Math.sin(a) * radius));
+    }
+    return out;
+  }, [x, y, z, radius]);
+  return <Line points={pts} color={WEAR_DEBUG.rest} lineWidth={1} depthTest={false} renderOrder={20} />;
 }
 
 const groundY = (d: Dwelling, x: number, z: number) => d.groundAt(x, z);

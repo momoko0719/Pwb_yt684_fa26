@@ -1,12 +1,13 @@
 import { useEffect, useMemo } from 'react';
-import { BoxGeometry, BufferAttribute, CapsuleGeometry, Color, Group, LOD, Mesh, Quaternion, Vector3 } from 'three';
+import { Color, Group, LOD, Mesh, Quaternion, Vector3 } from 'three';
 import { PORCELAIN } from '../../core/palette';
-import { PERSON_HEIGHT, SIZES } from '../../core/scale';
-import { expandPine, interpretPine, pineGeometry, PINE_LODS, GROWN_PINE_HEIGHT } from '../../core/generators/pine';
+import { expandPine, forestPineModel, interpretPine, pineGeometry, GROWN_PINE_HEIGHT } from '../../core/generators/pine';
 import { createPineMaterial } from '../../core/shaders/pine';
 import { createPorcelainMaterial } from '../../core/shaders/porcelain';
 import type { WorldUniforms } from '../../core/shaders/uniforms';
 import type { Dwelling } from './dwelling';
+import { STELE_TINT, WATCH_BASE, steleGeometry, watchBaseGeometry } from './stele';
+import { WOODS_LOD } from './woods';
 import { SUN_AZIMUTH } from './world';
 
 /**
@@ -19,7 +20,8 @@ import { SUN_AZIMUTH } from './world';
  *   (A low screen of rough stone behind the home was tried and left out: in the porcelain's smooth
  *   white it read as a lump of sugar, not stone; the pines enclose the place enough.)
  * - A place to watch it drink from: a small level stone a few metres along the shore from the
- *   stand, off its ways (people's place, not the creature's), a person standing on it for scale.
+ *   stand, off its ways (people's place, not the creature's), with a plain stone stele on it
+ *   (scene object, not a human scale figure).
  * - The views: the corner (side-on to the way, the sun on the far side, over open ground, wide
  *   enough to see home, way and shore); the home (a middle view: the creature, where it lies, the
  *   way it leaves by, the water far behind); close to the ground where it lies (the stone and the
@@ -38,8 +40,14 @@ export interface Corner {
 }
 
 const PINE = { heights: [7.5, 9.5], ring: [6, 11], apart: 6.5, turn: 0.9, trunk: 0.5, slope: 0.25, offWay: 5 }; // metres (turn: radians the two keep apart about the home)
-const STONE = { half: [1.6, 1.1] as [number, number], rise: 0.15, off: 6, flat: 0.35, offWay: 4.5 }; // metres: half-sizes; how far its top stands above the highest ground under it; along the shore; the ground's most fall under it; how far off the creature's ways
-const PERSON = { radius: 0.22 }; // metres
+/** Watching base — low stone seat; sizes from WATCH_BASE (not a giant white board). */
+const STONE = {
+  half: WATCH_BASE.half,
+  rise: WATCH_BASE.rise,
+  off: WATCH_BASE.off,
+  flat: WATCH_BASE.flat,
+  offWay: WATCH_BASE.offWay,
+};
 const CLEAR = { home: 4.5, stand: 4 }; // metres anything placed keeps from the home, from the stands
 
 /** Across the way, toward the view: the sun on the far side, over open ground. */
@@ -126,19 +134,19 @@ export function planCorner(d: Dwelling): Corner {
   };
 }
 
+/** Temporarily hide stele + watch base in the live scene (assets kept for atlas). */
+export const SHOW_WATCH_STELE = false;
+
 /** The corner's obstacles, for the creature's ways (dwelling.ts DwellWorld.obstacles). */
 export function cornerObstacles(c: Corner) {
+  // Pines always block. Stone/stele footprint only while the watch seat is shown — when hidden,
+  // drop the obstacle so routes are not blocked by invisible geometry (assets stay in atlas).
+  const pines = c.pines.map((p) => ({ x: p.x, z: p.z, r: PINE.trunk + 0.9 }));
+  if (!SHOW_WATCH_STELE) return pines;
   return [
-    ...c.pines.map((p) => ({ x: p.x, z: p.z, r: PINE.trunk + 0.9 })),
-    { x: c.stone.x, z: c.stone.z, r: Math.hypot(...c.stone.half) + 0.4 },
+    ...pines,
+    { x: c.stone.x, z: c.stone.z, r: Math.hypot(...c.stone.half) + 0.55 },
   ];
-}
-
-/** A plain box with full occlusion (the porcelain material reads aOcclusion). */
-function slabGeometry(w: number, h: number, d: number): BoxGeometry {
-  const g = new BoxGeometry(w, h, d);
-  g.setAttribute('aOcclusion', new BufferAttribute(new Float32Array(g.attributes.position.count).fill(1), 1));
-  return g;
 }
 
 /** Penglai's pine material in Wonderland's own colours (restrained grey-green, grey-brown). */
@@ -150,48 +158,75 @@ export function createIslandPineMaterial(uniforms: WorldUniforms) {
   return m;
 }
 
+/**
+ * Same view bands as the woods (`WOODS_LOD`): grown L-system up close, then the shared mid/far
+ * stand-ins. Stand-in meshes are scaled to GROWN_PINE_HEIGHT so one LOD root scale fits all levels.
+ */
 export function CornerBlocks({ corner, uniforms, groundAt, seed }: { corner: Corner; uniforms: WorldUniforms; groundAt: (x: number, z: number) => number; seed: number }) {
   const needles = useMemo(() => createIslandPineMaterial(uniforms), [uniforms]);
   const stoneMaterial = useMemo(() => createPorcelainMaterial(uniforms), [uniforms]);
-  useEffect(() => () => { needles.dispose(); stoneMaterial.dispose(); }, [needles, stoneMaterial]);
-  const variants = useMemo(() => corner.pines.map((p) => {
-    const s = seed * 10 + 3 + p.variant;
-    const skeleton = interpretPine(expandPine(s), s);
-    return PINE_LODS.map((lod) => pineGeometry(skeleton, lod, s));
-  }), [corner, seed]);
-  useEffect(() => () => variants.flat().forEach((g) => g.dispose()), [variants]);
+  const steleMaterial = useMemo(() => {
+    const m = createPorcelainMaterial(uniforms);
+    (m.uniforms.uBody.value as Color).set(STELE_TINT);
+    return m;
+  }, [uniforms]);
+  useEffect(() => () => { needles.dispose(); stoneMaterial.dispose(); steleMaterial.dispose(); }, [needles, stoneMaterial, steleMaterial]);
+  const variants = useMemo(() => {
+    const mid = forestPineModel('mid');
+    const far = forestPineModel('far');
+    mid.scale(GROWN_PINE_HEIGHT, GROWN_PINE_HEIGHT, GROWN_PINE_HEIGHT);
+    far.scale(GROWN_PINE_HEIGHT, GROWN_PINE_HEIGHT, GROWN_PINE_HEIGHT);
+    const grown = corner.pines.map((p) => {
+      const s = seed * 10 + 3 + p.variant;
+      // Lod 0 near the home (few trees); beyond WOODS_LOD[0] the stand-ins take over.
+      return pineGeometry(interpretPine(expandPine(s), s), 0, s);
+    });
+    return { grown, mid, far };
+  }, [corner, seed]);
+  useEffect(() => () => {
+    variants.grown.forEach((g) => g.dispose());
+    variants.mid.dispose();
+    variants.far.dispose();
+  }, [variants]);
   const trees = useMemo(() => {
     const root = new Group();
+    const [near, mid] = WOODS_LOD;
     corner.pines.forEach((p, k) => {
       const tree = new LOD();
-      variants[k].forEach((geometry, lod) => tree.addLevel(new Mesh(geometry, needles), [0, ...SIZES.pine.lod][lod]));
+      tree.addLevel(new Mesh(variants.grown[k], needles), 0);
+      tree.addLevel(new Mesh(variants.mid, needles), near);
+      tree.addLevel(new Mesh(variants.far, needles), mid);
       tree.position.set(p.x, groundAt(p.x, p.z) - 0.2, p.z);
       // Its reaching side (+x in its own frame) toward the home.
       tree.quaternion.copy(new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), -p.facing));
       tree.scale.setScalar(p.height / GROWN_PINE_HEIGHT);
+      tree.userData.scaleId = 'pine';
       root.add(tree);
     });
     return root;
   }, [corner, variants, needles, groundAt]);
-  // The watching stone: its top a little above the highest ground under it, its foot below the lowest.
+  // Watching base: low seat following the bank — top above max under, foot just under min (less board-like thickness).
   const { x, z, half, facing } = corner.stone;
   const c = Math.cos(facing), s = Math.sin(facing);
   const under = [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]].map(([a, b]) => groundAt(x + c * a * half[0] - s * b * half[1], z + s * a * half[0] + c * b * half[1]));
-  const top = Math.max(...under) + STONE.rise, foot = Math.min(...under) - 0.3;
-  const slab = useMemo(() => slabGeometry(half[0] * 2, top - foot, half[1] * 2), [half, top, foot]);
+  const top = Math.max(...under) + STONE.rise;
+  const foot = Math.min(...under) - 0.12;
+  const height = Math.max(top - foot, 0.22);
+  const slab = useMemo(() => watchBaseGeometry(seed * 10 + 7, half, height), [half, height, seed]);
   useEffect(() => () => slab.dispose(), [slab]);
-  // A person standing on it, for scale (a plain figure: 1.7 m, shoulders about 0.45 m across).
-  const person = useMemo(() => {
-    const g = new CapsuleGeometry(PERSON.radius, PERSON_HEIGHT - 2 * PERSON.radius, 4, 12);
-    g.setAttribute('aOcclusion', new BufferAttribute(new Float32Array(g.attributes.position.count).fill(1), 1));
-    return g;
-  }, []);
-  useEffect(() => () => person.dispose(), [person]);
+  const stele = useMemo(() => steleGeometry(seed * 10 + 41), [seed]);
+  useEffect(() => () => stele.dispose(), [stele]);
   return (
     <group>
       <primitive object={trees} />
-      <mesh geometry={slab} material={stoneMaterial} position={[x, (top + foot) / 2, z]} rotation-y={-facing} />
-      <mesh geometry={person} material={stoneMaterial} position={[x, top + PERSON_HEIGHT / 2, z]} />
+      {SHOW_WATCH_STELE && (
+        <>
+          <mesh geometry={slab} material={stoneMaterial} position={[x, foot, z]} rotation-y={-facing}
+            userData={{ scaleKind: 'watchBase' }} />
+          <mesh geometry={stele} material={steleMaterial} position={[x, top, z]} rotation-y={-facing}
+            userData={{ scaleKind: 'stele' }} />
+        </>
+      )}
     </group>
   );
 }

@@ -56,7 +56,7 @@ const ROCK_BLEND = 0.5; // smooth union width, share of the mean radius
 const LUMPS = 0.04; // broad lumps over it all, share of the mean radius (Penglai: 0.1)
 const SAMPLES = 160; // along each ray, before resampling
 const RINGS = 72; // rings after resampling
-const STRIDE = 2; // every second rim point makes a ray
+const STRIDE = 1; // every rim point — matches rimWall density so the wall/underside join has no chord gaps
 
 interface Rock { x: number; z: number; radius: number; depth: number }
 

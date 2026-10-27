@@ -3,3 +3,6 @@ dist
 .firebase
 *.log
 public/atlas/
+
+scripts/out/
+

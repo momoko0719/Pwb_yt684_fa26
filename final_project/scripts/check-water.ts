@@ -31,7 +31,7 @@ const follow = (f: F, x: number, z: number, done: (x: number, z: number) => bool
 };
 
 let problems = 0;
-for (const seed of [684, 7, 42, 1234]) {
+for (const seed of [684, 7, 42, 1234, 5676]) {
   for (const flow of [0.3, 3, 15]) {
     const params = { ...GROUND_DEFAULTS, seed, frame: { ...GROUND_DEFAULTS.frame, variation: Number(process.env.VARIATION ?? GROUND_DEFAULTS.frame.variation) } };
     const { grid } = bakeGround(params);
@@ -65,7 +65,12 @@ for (const seed of [684, 7, 42, 1234]) {
     // Below the terrace: shares, ways to the rim, levels only falling, the water below both banks.
     const streams = water.ways.slice(1).filter((w) => w.points.length > 3 && !(w.points[0][0] === water.ways[0].points[0][0]) || true);
     const sum = water.ways.slice(1, 1 + WATER_DEFAULTS.streams).reduce((a, w) => a + w.flow, 0);
-    let rising = 0, spilling = 0, short = 0;
+    let rising = 0, spilling = 0, short = 0, clipped = 0, worst = 0;
+    // The water shader's shore (flowWater.ts groundShore): the ground averaged over 2 m round a point.
+    const shoreAt = (x: number, z: number) => {
+      const g = (a: number, b: number) => sampleGrid(grid, a, b), s = grid.texel * 2;
+      return (1.6 * g(x, z) + g(x + s, z) + g(x - s, z) + g(x, z + s) + g(x, z - s) + 0.65 * (g(x + s, z + s) + g(x - s, z + s) + g(x + s, z - s) + g(x - s, z - s))) / 8.2;
+    };
     for (const w of streams) {
       for (let k = 1; k < w.points.length; k++) if (w.points[k][1] > w.points[k - 1][1] + 1e-6) rising++;
     }
@@ -78,7 +83,7 @@ for (const seed of [684, 7, 42, 1234]) {
         if (!(Number.isNaN(L[t - 1]) || Number.isNaN(L[t + 1]) || Number.isNaN(L[t - f.nx]) || Number.isNaN(L[t + f.nx]))) continue;
         const x = f.x0 + i * f.step, z = f.z0 + j * f.step;
         if (sampleGrid(grid, x, z, 3) > -1.5) continue;
-        if (L[t] > sampleGrid(grid, x, z) + 0.01) spilling++;
+        if (L[t] > sampleGrid(grid, x, z) + 0.01) { spilling++; if (L[t] < shoreAt(x, z) + 0.012) clipped++; else worst = Math.max(worst, L[t] - shoreAt(x, z)); }
       }
     }
     const ends = water.ways.filter((w) => !w.main || w === water.ways[0]).length;
@@ -98,7 +103,7 @@ for (const seed of [684, 7, 42, 1234]) {
       }
     }
     if (rising || spilling > 2 || short || Math.abs(sum - flow) > 1e-6 || down < downTotal * 0.9) problems++;
-    lines.push(`  below: shares ${water.ways.slice(1).map((w) => `${w.flow.toFixed(2)}${w.main ? '*' : ''}`).join(' + ')} = ${sum.toFixed(3)} (in ${flow}); level rising ${rising}; mesh edges standing above the ground ${spilling}; ways ending short ${short}; plunge→rim particles ${down}/${downTotal} (${downOff} steps off)`);
+    lines.push(`  below: shares ${water.ways.slice(1).map((w) => `${w.flow.toFixed(2)}${w.main ? '*' : ''}`).join(' + ')} = ${sum.toFixed(3)} (in ${flow}); level rising ${rising}; mesh edges standing above the ground ${spilling} (of them under the shader's shore, so cut away: ${clipped}; the rest stand up to ${(worst * 100).toFixed(0)} cm above it); ways ending short ${short}; plunge→rim particles ${down}/${downTotal} (${downOff} steps off)`);
     void ends;
     console.log(`seed ${seed}, flow ${flow} (${ms} ms)`);
     console.log(lines.join('\n'));

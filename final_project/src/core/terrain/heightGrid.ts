@@ -33,16 +33,21 @@ export function sampleGrid(g: HeightGrid, x: number, z: number, c = 0) {
   return (d[n] * (1 - u) + d[n + 4] * u) * (1 - v) + (d[n + g.size * 4] * (1 - u) + d[n + g.size * 4 + 4] * u) * v;
 }
 
-/** Fill each texel's gradient (channels 1, 2) from its height, by central differences. */
+/** Fill each texel's gradient (channels 1, 2) from its height, by central differences.
+ *  A 5-texel (10 m) stencil instead of 1-texel suppresses 1–3 m noise on the nearly-flat basin
+ *  floor that creates visible shading bands when the terrain is viewed at oblique angles. All
+ *  terrain features wider than ~10 m (every real slope and hill) are fully captured. Fine surface
+ *  detail is restored by the procedural grain added in the fragment shader (grainSlope). */
 export function fillGradients(g: HeightGrid) {
   const { size, data, texel } = g;
+  const step = 5; // 10 m central-difference stencil
   for (let j = 0; j < size; j++) {
     for (let i = 0; i < size; i++) {
-      const l = (j * size + Math.max(i - 1, 0)) * 4, r = (j * size + Math.min(i + 1, size - 1)) * 4;
-      const d = (Math.max(j - 1, 0) * size + i) * 4, u = (Math.min(j + 1, size - 1) * size + i) * 4;
+      const l = (j * size + Math.max(i - step, 0)) * 4, r = (j * size + Math.min(i + step, size - 1)) * 4;
+      const d = (Math.max(j - step, 0) * size + i) * 4, u = (Math.min(j + step, size - 1) * size + i) * 4;
       const t = (j * size + i) * 4;
-      data[t + 1] = (data[r] - data[l]) / (2 * texel);
-      data[t + 2] = (data[u] - data[d]) / (2 * texel);
+      data[t + 1] = (data[r] - data[l]) / (2 * step * texel);
+      data[t + 2] = (data[u] - data[d]) / (2 * step * texel);
     }
   }
 }

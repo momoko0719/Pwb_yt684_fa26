@@ -8,7 +8,7 @@ import { deflateSync } from 'zlib';
 import { outlineRadius } from '../src/core/terrain/basinMesh';
 import { sampleGrid } from '../src/core/terrain/heightGrid';
 import { cornerObstacles, planCorner } from '../src/experiments/wonderland-terrain/corner';
-import { createDwelling, walkable, waterDepth } from '../src/experiments/wonderland-terrain/dwelling';
+import { createDwelling, siteSkips, walkable, waterDepth } from '../src/experiments/wonderland-terrain/dwelling';
 import { bakeGround, groundRules, GROUND_DEFAULTS } from '../src/experiments/wonderland-terrain/ground';
 import { buildTerrace, TERRACE_DEFAULTS } from '../src/experiments/wonderland-terrain/terrace';
 import { buildWater, WATER_DEFAULTS } from '../src/experiments/wonderland-terrain/water';
@@ -40,7 +40,7 @@ function build(seed: number) {
   const water = buildWater(rules, grid, terrace, WATER_DEFAULTS, seed);
   const tGround = performance.now() - t0;
   const zones = buildZones(grid, water, rules.plate(0), seed);
-  const world = { grid, water, terrace: rules.plate(0), seed };
+  const world = { grid, water, terrace: rules.plate(0), seed, zones };
   const dwelling = createDwelling(world);
   const keep = dwelling ? siteKeepOuts(dwelling.sites) : [];
   const t1 = performance.now();
@@ -116,7 +116,12 @@ for (const seed of SEEDS) {
   if (inWater) fail(seed, `${inWater} trees in water`);
   console.log(`  woods: ${woods.trees.length} grove trees (${(woods.trees.length / Math.max(zones.area[ZONE.woodland] / 1e4, 1e-6)).toFixed(0)} per ha of woodland), ${woods.lone.length} lone pines`);
   // The creature: its sites, and a short run of its days among the corner's things and the trees by its home.
-  if (!dwelling) { fail(seed, 'no sites for the creature'); continue; }
+  if (!dwelling) {
+    fail(seed, `no sites for the creature (${siteSkips().map((s) => `#${s.region}:${s.reason}`).join('; ') || 'no skips'})`);
+    continue;
+  }
+  const skipped = siteSkips().filter((s) => s.reason);
+  if (skipped.length) console.log(`  site skips: ${skipped.length} regions (${skipped.slice(0, 3).map((s) => `#${s.region} ${s.reason}`).join('; ')}${skipped.length > 3 ? '…' : ''})`);
   const corner = planCorner(dwelling);
   const near = (x: number, z: number) => Math.hypot(x - dwelling.sites.region.x0 - dwelling.sites.region.size / 2, z - dwelling.sites.region.z0 - dwelling.sites.region.size / 2) < dwelling.sites.region.size;
   dwelling.setObstacles([...cornerObstacles(corner), ...woods.trees.filter((t) => near(t.x, t.z)).map((t) => ({ x: t.x, z: t.z, r: TREE_CLEARANCE }))]);

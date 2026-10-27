@@ -55,6 +55,9 @@ void main() {
 
 const fragmentShader = /* glsl */ `
 uniform float uGlow;
+uniform float uVisibility;
+uniform float uFadeNear;
+uniform float uFadeFar;
 varying float vPart;
 varying float vRadial;
 varying float vShade;
@@ -74,9 +77,18 @@ vec3 tint(vec3 c) {
 }
 
 void main() {
-  // Palette colors only: accent petals paling toward the rim color at their tips, a meadow stem.
-  vec3 petal = mix(uAccent, uRimColor, 0.2 + 0.4 * vRadial) * mix(0.9, 1.1, vShade);
-  vec3 albedo = vPart < 0.5 ? uMeadow * 0.8 : petal;
+  float camDist = length(cameraPosition - vWorldPos);
+  float distKeep = 1.0 - smoothstep(uFadeNear, uFadeFar, camDist);
+  float keep = clamp(uVisibility, 0.0, 1.0) * distKeep;
+  if (keep < 0.02) discard;
+  float dither = fract(sin(dot(vWorldPos.xz, vec2(12.9898, 78.233)) + vShade * 19.0) * 43758.5453);
+  if (dither > keep) discard;
+
+  // Soft grey-pink petals; restrained ochre heart near the centre; grey-green stem (uMeadow).
+  vec3 heart = mix(uAccent, vec3(0.77, 0.57, 0.35), 0.55);
+  vec3 petal = mix(heart, mix(uAccent, uRimColor, 0.45), smoothstep(0.05, 0.75, vRadial));
+  petal *= mix(0.92, 1.08, vShade);
+  vec3 albedo = vPart < 0.5 ? uMeadow * 0.85 : petal;
   vec3 fill = mix(vec3(1.0), tint(uShadowCool), FILL_TINT);
   vec3 key = tint(uLightWarm);
   vec3 color = albedo * (fill * AMBIENT * 1.1 + key * KEY * max(uSunDir.y, 0.0));
@@ -97,7 +109,16 @@ void main() {
  */
 export function createFlowerMaterial(uniforms: WorldUniforms): ShaderMaterial {
   return new ShaderMaterial({
-    uniforms: { ...uniforms, uStemHeight: { value: 1 }, uHeadSize: { value: 0.2 }, uBloom: { value: 1 }, uGlow: { value: 0 } },
+    uniforms: {
+      ...uniforms,
+      uStemHeight: { value: 1 },
+      uHeadSize: { value: 0.2 },
+      uBloom: { value: 1 },
+      uGlow: { value: 0 },
+      uVisibility: { value: 1 },
+      uFadeNear: { value: 36 },
+      uFadeFar: { value: 56 },
+    },
     vertexShader,
     fragmentShader,
     side: DoubleSide,

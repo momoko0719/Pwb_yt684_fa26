@@ -4,16 +4,18 @@ Status: agreed direction and art direction, 2026-10-21. Updated the same day wit
 decisions (pass faces west; a raised terrace, option A; growth computed year by year) and the move
 from a heightmap to a signed distance field (SDF) after the lab.
 
-**Where it lives**: a new island in the Atlas, **Wonderland** (`src/experiments/wonderland/`). It
-does not replace Penglai Island v1, which stays as the realistic-scale study (forest kept to
-10–20% of its top). Wonderland reuses Penglai's generators (terrain, scale system, water
-algorithm, LOD, wind, solar terms, pavilion grammar) and adds its own.
+**Where it lives**: a new island in the Atlas, **Wonderland**
+(`src/experiments/wonderland-terrain/`). It does not replace Penglai Island v1
+(`src/experiments/island-v1/`), which stays as the realistic-scale study. Wonderland reuses
+Penglai's generators (terrain, scale system, water algorithm, LOD, wind, solar terms, pavilion
+grammar) and adds its own. Plan and hand-off: `wonderland-world-plan.md`, `wonderland-handoff.md`;
+show notes: `presentation-notes.md`.
 
-## The plan (blockout)
+## The plan (blockout → built)
 
-The whole island, agreed as placeholders at real size before any part is built:
-`src/experiments/wonderland-blockout/` (numbers in `layout.ts`). Each part is then built on its
-own, one at a time, and checked against this.
+The whole island was agreed as placeholders at real size; the working experiment is
+`src/experiments/wonderland-terrain/` (design numbers in `layout.ts`, layout relations in
+`frame.ts`). Each part is built on its own and checked against this.
 
 - **Island**: about 560 x 440 m; the underside hangs to about −130 m.
 - **Meadow**: most of the island, open and gently rolling (0–8 m): groves of jewel trees, the

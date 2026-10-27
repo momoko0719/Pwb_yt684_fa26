@@ -394,3 +394,50 @@ show: the island as a whole first, then zoom in). The plan and hand-off are now
   4.7 / 10.6 / 7.2 / 7.1 ms.
 
 Shots: shots/round1-views-684.png, shots/round1-world-8-seeds.png.
+
+## Round 2 start (2026-10-25 evening): LOD, whole-island sites, presentation cameras
+
+Checkpoint: branch `wonderland/checkpoint-r1-2026-10-25` / tag `checkpoint/wonderland-r1-2026-10-25`
+(`6f839d9`). Active branch `wonderland/round2-island-dwelling`. Docs: `presentation-notes.md`;
+paths in `wonderland.md` corrected to `wonderland-terrain/`. Diagnostics under `scripts/out/`.
+
+- **Pine LOD.** `forestPineModel` mid/far: irregular offset pads (not a coaxial Christmas-tree
+  stack). Corner pines (`corner.tsx`) use the same `WOODS_LOD` bands as grove/lone pines
+  (`Vegetation` + `woods.ts`): grown L-system within 90 m, mid stand-in to 260 m, far beyond.
+  Distances not pushed out to hide the old silhouette.
+- **Sites from dry-land regions.** `findSites` (`dwelling.ts`) walks `zones.regions` (largest
+  first), builds shore stands with the real muzzle/feet tests, pairs habitat/open homes with an
+  on-foot route, skips invalid regions into `siteSkips()`. Plunge pool no longer required.
+  `Scene` / checks pass `zones` into `createDwelling`. Route search inflates obstacles by 0.7 m
+  so gait jitter does not clip trunks (seed 42 had 131 off-ground steps before that).
+- **Presentation.** Dwelling panel: Island overview, Its water, Look at it, Its home, Close.
+- **Checks (measured).** `tsc` clean. `check-world` 8 seeds: all rules hold; each seed logs site
+  skips. `check-dwelling 684 30 0 scripts/out/dwell.png`: 0 off ground, 0 in water, muzzle 0.0 cm;
+  drink stand moved vs plunge-only era (rule-driven). Forefeet in water while drinking reported
+  non-zero on the new shore (accepted for now; stand solver still enforces `SITE.wade` at setup).
+- **Deferred then.** Multiple creatures with separate contact maps (plan §8 option C).
+
+## Drink stands dry + ground cover + zone legend (2026-10-25 night)
+
+- **Forefoot-in-water.** Measured: at drink splay, one forefoot had depth ≈ 3 mm because
+  `SITE.wade = 0.03` allowed it. Not a false positive. Now every planted foot must have
+  `waterDepth ≤ 0`; stands scored for drier banks. `check-sites-cycles` 8 seeds × 10 cycles:
+  footWet 0. `check-dwelling 684`: planted feet in water 0.
+- **Cover.** `cover.ts` suitability from zones; far tint in `cdlod.ts` (walk trample ≠ jade);
+  near blades `CoverGrass.tsx`. White stone kept open.
+- **Zone legend.** View → Zones shows an on-canvas legend (`zones.*` strings).
+- **Water.** VARIATION=0 → 9 (baseline); default variation 1 → 8. No threshold retune.
+
+## Stele + Scale System + cover clumps / flowers (2026-10-26)
+
+- **Stele.** Watching-stone capsule person removed; `stele.ts` warm-white tablet (~0.95 m) on the
+  slab. Obstacles still the stone footprint (slightly inflated). Not a human scale figure.
+- **Scale.** Penglai `ScaleLegend` + `core/scale` targets reused; `WonderlandScaleView` measures
+  `scaleId` meshes and temporary 1.7 m figures. View → Scale view (off by default).
+- **Cover debug.** `uCoverDebug` heatmap from the real density texture; Cover amount + Look at
+  flowers in leva; stats list near blades / flowers / clumps.
+- **Clumps / flowers.** Near cover builds tufts (5–11 blades); dedicated flower pass on denser
+  cells. Probe seed 684 at peak dens: ~37 grass clumps, 2 flower clumps / 8 heads. Moisture in
+  `cover.ts` is a zone proxy + `toWater`, not hydrology.
+- **QA.** `tsc` clean; probe script OK. In-browser overview/mid/close and GPU before–after **not**
+  run (Playwright browsers missing).

@@ -56,7 +56,8 @@ const STREAM = {
   width: 2.4, // metres of width per √(m³/s)
   water: 0.2, // metres the water stands below the lower bank
   bed: 0.6, // metres the bed lies below the water
-  bank: 0.5, // the banks' slope outside the channel
+  /** Bank rise outside the channel (m per m out). Gentler = fewer CDLOD facets on shores. */
+  bank: 0.22,
   step: 2, // metres between a stream's points
   bend: 55, // metres between a meander's bends, on average (each between 0.6 and 1.4 times)
   depth: 0.45, // metres: the mean depth over a cross-section (for its speed)
@@ -66,7 +67,10 @@ const RIM_BAND = 3; // metres in from the rim where a stream's way ends (then ru
 const RIM_LIP = 0.4; // metres in from the rim a stream pours over it
 const BLOCK = 3; // metres around the terrace streams keep off
 const OVER_RIM = 70; // metres a fall over the rim is followed down (then lost in the cloud)
-const UNDER_BANK = 3; // texels the water's mesh runs on under the banks (hidden by them)
+// Sheet under-bank padding (metres at 1 m texels). Was 8 after the soft-shore pass; that left
+// long stair edges whose levels sat above groundShore and drew as pale bank fragments. 4 m is
+// enough for the shader pull-in (flowWater GROUND) to keep the clip inside the mesh.
+const UNDER_BANK = 4;
 // Metres out from a bed's edge over which the ground must stand above the water: past the mesh's
 // own edge (a bed's edge, 1.5 m of bank, UNDER_BANK). Only the bank half a metre out was asked at
 // first: on a slope across a stream the ground further down fell below the water, and its sheet
@@ -391,6 +395,28 @@ export function buildWater(rules: ReturnType<typeof groundRules>, grid: HeightGr
     }
   }
 
+  // Pull edge levels down toward a rounded bank (same stencil as flowWater groundShore) so the
+  // sheet does not stick centimetres above the visual shore on stair edges. Physics field.mask
+  // still uses level>ground before this clamp is only applied for mesh emission.
+  const shoreY = (i: number, j: number) => {
+    const g = (ii: number, jj: number) => data[(Math.min(Math.max(jj, 0), size - 1) * size + Math.min(Math.max(ii, 0), size - 1)) * 4];
+    const s = 2;
+    return (1.6 * g(i, j) + g(i + s, j) + g(i - s, j) + g(i, j + s) + g(i, j - s)
+      + 0.65 * (g(i + s, j + s) + g(i - s, j + s) + g(i + s, j - s) + g(i - s, j - s))) / 8.2;
+  };
+  const meshLevel = new Float32Array(level);
+  for (let t = 0; t < n; t++) {
+    if (level[t] === -Infinity) continue;
+    const i = t % size, j = (t / size) | 0;
+    const edge = i === 0 || j === 0 || i === size - 1 || j === size - 1
+      || level[t - 1] === -Infinity || level[t + 1] === -Infinity
+      || level[t - size] === -Infinity || level[t + size] === -Infinity;
+    if (!edge) continue;
+    // Cap at shore + small epsilon so the GROUND pull-in still has mesh under the clip.
+    meshLevel[t] = Math.min(level[t], shoreY(i, j) + 0.04);
+    if (meshLevel[t] <= data[t * 4] + 0.005) meshLevel[t] = -Infinity;
+  }
+
   // The mesh: a vertex on every texel with water (or under a bank beside it), a quad where all
   // four corners have.
   const sheets: WaterSheet[] = [];
@@ -400,11 +426,11 @@ export function buildWater(rules: ReturnType<typeof groundRules>, grid: HeightGr
     const ids = new Int32Array(n).fill(-1);
     const pos: number[] = [], dep: number[] = [], flo: number[] = [], idx: number[] = [];
     for (let t = 0; t < n; t++) {
-      if (level[t] === -Infinity) continue;
+      if (meshLevel[t] === -Infinity) continue;
       const i = t % size, j = (t / size) | 0;
       ids[t] = pos.length / 3;
-      pos.push(at(i), level[t], at(j));
-      dep.push(level[t] - data[t * 4]);
+      pos.push(at(i), meshLevel[t], at(j));
+      dep.push(meshLevel[t] - data[t * 4]);
       flo.push(vx[t], vz[t]);
       mask[t] = Math.round(255 * smooth(0, 0.25, level[t] - data[t * 4]));
       minI = Math.min(minI, i); maxI = Math.max(maxI, i); minJ = Math.min(minJ, j); maxJ = Math.max(maxJ, j);
@@ -457,6 +483,28 @@ export function buildWater(rules: ReturnType<typeof groundRules>, grid: HeightGr
     });
     falls.push(fallMesh({ lip, below: (x, z) => (outline(x, z) > 0 ? -Infinity : ground(x, z) - 1), maxDrop: OVER_RIM }));
   });
+  // Far paint only (the sheet owns the near shore). Blur ~5 m so that paint is not a 1 m stair
+  // when it fades in. Two passes; the near shoreline is the shader clip, not this mask.
+  {
+    const blur = (src: Uint8Array) => {
+      const dst = new Uint8Array(n);
+      for (let j = 2; j < size - 2; j++) {
+        for (let i = 2; i < size - 2; i++) {
+          let s = 0, m = 0;
+          for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) {
+            const w = (di === 0 ? 2 : 1) * (dj === 0 ? 2 : 1);
+            s += src[(j + dj) * size + i + di] * w;
+            m += w;
+          }
+          dst[j * size + i] = Math.round(s / m);
+        }
+      }
+      return dst;
+    };
+    const once = blur(mask);
+    const twice = blur(once);
+    for (let t = 0; t < n; t++) if (twice[t]) mask[t] = twice[t];
+  }
   const at3 = ({ points, levels }: Way) => points.map(([x, z], k) => [x, levels[k], z] as [number, number, number]);
   return {
     falls, impacts, sheets, mask, field,

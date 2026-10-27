@@ -383,10 +383,12 @@ function finish(pos: number[], nor: number[], tone: number[]): BufferGeometry {
 
 
 /**
- * Stand-ins for forest pines seen from further away, one unit tall (scale by the tree's height):
- * a few flat needle tiers, the widest 0.3 of the height out (a crown about 0.6 of the height across), like the layered crowns of a
- * Huangshan pine stand. 'mid' has a trunk and three tiers (44 triangles); 'far' only the two upper
- * tiers (24). Same `aTone` as the grown pines, so they share the pine material and its snow.
+ * Stand-ins for pines past the grown L-system band, one unit tall (scale by height). Same `aTone`
+ * as grown pines so they share the pine material.
+ *
+ * Silhouette: Huangshan layered pads (not a Christmas cone). Tuned so mid/far keep the same
+ * trunk/crown family as the grown L-system (darker underside, grey-green tops, reachable trunk)
+ * instead of reading as a pale flat crown. Reduce detail with distance — do not only push LOD metres.
  */
 export function forestPineModel(level: 'mid' | 'far'): BufferGeometry {
   const pos: number[] = [];
@@ -400,33 +402,59 @@ export function forestPineModel(level: 'mid' | 'far'): BufferGeometry {
       tone.push(kind, shade);
     }
   };
-  // A tier: a shallow six-sided cap above the ring and a flatter one below, dark underneath.
-  const tier = (y: number, r: number, turn: number) => {
-    const top = new Vector3(0, y + r * 0.22, 0), under = new Vector3(0, y - r * 0.08, 0);
-    const ring = Array.from({ length: 6 }, (_, k) => {
-      const a = turn + (k / 6) * Math.PI * 2;
-      return new Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
+  // One pad: uneven ellipse, dark underside (needleShade family), mid-tone rim, lighter top.
+  const pad = (y: number, rx: number, rz: number, ox: number, oz: number, turn: number, lean: number, sides = 8) => {
+    const lift = Math.max(rx, rz) * 0.1;
+    const top = new Vector3(ox, y + lift, oz);
+    const under = new Vector3(ox, y - lift * 0.55, oz);
+    const ring = Array.from({ length: sides }, (_, k) => {
+      const a = turn + (k / sides) * Math.PI * 2;
+      const wobble = 0.82 + 0.22 * Math.sin(a * 2.1 + turn) + 0.1 * Math.cos(a * 4.7 - turn);
+      const x = ox + Math.cos(a) * rx * wobble + lean * (y - 0.45) * 0.12;
+      const z = oz + Math.sin(a) * rz * wobble;
+      return new Vector3(x, y + Math.sin(a + turn) * 0.01, z);
     });
-    for (let k = 0; k < 6; k++) {
-      const a = ring[k], b = ring[(k + 1) % 6];
-      tri(top, b, a, 1, 0.85);
-      tri(under, a, b, 1, 0.1);
+    for (let k = 0; k < sides; k++) {
+      const a = ring[k], b = ring[(k + 1) % sides];
+      // Top faces: mid-dark (was 0.85 — too pale vs grown needles).
+      tri(top, b, a, 1, 0.55);
+      // Underside: ink-dark like grown pad bottoms.
+      tri(under, a, b, 1, 0.08);
+      // Rim band: slightly darker vertical strip so the pad has thickness in silhouette.
+      const midA = a.clone().lerp(top, 0.15);
+      const midB = b.clone().lerp(top, 0.15);
+      tri(a, b, midB, 1, 0.28);
+      tri(a, midB, midA, 1, 0.28);
     }
   };
-  if (level === 'mid') {
-    // Trunk: a thin four-sided post up to the top tier.
-    const r = 0.02;
-    const corners = [[r, r], [-r, r], [-r, -r], [r, -r]];
+  // Crown mass ≈ grown Huangshan: lower pad broader, stacked offsets, not a pale umbrella.
+  // Radii chosen so at unit height the crown reads ~0.55–0.7 wide (similar grown sprays).
+  const pads = level === 'mid'
+    ? [
+      { y: 0.42, rx: 0.34, rz: 0.24, ox: 0.06, oz: -0.04, turn: 0.25, lean: 0.9 },
+      { y: 0.62, rx: 0.28, rz: 0.20, ox: -0.05, oz: 0.07, turn: 1.1, lean: 0.55 },
+      { y: 0.82, rx: 0.17, rz: 0.13, ox: 0.04, oz: 0.02, turn: 0.6, lean: 0.25 },
+    ]
+    : [
+      { y: 0.48, rx: 0.30, rz: 0.22, ox: 0.05, oz: -0.03, turn: 0.35, lean: 0.7 },
+      { y: 0.74, rx: 0.20, rz: 0.15, ox: -0.04, oz: 0.05, turn: 1.25, lean: 0.35 },
+    ];
+  // Trunk on mid and far (far stub keeps bark colour in the silhouette).
+  {
+    const r0 = level === 'mid' ? 0.028 : 0.022;
+    const topY = level === 'mid' ? 0.7 : 0.55;
+    const leanX = 0.035, leanZ = -0.018;
+    const corners = [[r0, r0], [-r0, r0], [-r0, -r0], [r0, -r0]];
     for (let k = 0; k < 4; k++) {
       const [ax, az] = corners[k], [bx, bz] = corners[(k + 1) % 4];
-      const a0 = new Vector3(ax, 0, az), b0 = new Vector3(bx, 0, bz), a1 = new Vector3(ax * 0.6, 0.85, az * 0.6), b1 = new Vector3(bx * 0.6, 0.85, bz * 0.6);
-      tri(a0, b0, b1, 0, 0.5);
-      tri(a0, b1, a1, 0, 0.5);
+      const a0 = new Vector3(ax, 0, az), b0 = new Vector3(bx, 0, bz);
+      const a1 = new Vector3(ax * 0.5 + leanX, topY, az * 0.5 + leanZ);
+      const b1 = new Vector3(bx * 0.5 + leanX, topY, bz * 0.5 + leanZ);
+      tri(a0, b0, b1, 0, 0.45);
+      tri(a0, b1, a1, 0, 0.45);
     }
-    tier(0.5, 0.3, 0.3);
   }
-  tier(0.7, 0.26, 0.9);
-  tier(0.88, 0.18, 0.1);
+  for (const p of pads) pad(p.y, p.rx, p.rz, p.ox, p.oz, p.turn, p.lean);
   const g = new BufferGeometry();
   g.setAttribute('position', new Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new Float32BufferAttribute(nor, 3));

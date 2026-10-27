@@ -50,10 +50,14 @@ vec2 windAt(vec2 p) {
   vec2 f = windField(p);
   float speed = length(f);
   vec2 dir = speed > 0.001 ? f / speed : WIND_DIR;
-  float gust = windNoise(p * 0.08 - dir * uTime * 0.5);
-  float flutter = sin(uTime * 2.7 + dot(p, dir) * 1.3 + windNoise(p * 0.7) * 6.0);
+  // Gust: slow roll + soft enter/exit (not a binary spike). Neighbours share low-freq noise.
+  float gustRaw = windNoise(p * 0.06 - dir * uTime * 0.28);
+  float gust = smoothstep(0.22, 0.78, gustRaw);
+  // Flutter: tip shimmer only; keep amplitude modest so LOD switches do not snap motion.
+  float flutter = sin(uTime * 2.1 + dot(p, dir) * 1.05 + windNoise(p * 0.55) * 4.0);
   vec2 across = vec2(-dir.y, dir.x);
-  return uWind * (f * (0.25 + 0.9 * gust) + across * 0.15 * flutter * speed);
+  // Base field carries most of the lean; gust adds ≤~35% (was 0.25+0.9*gust → up to 1.15× spikes).
+  return uWind * (f * (0.58 + 0.32 * gust) + across * 0.07 * flutter * speed);
 }
 
 // Grazing-angle glow, strongest when the sun sits behind the surface.

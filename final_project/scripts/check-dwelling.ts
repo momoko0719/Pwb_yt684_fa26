@@ -1,13 +1,15 @@
 // Project check (docs/wonderland-handoff.md): the dwelling simulated headless, its marks checked and drawn to a PNG.
 // Run from final_project: npx tsx scripts/check-dwelling.ts [seed] [cycles] [home] [out.png]
 import { deflateSync } from 'zlib';
+import { mkdirSync, writeFileSync } from 'fs';
+import { dirname } from 'path';
 import { sampleGrid } from '../src/core/terrain/heightGrid';
-import { writeFileSync } from 'fs';
 import { cornerObstacles, planCorner } from '../src/experiments/wonderland-terrain/corner';
-import { BODY, createDwelling, walkable, waterDepth } from '../src/experiments/wonderland-terrain/dwelling';
+import { BODY, createDwelling, siteSkips, walkable, waterDepth } from '../src/experiments/wonderland-terrain/dwelling';
 import { bakeGround, groundRules, GROUND_DEFAULTS } from '../src/experiments/wonderland-terrain/ground';
 import { buildTerrace, TERRACE_DEFAULTS } from '../src/experiments/wonderland-terrain/terrace';
 import { buildWater, WATER_DEFAULTS } from '../src/experiments/wonderland-terrain/water';
+import { buildZones } from '../src/experiments/wonderland-terrain/zones';
 
 const png = (w: number, h: number, rgb: Uint8Array) => {
   const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
@@ -20,15 +22,18 @@ const png = (w: number, h: number, rgb: Uint8Array) => {
 };
 
 const seed = Number(process.argv[2] ?? 684), cycles = Number(process.argv[3] ?? 30), homeAt = Number(process.argv[4] ?? 0);
+const outPath = process.argv[5] ?? 'scripts/out/dwell.png';
 const params = { ...GROUND_DEFAULTS, seed };
 const { grid } = bakeGround(params);
 const rules = groundRules(params);
 const terrace = buildTerrace(rules, grid, TERRACE_DEFAULTS, WATER_DEFAULTS.flow);
 const water = buildWater(rules, grid, terrace, WATER_DEFAULTS, seed);
-const world = { grid, water, terrace: rules.plate(0), seed };
+const zones = buildZones(grid, water, rules.plate(0), seed);
+const world = { grid, water, terrace: rules.plate(0), seed, zones };
 const t0 = performance.now();
 const d = createDwelling(world);
-if (!d) { console.log('no sites'); process.exit(1); }
+if (!d) { console.log('no sites', siteSkips()); process.exit(1); }
+console.log(`site skips: ${siteSkips().length} (${siteSkips().slice(0, 4).map((s) => `#${s.region} ${s.reason}`).join('; ')})`);
 console.log(`sites in ${(performance.now() - t0).toFixed(0)} ms: drink (${d.sites.drink.x.toFixed(1)}, ${d.sites.drink.z.toFixed(1)}); homes ${d.sites.homes.map((h) => `(${h.x.toFixed(1)}, ${h.z.toFixed(1)})`).join(' ')}; square ${d.sites.region.size} m, ${d.map.cells}² cells`);
 d.home = homeAt;
 const corner = planCorner(d), obstacles = cornerObstacles(corner);
@@ -103,6 +108,11 @@ for (const [x, z] of trail) {
   const i = Math.floor((x - m.x0) / m.texel), j = Math.floor((z - m.z0) / m.texel);
   if (i >= 0 && j >= 0 && i < m.cells && j < m.cells) rgb.set([40, 40, 40], ((m.cells - 1 - j) * m.cells + i) * 3);
 }
-const out = process.argv[5] ?? 'dwell.png';
-writeFileSync(out, png(m.cells, m.cells, rgb));
-console.log(`map → ${out}`);
+mkdirSync(dirname(outPath), { recursive: true });
+writeFileSync(outPath, png(m.cells, m.cells, rgb));
+console.log(`map → ${outPath}`);
+// Fail on real wetting or leaving the ground (do not silence foot-in-water counts).
+if (bad || wet || footWet || muzzleWorst > 0.02) {
+  console.log('FAIL: positions or feet entered water / left walkable ground, or muzzle missed the surface');
+  process.exit(1);
+}

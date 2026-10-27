@@ -6,6 +6,7 @@ import { PORCELAIN, WEAR_DEBUG, ZONE_DEBUG } from '../palette';
 import { PORCELAIN_GLSL, porcelainUniforms } from '../shaders/porcelain';
 import type { WorldUniforms } from '../shaders/uniforms';
 import type { HeightGrid } from './heightGrid';
+import { RIM_JOIN } from './rimJoin';
 
 /**
  * A height map drawn by continuous distance-dependent level of detail (CDLOD; Strugar 2009).
@@ -75,9 +76,19 @@ const fragmentShader = /* glsl */ `
 ${PORCELAIN_GLSL}
 uniform sampler2D uHeight;
 uniform sampler2D uLight;
+uniform sampler2D uFolds; // R mountain, G fold 6/18 m, B fine, A cross-slope wide hollow
+uniform float uFoldMix; // strength of the olive tint (0: off)
+uniform float uFoldView; // 0 off, 1 mountain, 2 folds, 3 wide, 4 gate, 5 final weight
+uniform vec3 uFoldStone; // grey-olive for folds and wide hollows
+uniform float uOutlineKeep; // rim join: discard when outline > this (shared with rimWall)
+uniform sampler2D uShrubGround; // shrubs.ts: how much each zone cell lies in a shrub patch (LinearFilter)
+uniform float uShrubOn;
+uniform vec3 uShrubSoil;
 uniform vec3 uWater;
-const float WATER_NEAR = 60.0; // metres: the water's own sheet within, painted on the ground beyond
-const float WATER_FAR = 140.0;
+// The sheet draws the shore up close. This paint is only for far cameras, where coarse terrain
+// can hide a narrow stream. Starting it at 60 m laid a second, blocky shore on top of the sheet.
+const float WATER_NEAR = 200.0;
+const float WATER_FAR = 340.0;
 uniform float uSize;
 uniform float uTexel;
 uniform sampler2D uWear;
@@ -85,8 +96,21 @@ uniform vec4 uWearRect; // the contact map's square: x0, z0, size; on (1) or not
 uniform float uWearShow;
 uniform vec3 uJadeWalk, uJadeDrink, uJadeRest, uWearWalk, uWearDrink, uWearRest;
 uniform sampler2D uZones;
-uniform vec4 uZoneRect; // the zone map's square: x0, z0, size; shown (1) or not
+uniform vec4 uZoneRect; // zone map square: x0, z0, size; bound (1) or not
+uniform float uZoneShow; // 1 = debug swatches; 0 = live habitat surfaces
 uniform vec3 uZoneColours[10];
+uniform sampler2D uMoisture; // 0..1 wetness proxy (same square as zones)
+uniform sampler2D uGrove; // woodland grove 0..1 (LinearFilter)
+uniform sampler2D uBank; // the zones' water cells, blurred (LinearFilter): the strip up the banks
+uniform float uBankOn;
+uniform sampler2D uSurface; // RGBA soft weights: wet, litter, terrace, rock (LinearFilter)
+uniform float uSurfaceOn; // 1 when uSurface is bound
+uniform vec3 uWetStone, uLitter, uTerraceSeat, uCliffFace, uRockFace;
+uniform sampler2D uCover;
+uniform vec4 uCoverRect; // cover density map: x0, z0, size; on (1) or not
+uniform vec3 uCoverTint;
+uniform vec3 uCoverSoil;
+uniform float uCoverDebug; // 1 = grass density heatmap from the same uCover soft-density data
 uniform vec4 uShadow; // x, z, radius, strength (0: none)
 uniform vec3 uShadowColour;
 uniform vec3 uSkyTop, uSkyMid, uSkyHorizon;
@@ -125,7 +149,8 @@ vec2 grainSlope(vec2 p) {
 }
 
 void main() {
-  if (vOutline > 0.0) discard;
+  // Slightly past geometric edge so top overlaps wall/flange (RIM_JOIN.outlineKeep).
+  if (vOutline > uOutlineKeep) discard;
   vec4 f = heightAt(vWorld.xz);
   vec3 n = normalize(vec3(-f.y, 1.0, -f.z));
   vec2 uv = (vWorld.xz / uTexel + 0.5 * (uSize - 1.0) + 0.5) / uSize;
@@ -167,9 +192,153 @@ void main() {
     ns = normalize(n + vec3(-g.x, 0.0, -g.y) * near * (1.0 - smooth_));
     fleck = gnoise(vWorld.xz * 14.0) * 0.07 * near * (1.0 - smooth_);
   }
-  float weather = gnoise(vWorld.xz * 0.35 + 3.0) + 0.5 * gnoise(vWorld.xz * 0.9 - 5.0);
+  // Large-scale, low-contrast weathering on open stone.
+  // Near: fine weathering; far: coarse (morph shift up to ~1.25 m at mid LOD).
+  // Wider handoff (40–110 m) so colour bands do not read as a horizontal “crack” at eye height.
+  float weatherN = gnoise(vWorld.xz * 0.22 + 3.0) + 0.55 * gnoise(vWorld.xz * 0.7 - 5.0) + 0.25 * gnoise(vWorld.xz * 1.6 + 1.0);
+  float weatherF = gnoise(vWorld.xz * 0.02 + 3.0) + 0.55 * gnoise(vWorld.xz * 0.06 - 5.0) + 0.25 * gnoise(vWorld.xz * 0.14 + 1.0);
+  float weather = mix(weatherN, weatherF, smoothstep(40.0, 110.0, dist));
   vec3 color = porcelain(ns, v, light.r, light.g) * (1.0 + fleck);
-  color *= (1.0 + 0.045 * weather * (1.0 - jade)) * mix(vec3(1.0), uWarmShadow / dot(uWarmShadow, vec3(0.299, 0.587, 0.114)), 0.12 * max(weather, 0.0) * (1.0 - jade));
+  color *= (1.0 + 0.06 * weather * (1.0 - jade)) * mix(vec3(1.0), uWarmShadow / dot(uWarmShadow, vec3(0.299, 0.587, 0.114)), 0.14 * max(weather, 0.0) * (1.0 - jade));
+  // Tint uses only the continuous 6 m / 18 m fold. Cross-slope hollow (A) and the gate are
+  // still stored for the debug views; they do not enter tintW.
+  // tintW = mountain * fold * strength, the same value the final-weight debug draws (0–1, not stretched).
+  float dbgMountain = 0.0, dbgFold = 0.0, dbgWide = 0.0, dbgGate = 0.0;
+  if (uFoldMix > 0.0 || uFoldView > 0.5) {
+    vec4 fd = texture(uFolds, uv);
+    dbgMountain = fd.r;
+    dbgFold = fd.g;
+    dbgWide = fd.a;
+    dbgGate = smoothstep(0.2, 0.8, 0.5 + 0.5 * gnoise(vWorld.xz * 0.004 + 41.0));
+  }
+  float tintW = dbgMountain * dbgFold * uFoldMix;
+  // Live habitat surfaces. Zone *labels* stay discrete (Nearest, debug / hard exclude). Visible
+  // mixes use soft RGBA weights (LinearFilter, ~10 m edges + low-freq warp) — never lerp zone IDs.
+  int zk = 0;
+  float moist = 0.0;
+  vec2 zuv = vec2(0.0);
+  if (uZoneRect.w > 0.5) {
+    zuv = (vWorld.xz - uZoneRect.xy) / uZoneRect.z;
+    zk = int(texture(uZones, zuv).r * 255.0 + 0.5);
+    moist = texture(uMoisture, zuv).r;
+  }
+  // The bank strip: the zones' water reaches a few metres up from the stream (wherever its level
+  // stands above the ground); there the stone stays bare and light, and just outside it a faint
+  // damp rim, then the shore's tints. From the water cells blurred, read a little off by a broad
+  // noise, so the strip's edge is soft and wanders (not the cells' staircase).
+  float bare = 0.0, rim = 0.0;
+  // How much of the wet shore this is (soft): the green tint under grass belongs only there.
+  float shoreW = 0.0;
+  if (uZoneRect.w > 0.5 && uBankOn > 0.5) {
+    vec2 wob = 2.5 * vec2(gnoise(vWorld.xz * 0.06 + 11.0), gnoise(vWorld.xz * 0.06 - 8.0));
+    float bank = texture(uBank, (vWorld.xz + wob - uZoneRect.xy) / uZoneRect.z).r;
+    bare = smoothstep(0.36, 0.62, bank);
+    rim = smoothstep(0.1, 0.34, bank) * (1.0 - bare);
+  }
+  // (Not cut off on water cells: the zones' water reaches a few metres up the banks, wherever the
+  // level stands above the ground at all, and a hard cut drew its 2 m cells as a staircase. The
+  // stream itself is drawn over this by its water sheet.)
+  if (uZoneRect.w > 0.5 && uZoneShow < 0.5 && uCoverDebug < 0.5 && zk != 0) {
+    float band = 0.5 + 0.5 * gnoise(vWorld.xz * 0.55 + 2.0);
+    float damp = smoothstep(0.22, 0.82, moist);
+    float grove = texture(uGrove, zuv).r;
+    float wetW = 0.0, litW = 0.0, terW = 0.0, rockW = 0.0;
+    if (uSurfaceOn > 0.5) {
+      vec4 sw = texture(uSurface, zuv);
+      // Soft zone weights + continuous moisture/grove (breaks stair-shaped zone blobs).
+      float landOk = (zk == 3 || zk == 4) ? 0.0 : 1.0; // cliff/ridge hard; rockSlope may damp
+      // Wet stone only on the wet shore (its soft weight), not wherever moisture runs high: the
+      // moisture field is high within ~70 m of any stream, which tinted 40% of the land.
+      wetW = sw.r * landOk;
+      shoreW = sw.r;
+      if (zk == 2) wetW *= 0.4; // terrace seat: rim damp, not full wet-shore
+      if (zk == 5) wetW *= 0.55; // rockSlope: damp only in soft weight
+      litW = max(sw.g, smoothstep(0.03, 0.38, grove));
+      // Woodland heart: stronger litter; edge keeps more stone.
+      litW *= mix(1.15, 0.75, smoothstep(0.08, 0.35, grove) * (1.0 - smoothstep(0.35, 0.75, grove)));
+      terW = sw.b;
+      rockW = sw.a;
+    } else {
+      wetW = (zk == 6) ? 1.0 : 0.0;
+      shoreW = wetW;
+      litW = max(grove, (zk == 7) ? 0.6 : 0.0);
+      terW = (zk == 2) ? 1.0 : 0.0;
+      rockW = (zk == 3 || zk == 4 || zk == 5) ? 1.0 : 0.0;
+    }
+    wetW *= 1.0 - bare;
+    litW *= 1.0 - bare;
+    float break_ = 0.8 + 0.2 * gnoise(vWorld.xz * 0.06);
+    wetW = clamp(wetW * break_, 0.0, 1.0);
+    litW = clamp(litW * break_, 0.0, 1.0);
+    float jn = 1.0 - jade;
+    // Wet structure: bare damp stone vs local soil — break_ + mid-freq noise (not equal-width wash).
+    float wetVar = 0.55 + 0.45 * gnoise(vWorld.xz * 0.14 + 5.0);
+    float wetBare = wetW * damp * wetVar;
+    float wetSoil = wetW * damp * (1.0 - wetVar) * 0.65;
+    color = mix(color, uWetStone, (0.28 + 0.34 * damp) * wetBare * jn);
+    color *= 1.0 - 0.08 * wetBare * jn;
+    color = mix(color, uCoverSoil, 0.22 * wetSoil * jn);
+    // Needle litter under canopy — low contrast grey-brown.
+    color = mix(color, uLitter, (0.3 + 0.12 * grove) * litW * jn);
+    color = mix(color, uTerraceSeat, 0.28 * terW * jn);
+    color *= 1.0 + 0.04 * band * terW * jn;
+    color = mix(color, uWetStone, 0.1 * damp * terW * jn);
+    float cliffBias = (zk == 3) ? 1.0 : 0.7;
+    color = mix(color, mix(uRockFace, uCliffFace, cliffBias), 0.3 * rockW * jn);
+    // The damp rim just outside the bank strip.
+    color = mix(color, uWetStone, 0.3 * rim * jn);
+    color *= 1.0 - 0.07 * rim * jn;
+    // The strip itself a shade lighter than open stone: dry, washed.
+    color *= 1.0 + 0.035 * bare * jn;
+  }
+  // Cover soil/moss only where density is real — never paint bare open as meadow.
+  if (uCoverRect.w > 0.5) {
+    // Read a few metres off, by a broad noise: the tint's edges wander instead of following the
+    // 2 m cell grid it was baked on.
+    vec2 bend = 3.0 * vec2(gnoise(vWorld.xz * 0.045 + 7.0), gnoise(vWorld.xz * 0.045 - 3.0));
+    vec2 cuv = (vWorld.xz + bend - uCoverRect.xy) / uCoverRect.z;
+    float cover = texture(uCover, cuv).r;
+    float trample = wear.r; // walk channel alone
+    // Only on the wet shore (the owner: elsewhere the stone stays white under its few blades).
+    float grass = cover * (1.0 - smoothstep(0.08, 0.55, trample)) * (1.0 - bare) * shoreW;
+    if (uCoverDebug > 0.5) {
+      vec3 heat = mix(vec3(0.12, 0.1, 0.1), vec3(0.25, 0.75, 0.35), cover);
+      heat = mix(heat, vec3(0.55, 0.35, 0.2), trample * 0.7);
+      color = mix(color, heat, 0.82);
+    } else {
+      // Far/mid cover is ALBEDO ONLY. dist is per-fragment (camera to this ground point),
+      // not one shared focus distance: near patches fade handoff first, far ones later.
+      // Split: soil/moss = real ground (keep when close); canopy-proxy tint eases ~30% when near.
+      float warp = 0.04 * gnoise(vWorld.xz * 0.09 + 1.7) + 0.02 * gnoise(vWorld.xz * 0.22);
+      float g = smoothstep(0.07, 0.5, grass + warp);
+      float edgeN = 0.55 + 0.45 * gnoise(vWorld.xz * 0.07 - 2.0);
+      float soilMix = g * edgeN * (0.48 + 0.2 * gnoise(vWorld.xz * 1.4));
+      float dampSoil = smoothstep(0.2, 0.75, moist);
+      float wetBoost = mix(1.0, 1.12, dampSoil);
+      // Ground body: no blade handoff - soil stays under near blades.
+      vec3 soiled = mix(color, uCoverSoil, 0.42 * soilMix * wetBoost * (1.0 - jade * 0.45));
+      float mid = smoothstep(12.0, 28.0, dist) * (1.0 - smoothstep(70.0, 120.0, dist));
+      float farOnly = smoothstep(55.0, 110.0, dist);
+      // Soft per-point handoff for canopy-proxy only (trial ~30% max reduction).
+      float nearPt = 1.0 - smoothstep(22.0, 55.0, dist);
+      float canopyKeep = 1.0 - 0.30 * nearPt;
+      float groundKeep = 1.0 - 0.08 * nearPt;
+      // Mid carpet a step stronger so open/wood patches read volume before near blades load.
+      float carpet = g * (0.36 * mid + 0.2 * farOnly + 0.24) * groundKeep;
+      float fleck = g * (0.18 + 0.22 * gnoise(vWorld.xz * 2.1)) * mid * canopyKeep;
+      float canopy = g * (0.24 + 0.16 * mid) * canopyKeep;
+      color = mix(soiled, mix(soiled, uCoverTint, 0.55), (carpet + fleck + canopy * 0.35) * (1.0 - jade * 0.35));
+    }
+  }
+  // The ground under a shrub patch (shrubs.ts): a restrained moss-and-soil tint over the patch as a
+  // whole (its edge frayed and blurred at generation, read a little off by a broad noise), under the
+  // jade, world fixed.
+  if (uShrubOn > 0.5 && uZoneRect.w > 0.5) {
+    vec2 sb = 1.5 * vec2(gnoise(vWorld.xz * 0.08 + 13.0), gnoise(vWorld.xz * 0.08 - 6.0));
+    float sw = texture(uShrubGround, (vWorld.xz + sb - uZoneRect.xy) / uZoneRect.z).r;
+    // (As an albedo: the light on it stays as it was.)
+    color = mix(color, color * uShrubSoil / uBody, 0.6 * smoothstep(0.05, 0.85, sw) * (1.0 - jade));
+  }
   if (jade > 0.001) {
     // Jade, as solid stone grown fine: what makes it read is that it is smooth and holds light
     // softly, and takes a little of the sky; its colour helps, restrained.
@@ -217,17 +386,31 @@ void main() {
     color = mix(color, mark, strength);
     color = mix(color, mark * 0.5, contour * step(0.02, strength) * 0.4);
   }
-  if (uZoneRect.w > 0.5) {
-    // Debug: each zone in its colour (zones.ts), the ground's shading kept under it.
-    vec2 zuv = (vWorld.xz - uZoneRect.xy) / uZoneRect.z;
-    int k = int(texture(uZones, zuv).r * 255.0 + 0.5);
+  if (uZoneRect.w > 0.5 && uZoneShow > 0.5) {
+    // Debug swatches only (View → Zones). Live browse uses the habitat mixes above.
     float shade = dot(color, vec3(0.299, 0.587, 0.114)) / max(dot(uBody, vec3(0.299, 0.587, 0.114)), 1e-3);
-    if (k > 0) color = mix(color, uZoneColours[clamp(k, 0, 9)] * mix(0.75, 1.05, shade), 0.7);
+    if (zk > 0) color = mix(color, uZoneColours[clamp(zk, 0, 9)] * mix(0.75, 1.05, shade), 0.7);
   }
-  // Far off, the water is painted on the ground from the baked map (light.b): there the patches are
-  // coarser than a stream is wide and span its channel, hiding the water's own sheet below.
+  // Far off, the water is painted on the ground from the baked map (light.b). Soft-step the
+  // channel weight so mid-distance shore colour follows the blurred mask, not a binary edge.
   float far = smoothstep(WATER_NEAR, WATER_FAR, length(cameraPosition - vWorld));
-  color = mix(color, uWater * mix(0.8, 1.0, light.g), light.b * far);
+  float wetPaint = smoothstep(0.08, 0.55, light.b);
+  color = mix(color, uWater * mix(0.8, 1.0, light.g), wetPaint * far);
+  // Albedo multiply: the porcelain light stays, the stone only shifts toward a light grey-olive.
+  // No smoothstep, no 0.7 floor, no extra darken. Wide hollow and gate are not in tintW.
+  if (uFoldMix > 0.0 && uFoldView < 0.5) {
+    vec3 k = uFoldStone / max(uBody, vec3(1e-3));
+    color = mix(color, color * k, clamp(tintW, 0.0, 1.0));
+  }
+  if (uFoldView > 0.5) {
+    // Fixed 0–1 grey of the selected field. Final is tintW itself, not a renormalised copy.
+    float shown = dbgMountain;
+    if (uFoldView > 4.5) shown = tintW;
+    else if (uFoldView > 3.5) shown = dbgGate;
+    else if (uFoldView > 2.5) shown = dbgWide;
+    else if (uFoldView > 1.5) shown = dbgFold;
+    color = vec3(clamp(shown, 0.0, 1.0));
+  }
   gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>
 }
@@ -255,7 +438,32 @@ export function createTerrainMaterial(uniforms: WorldUniforms, wireframe = false
       uWearRest: { value: new Color(WEAR_DEBUG.rest) },
       uZones: { value: null as Texture | null },
       uZoneRect: { value: new Vector4(0, 0, 1, 0) },
+      uZoneShow: { value: 0 },
       uZoneColours: { value: ZONE_DEBUG.map((c) => new Color(c)) },
+      uMoisture: { value: null as Texture | null },
+      uGrove: { value: null as Texture | null },
+      uBank: { value: null as Texture | null },
+      uBankOn: { value: 0 },
+      uSurface: { value: null as Texture | null },
+      uSurfaceOn: { value: 0 },
+      uWetStone: { value: new Color(PORCELAIN.wetStone) },
+      uFolds: { value: null as Texture | null },
+      uFoldMix: { value: 0 },
+      uFoldView: { value: 0 },
+      uFoldStone: { value: new Color(PORCELAIN.foldStone) },
+      uOutlineKeep: { value: RIM_JOIN.outlineKeep },
+      uShrubGround: { value: null as Texture | null },
+      uShrubOn: { value: 0 },
+      uShrubSoil: { value: new Color(PORCELAIN.shrubGround) },
+      uLitter: { value: new Color(PORCELAIN.litter) },
+      uTerraceSeat: { value: new Color(PORCELAIN.terraceSeat) },
+      uCliffFace: { value: new Color(PORCELAIN.cliffFace) },
+      uRockFace: { value: new Color(PORCELAIN.rockFace) },
+      uCover: { value: null as Texture | null },
+      uCoverRect: { value: new Vector4(0, 0, 1, 0) },
+      uCoverTint: { value: new Color(PORCELAIN.cover) },
+      uCoverSoil: { value: new Color(PORCELAIN.coverSoil) },
+      uCoverDebug: { value: 0 },
       uShadow: { value: new Vector4(0, 0, 1, 0) },
       uShadowColour: { value: new Color(PORCELAIN.contactShadow) },
     },
@@ -277,11 +485,47 @@ export function setTerrainWear(material: ShaderMaterial, wear: { texture: Textur
   u.uWearShow.value = show ? 1 : 0;
 }
 
-/** The island's zones over the ground (debug): a texture of zone indices (bytes) over the square at (x0, z0) of `size` metres; null to hide. */
-export function setTerrainZones(material: ShaderMaterial, zones: { texture: Texture; x0: number; z0: number; size: number } | null) {
+/**
+ * Zone + moisture maps for live habitat surfaces and optional debug swatches.
+ * Always bind when available; `show` only toggles the flat colour legend overlay.
+ */
+export function setTerrainZones(
+  material: ShaderMaterial,
+  zones: { texture: Texture; moisture?: Texture | null; grove?: Texture | null; bank?: Texture | null; surface?: Texture | null; x0: number; z0: number; size: number } | null,
+  show = false,
+) {
   const u = material.uniforms;
   u.uZones.value = zones?.texture ?? null;
+  u.uMoisture.value = zones?.moisture ?? null;
+  u.uGrove.value = zones?.grove ?? null;
+  u.uBank.value = zones?.bank ?? null;
+  u.uBankOn.value = zones?.bank ? 1 : 0;
+  u.uSurface.value = zones?.surface ?? null;
+  u.uSurfaceOn.value = zones?.surface ? 1 : 0;
   (u.uZoneRect.value as Vector4).set(zones?.x0 ?? 0, zones?.z0 ?? 0, zones?.size ?? 1, zones ? 1 : 0);
+  u.uZoneShow.value = show ? 1 : 0;
+}
+
+/** Sparse cover density (0..1 in R) over the same square language as zones; null to hide. */
+/** The mountains' folds. `view`: 0 off, 1 mountain, 2 folds 6/18, 3 wide hollow, 4 gate, 5 final weight. */
+export function setTerrainFolds(material: ShaderMaterial, folds: Texture | null, strength: number, view = 0) {
+  const u = material.uniforms;
+  u.uFolds.value = folds;
+  u.uFoldMix.value = folds ? strength : 0;
+  u.uFoldView.value = folds ? view : 0;
+}
+
+/** The ground under shrub patches (shrubs.ts; bytes on the zone grid, bound with the zones' square); null for none. */
+export function setTerrainShrubGround(material: ShaderMaterial, ground: Texture | null) {
+  material.uniforms.uShrubGround.value = ground;
+  material.uniforms.uShrubOn.value = ground ? 1 : 0;
+}
+
+export function setTerrainCover(material: ShaderMaterial, cover: { texture: Texture; x0: number; z0: number; size: number } | null, debug = false) {
+  const u = material.uniforms;
+  u.uCover.value = cover?.texture ?? null;
+  (u.uCoverRect.value as Vector4).set(cover?.x0 ?? 0, cover?.z0 ?? 0, cover?.size ?? 1, cover ? 1 : 0);
+  u.uCoverDebug.value = debug ? 1 : 0;
 }
 
 /** A soft shadow on the ground under a creature at (x, z), `radius` metres; strength 0 for none. */
@@ -351,24 +595,27 @@ export class TerrainLod {
   private bounds: Float32Array[] = [];
   private frustum = new Frustum();
   private box = new Box3();
+  /** Per level, 1 if that patch overlaps the stream/pool mask (same grid as heights). */
+  private wet: Uint8Array[] = [];
 
-  constructor(material: ShaderMaterial, readonly grid: HeightGrid, readonly settings: LodSettings = LOD_DEFAULTS) {
+  constructor(material: ShaderMaterial, readonly grid: HeightGrid, readonly settings: LodSettings = LOD_DEFAULTS, waterMask?: Uint8Array) {
     this.whole = new PatchSet(settings.grid, material);
     this.quarter = new PatchSet(settings.grid / 2, material);
     this.group.add(this.whole.mesh, this.quarter.mesh);
     // Level l (0 the root) is used within ranges[l].
     this.ranges = Array.from({ length: settings.levels + 1 }, (_, l) => settings.range * 2 ** (settings.levels - l));
-    this.measure();
+    this.measure(waterMask);
   }
 
   /** Each patch's lowest and highest ground, per level (finest first measured from the grid). */
-  private measure() {
+  private measure(waterMask?: Uint8Array) {
     const { root, levels } = this.settings;
     const { size, texel, data } = this.grid;
     const half = root / 2;
     for (let l = 0; l <= levels; l++) {
       const n = 2 ** l, side = root / n;
       const b = new Float32Array(n * n * 2);
+      const wet = new Uint8Array(n * n);
       for (let p = 0; p < n * n; p++) { b[p * 2] = Infinity; b[p * 2 + 1] = -Infinity; }
       for (let j = 0; j < size; j++) {
         for (let i = 0; i < size; i++) {
@@ -378,9 +625,11 @@ export class TerrainLod {
           const p = (pz * n + px) * 2;
           b[p] = Math.min(b[p], data[t]);
           b[p + 1] = Math.max(b[p + 1], data[t]);
+          if (waterMask && waterMask[j * size + i] > 12) wet[pz * n + px] = 1;
         }
       }
       this.bounds.push(b);
+      this.wet.push(wet);
     }
   }
 
@@ -415,7 +664,16 @@ export class TerrainLod {
     if (box.distanceToPoint(eye) > this.ranges[l]) return false;
     if (!this.frustum.intersectsBox(box)) return true;
     const finest = l === this.settings.levels;
-    if (finest || box.distanceToPoint(eye) > this.ranges[l + 1]) {
+    const side = this.settings.root / 2 ** l;
+    const relief = box.max.y - box.min.y;
+    const n = 2 ** l;
+    const wet = this.wet[l]?.[pz * n + px] === 1;
+    // Stream banks / carved channels: high relief in a coarse patch reads as big white triangles.
+    // A narrow stream in a wide patch has little relief, so also keep any wet patch at the finest
+    // quad out to ~2.6× the near range (about 230 m at the default 90 m). Beyond that, far paint.
+    const steepBank = !finest && relief > side * 0.26 && box.distanceToPoint(eye) < this.ranges[Math.min(l + 1, this.settings.levels)] * 1.45;
+    const shoreDetail = wet && !finest && box.distanceToPoint(eye) < this.ranges[this.settings.levels] * 2.6;
+    if (finest || (!steepBank && !shoreDetail && box.distanceToPoint(eye) > this.ranges[l + 1])) {
       this.add(l, px, pz, 1);
       return true;
     }

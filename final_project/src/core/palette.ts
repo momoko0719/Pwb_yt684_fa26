@@ -300,6 +300,37 @@ export const PORCELAIN = {
   pineBark: '#6B625A',
   pineNeedle: '#7E9184',
   pineNeedleShade: '#4C5A52',
+  /** Sparse cover (far tint + near blades): grey-green readable on white porcelain. */
+  cover: '#6E7A62',
+  coverShade: '#55604C',
+  /** Soft soil/moss under patches (terrain tint toward this when density high). */
+  coverSoil: '#9A8E7A',
+  /** Flower head: warm dusty peach, slight contrast on white stone (not a meadow bloom). */
+  /** Soft grey-pink / lotus petal; ochre heart via uAccent mix in flower shader. */
+  coverFlower: '#D4B8B0',
+  coverFlowerRim: '#C4A090',
+  coverFlowerHeart: '#C4925A',
+  /**
+   * Live habitat surfaces (normal browse — not ZONE_DEBUG swatches). Shared porcelain language;
+   * mixes stay low so open stone stays 留白. Habitat has no preset tint (uses open).
+   */
+  wetStone: '#C5D0C8',
+  /** Light grey-olive shift on the folds. The lit stone is multiplied toward this, not replaced. */
+  foldStone: '#A8C888',
+  /** Pale grey-brown for a few lower wide bowls (morphology tint, not a foot belt). */
+  foldWarm: '#A89A88',
+  /** Low shrubs (shrubs.ts): three artistic tones (grey-green / ochre / low-sat vermillion). */
+  shrub: '#7F8F80',
+  shrubShade: '#55635A',
+  shrubOchre: '#A89268',
+  shrubOchreShade: '#7A6848',
+  shrubRed: '#8A5E56',
+  shrubRedShade: '#5C403C',
+  shrubGround: '#B4B8A3',
+  litter: '#C4B8A8',
+  terraceSeat: '#EDE6DA',
+  cliffFace: '#A8A29A',
+  rockFace: '#D2CBC0',
 };
 
 /** The dwelling's debug view: where it walks, drinks, rests (the contact map's three channels). */

@@ -22,7 +22,18 @@ import { ZONE, type Zones } from './zones';
  */
 const GROVE = { spacing: 4, least: 0.15, most: 0.85 }; // metres between candidates; the share kept at a grove's edge, at its heart
 const DRY = 4; // metres any tree keeps from water (its zone cell is 2 m: a cell's tree could stand at the water's edge)
-const LONE = { spacing: 22, chance: 0.45, ledge: 0.55 }; // metres between candidates; the chance one stands; the steepest ground it stands on
+/** Lone pines: prefer rock shoulders / local platforms — not sharp summit tips. */
+const LONE = {
+  spacing: 22,
+  /** Lower than before (0.45) so fewer tip-of-peak singles. */
+  chance: 0.28,
+  /** Max slope on the chosen ledge (gentler = more platform-like). */
+  ledge: 0.42,
+  /** Reject if site sticks this many metres above the 6–10 m neighbourhood mean (sharp tip). */
+  tipAbove: 3.2,
+  /** Need at least this many of 8 ring samples within tipAbove of site height (support shelf). */
+  supportHits: 3,
+};
 const SALT = { grove: 0x2545f491, lone: 0x9e3779b9 };
 
 /** A keep-out: no tree within r metres of (x, z), or of the segment to (x2, z2) if given. */
@@ -40,11 +51,15 @@ export function siteKeepOuts(sites: { drink: { x: number; z: number }; stands: {
 }
 
 /**
- * Level-of-detail distances for drawing the woods (metres; Vegetation.tsx): the grown pine within
- * the first, the stand-in to the second. Hundreds of trees here, not Penglai's tens of thousands,
- * so grown pines reach further: closer in, the stand-ins' tiers read as flat discs against the light.
+ * Shared pine view bands for Wonderland (metres): grove + lone pines (`Vegetation.tsx`) and the
+ * two corner pines (`corner.tsx`) use the same thresholds — grown L-system within the first,
+ * mid stand-in within the second, far stand-in beyond.
+ * Vegetation applies ±12 m hysteresis around these edges. Silhouette fixes belong in
+ * `forestPineModel`, not in pushing these numbers out.
  */
 export const WOODS_LOD: [number, number] = [90, 260];
+/** Hysteresis used by Vegetation (documented here for handoff). */
+export const WOODS_LOD_HYST = 12;
 
 /** The creature keeps this far from a tree's trunk (metres). */
 export const TREE_CLEARANCE = 1.4;
@@ -85,16 +100,29 @@ export function growWoods(zones: Zones, grid: HeightGrid, seed: number, keep: Ke
     if (t < 0 || stand >= LONE.chance) return;
     const zone = zones.zone[t];
     if (zone !== ZONE.cliff && zone !== ZONE.ridge && zone !== ZONE.rockSlope) return;
-    // A ledge: the gentlest spot within 3 m of the candidate, if gentle enough.
+    // Prefer a rock shoulder / local platform: gentlest spot within 4 m.
     let bx = x, bz = z, best = Infinity;
-    for (let a = 0; a < 12; a++) for (const r of [0, 1.5, 3]) {
+    for (let a = 0; a < 12; a++) for (const r of [0, 1.5, 3, 4]) {
       const px = x + Math.cos((a / 12) * 2 * Math.PI) * r, pz = z + Math.sin((a / 12) * 2 * Math.PI) * r;
       const s = Math.hypot(sampleGrid(grid, px, pz, 1), sampleGrid(grid, px, pz, 2));
       if (s < best) { best = s; bx = px; bz = pz; }
     }
     const u = cellOf(bx, bz);
     if (best > LONE.ledge || u < 0 || zones.toWater[u] < DRY || !kept(bx, bz)) return;
-    lone.push({ x: bx, y: sampleGrid(grid, bx, bz) - 0.3, z: bz, height: within(SIZES.pine.edge, size), yaw: yaw * 2 * Math.PI, variant: Math.floor(variant * PINE_VARIANTS) });
+    const hy = sampleGrid(grid, bx, bz);
+    // Neighbourhood support: reject sharp summit tips that stand alone above the massif.
+    let mean = 0, n = 0, support = 0;
+    for (let a = 0; a < 8; a++) {
+      const px = bx + Math.cos((a / 8) * 2 * Math.PI) * 8;
+      const pz = bz + Math.sin((a / 8) * 2 * Math.PI) * 8;
+      const h = sampleGrid(grid, px, pz);
+      if (!(h > -50)) continue;
+      mean += h; n++;
+      if (Math.abs(h - hy) <= LONE.tipAbove) support++;
+    }
+    if (n > 0 && hy - mean / n > LONE.tipAbove) return;
+    if (support < LONE.supportHits) return;
+    lone.push({ x: bx, y: hy - 0.3, z: bz, height: within(SIZES.pine.edge, size), yaw: yaw * 2 * Math.PI, variant: Math.floor(variant * PINE_VARIANTS) });
   });
   return { trees, lone };
 }

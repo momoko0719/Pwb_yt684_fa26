@@ -79,6 +79,17 @@ export function createFlowWaterMaterial(uniforms: WorldUniforms, opts: { ground?
         float d = texelFetch(uHeight, c + ivec2(0, 1), 0).x, e = texelFetch(uHeight, c + ivec2(1, 1), 0).x;
         return mix(mix(a, b, f.x), mix(d, e, f.x), f.y);
       }
+      // Shore silhouette only. A 1 m height texel makes the raw waterline a staircase; averaging
+      // the bank over ~2 m rounds that contour. Opacity stays a pixel wide (fwidth below) — this
+      // is not a coloured halo.
+      float groundShore(vec2 p) {
+        float s = uTexel * 2.0;
+        float h = groundAt(p) * 1.6;
+        h += groundAt(p + vec2(s, 0.0)) + groundAt(p - vec2(s, 0.0));
+        h += groundAt(p + vec2(0.0, s)) + groundAt(p - vec2(0.0, s));
+        h += 0.65 * (groundAt(p + vec2(s, s)) + groundAt(p + vec2(-s, s)) + groundAt(p + vec2(s, -s)) + groundAt(p + vec2(-s, -s)));
+        return h / (1.6 + 4.0 + 2.6);
+      }
       #endif
       const float CYCLE = 2.0; // seconds a layer of ripples is carried before it resets
       const float SCALE = 0.45; // ripples per metre, about
@@ -123,10 +134,20 @@ export function createFlowWaterMaterial(uniforms: WorldUniforms, opts: { ground?
         float dist = length(toEye);
         vec3 v = toEye / dist;
         #ifdef GROUND
+        // Colour/depth follow the true bed. The silhouette follows a rounded bank so the 1 m
+        // mesh stair is not the visible outline. Pull the cut *inside* that shore (not past −aa):
+        // edge cells whose level sits a few cm above groundShore otherwise draw as pale jagged
+        // fragments on the dry bank (probe-shore-band: up to ~20 cm overhang, stairShare ~0.6).
         float depth = vWorld.y - groundAt(vWorld.xz);
-        if (depth <= 0.0) discard;
+        float edgeD = vWorld.y - groundShore(vWorld.xz);
+        float aa = max(fwidth(edgeD) * 1.6, 0.012);
+        float pull = max(aa * 2.5, 0.08);
+        if (edgeD < pull) discard;
         #else
         float depth = vDepth;
+        float edgeD = depth;
+        float aa = 0.02;
+        float pull = 0.0;
         #endif
         float nearW = 1.0 - smoothstep(12.0, 45.0, dist);
         float midW = 1.0 - smoothstep(50.0, 220.0, dist);
@@ -201,14 +222,19 @@ export function createFlowWaterMaterial(uniforms: WorldUniforms, opts: { ground?
         float froth = smoothstep(0.3, 0.85, stir + 0.3 * (blot - 0.5));
         float white = clamp(0.85 * froth + smoothstep(1.4, 2.4, speed) * smoothstep(0.6, 0.85, blot) * 0.6, 0.0, 0.85) * midW;
         colour = mix(colour, uFoam, white);
-        // The real floor shows through shallow water; deep, the water's own colour stands for it.
-        float alpha = mix(0.55, 1.0, 1.0 - through.g) * smoothstep(0.0, 0.06, depth);
-        alpha = max(alpha, white);
+        float shore = smoothstep(pull, pull + aa * 2.5, edgeD);
+        float alpha = mix(0.55, 1.0, 1.0 - through.g) * shore;
+        alpha = max(alpha, white * shore);
+        if (alpha < 0.02) discard;
         gl_FragColor = vec4(colour, alpha);
         #include <colorspace_fragment>
       }
     `,
     transparent: true,
+    depthWrite: !opts.ground,
+    polygonOffset: !!opts.ground,
+    polygonOffsetFactor: opts.ground ? -1.5 : 0,
+    polygonOffsetUnits: opts.ground ? -2 : 0,
   });
 }
 

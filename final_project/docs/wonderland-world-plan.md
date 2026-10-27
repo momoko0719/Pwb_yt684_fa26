@@ -218,14 +218,23 @@ between C (few creatures, simplest) and B (many creatures, wide ranges), from th
 ranges. Either way add a coarse whole-island 1 m layer (600 × 480 RGBA8, 1.2 MB est.) for trails
 read from afar and as path memory (stigmergy: worn ground cheaper to walk, Class 08).
 
-## 9. Round 2 — creatures over the island (outline)
+## 9. Round 2 — creatures over the island
 
-Dry-land regions → in each, drinking places on any shore (the existing stand solver) and homes in
-habitat zones, paired by walking distance; a few individuals with seeded preferences (shelter,
-distance to water, openness, shyness of people's routes); needs (thirst → rest and safety →
-foraging and exploring) choosing among affordances by utility; routes on a 2 m navigation grid,
-cached; the contact scheme from section 8; then fords from the real bed (depth < body's wading
-depth, gentle banks, slow water).
+**Started 2026-10-25** (branch `wonderland/round2-island-dwelling`). Done: dry-feet sites; pine LOD;
+cameras; cover suit→patch→clump; live habitat surfaces + **soft metre blend** (not zone-ID paint);
+Orbit **ground-ray** cover focus (Walk keeps look-ahead); far tint + mid carpet + near blades; wet shore structure proxies; denser in-patch grass; Look-at buttons; Walk 3/5 m/s; stele + scale.
+**Browse continuity / fix B (2026-10-26):** grass load hysteresis + camera fade; cover soil kept near
+with mild canopy-proxy handoff (~30%); pine LOD hysteresis; Orbit nav diagnostics; **pivot rescue**
+when minDist stuck with far hit; Walk no longer force-pauses dwelling.
+**Show polish (2026-10-27):** shore attributed (sheet stair + surface wet + bank LOD — not colour-only);
+soft water depth fade; gentler banks; richer wet/wood/open patches; softened gust; UI (Advanced /
+Dev nav / Walk hints / dwell 10× / scale groups). Mid impostors still deferred pending owner eye.
+Still open: multi-creature (§8 C), fords, caves/rest mound; owner eye on shore + richness.
+Docs: `show-polish-2026-10-27.md`, earlier browse / habitat / nav docs.
+
+Outline for the rest: a few individuals with seeded preferences; needs choosing affordances by
+utility; routes cached; fords from the real bed (depth < body's wading depth, gentle banks, slow
+water) — not by relabelling the nav grid.
 
 ## 10. Performance and verification
 
@@ -237,3 +246,40 @@ only trees inside its region).
 
 Verification: `check-world` on 8 seeds; shots at four camera distances with the debug off; GPU time
 by EXT_disjoint_timer_query at the same cameras before and after.
+
+## 11. Rock folds, phase 1 (2026-10-27)
+
+Mountains keep their warm white; recessed folds take a restrained grey-cyan, ridges stay white.
+Rule: mountain lift (final height − meadow, eased 6–30 m) × fold concavity (blurred height − height at
+6 and 18 m) — an artistic form proxy, not a deposit or drainage model. Baked once in the worker,
+read by the ground shader as a hue change. Details, numbers and checks: `rock-folds-2026-10-27.md`.
+Next (not started): a few stone bands, only once the base folds read for the owner.
+
+## 12. Fold colour finish + low shrubs (2026-10-27)
+
+Folds deeper (#829087 at 0.72 of the white's lightness, strength 0.75). One shrub kind in patches
+(range foot, woodland edge, damp hollow; 36–44 patches, ~1,100–1,400 plants per seed), the ground
+tinted under each patch. Details and checks: `shrubs-and-fold-colour-2026-10-27.md`. Not started:
+fish, veins, more plant kinds.
+
+## 13. Near plants, env UI, resource atlas (2026-10-27)
+
+Near shrub LOD (branch + leaf sprays; mid/far volume); three artistic tones 80/15/5; grass
+shared-root clumps + silhouette/root join; Environment view (Normal / Habitat / Grass density);
+Performance default off; read-only Resource atlas + shared size registry. Fish still next.
+Details: `near-plants-atlas-2026-10-27.md`.
+
+## 14. Wrap: grass display · rim · flowers · mountain morphology (2026-10-27)
+
+System-relation fixes (not one-off parameter spam):
+
+- **Grass:** retention = camera foot; assemble when pending key differs (no scroll required);
+  stale `assembleGen` discarded.
+- **Rim:** shared `RIM_JOIN` (`rimJoin.ts`) — CDLOD `uOutlineKeep` overlaps densified flange;
+  stele obstacle omitted while hidden.
+- **Flowers:** wider island coverage (cap 144, sep 4.6); ordinary habitatViews census.
+- **Mountains:** tint is mountain mask × the 6 m／18 m fold × strength, multiplied toward a light olive `#A8C888` (`fold-tint-simplify-2026-10-27.md`). Cross-slope hollow and the gate stay in the debug views only. No height belts. The saturating deep-olive replace was removed.
+
+Details: `wrap-grass-rim-flower-mountain-2026-10-27.md`.  
+**Next (owner):** small fish school in one terrace pool. Pine mid/far disc silhouette = separate task.
+Eye-QA still open for rim waterfall/LOD and grass Walk loops.

@@ -7,6 +7,7 @@ import { bakeGround, groundRules, type GroundParams } from './ground';
 import { buildTerrace, castHeights, type OutletNode, type PoolNode, type TerraceParams } from './terrace';
 import { buildWater, type Water, type WaterParams } from './water';
 import { buildZones, type Zones } from './zones';
+import { buildRockFolds, type RockFolds } from './rockFolds';
 
 /** The underside's numbers (sliders). */
 export interface UndersideParams {
@@ -22,7 +23,7 @@ export type ToTerrain =
   | { type: 'ground'; id: number; params: GroundParams; terrace: TerraceParams; water: WaterParams; underside: UndersideParams }
   | { type: 'light'; id: number; sun: [number, number, number] };
 export type FromTerrain =
-  | { type: 'ground'; id: number; grid: HeightGrid; rim: Float32Array; terrace: BasinMesh[]; tops: number[]; pools: PoolNode[]; outlets: OutletNode[]; water: Water; zones: Zones; underside: UndersideMesh; ms: number }
+  | { type: 'ground'; id: number; grid: HeightGrid; rim: Float32Array; terrace: BasinMesh[]; tops: number[]; pools: PoolNode[]; outlets: OutletNode[]; water: Water; zones: Zones; folds: RockFolds; underside: UndersideMesh; ms: number }
   | { type: 'light'; id: number; light: Uint8Array; size: number; ms: number };
 
 // What casts shadows, from the last island built, and where its water stands: kept for re-baking
@@ -42,6 +43,8 @@ self.onmessage = (e: MessageEvent<ToTerrain>) => {
     for (let k = 0; k < rim.length; k += 3) rim[k + 2] = sampleGrid(grid, rim[k], rim[k + 1]);
     // The zones (zones.ts), from the ground as dug and the water.
     const zones = buildZones(grid, water, rules.plate(0), m.params.seed);
+    // The mountains' folds (rockFolds.ts), from the final heights: the rock's colour only.
+    const folds = buildRockFolds(grid, rules.meadow);
     casting = castHeights(rules, grid, terrace.tops);
     wet = water.mask.slice();
     const underside = undersideMesh({ rim, top: -BASE_DEPTH, keel: rules.frame.keel, depth: m.underside.depth, rocks: m.underside.rocks, seed: m.params.seed });
@@ -49,9 +52,9 @@ self.onmessage = (e: MessageEvent<ToTerrain>) => {
     for (const b of terrace.meshes) buffers.push(b.positions.buffer, b.normals.buffer, b.occlusion.buffer, b.indices.buffer, b.water.positions.buffer, b.water.depths.buffer, b.water.flow.buffer, b.water.indices.buffer);
     for (const f of water.falls) buffers.push(f.positions.buffer, f.flow.buffer, f.extra.buffer, f.indices.buffer);
     for (const w of water.sheets) buffers.push(w.positions.buffer, w.depths.buffer, w.flow.buffer, w.indices.buffer);
-    buffers.push(water.mask.buffer, zones.zone.buffer, zones.grove.buffer, zones.moisture.buffer, zones.toWater.buffer, zones.region.buffer);
+    buffers.push(water.mask.buffer, zones.zone.buffer, zones.grove.buffer, zones.moisture.buffer, zones.toWater.buffer, zones.region.buffer, folds.rgba.buffer);
     buffers.push(underside.positions.buffer, underside.normals.buffer, underside.occlusion.buffer, underside.indices.buffer);
-    const reply: FromTerrain = { type: 'ground', id: m.id, grid, rim, terrace: terrace.meshes, tops: terrace.tops, pools: terrace.pools, outlets: terrace.outlets, water, zones, underside, ms: performance.now() - t0 };
+    const reply: FromTerrain = { type: 'ground', id: m.id, grid, rim, terrace: terrace.meshes, tops: terrace.tops, pools: terrace.pools, outlets: terrace.outlets, water, zones, folds, underside, ms: performance.now() - t0 };
     (self as unknown as Worker).postMessage(reply, buffers as ArrayBuffer[]);
   } else if (casting) {
     const light = bakeLight(casting, m.sun, wet ?? undefined);

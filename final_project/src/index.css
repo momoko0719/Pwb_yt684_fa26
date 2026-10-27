@@ -64,6 +64,35 @@ h2 { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-top: 40px
   font-size: 0.85rem; pointer-events: none; opacity: 0.9;
 }
 
+.walk-minimap {
+  position: absolute;
+  right: 16px;
+  bottom: 76px;
+  z-index: 6;
+  width: 128px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.walk-minimap canvas {
+  width: 128px;
+  height: 128px;
+  display: block;
+  border: 1.5px solid var(--silk-text, #2a2622);
+  box-shadow: 2px 2px 0 rgba(20, 18, 16, 0.22);
+  background: var(--silk-bg, #f5f0e6);
+}
+.walk-minimap-label {
+  font-size: 0.68rem;
+  color: var(--silk-textDim, #6a645c);
+  text-align: center;
+  background: var(--silk-bg, #f5f0e6);
+  border: 1px solid var(--silk-text, #2a2622);
+  padding: 2px 4px;
+}
+
 /* Ideas: image-led, a little wider than a text page. */
 .ideas { max-width: 1040px; }
 .ideas img { display: block; width: 100%; height: auto; margin: 12px 0; }
@@ -231,11 +260,63 @@ h2 { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-top: 40px
 .tool-hint { font-size: 0.8rem; }
 @media (max-width: 1100px) { .tool-bar { bottom: 84px; max-width: none; } }
 
+/* Performance HUD: fixed top-left, capped height — does not grow with orbit/cover stats. */
+.stats-panel {
+  position: absolute;
+  left: 16px;
+  top: 56px;
+  z-index: 6;
+  max-width: min(340px, calc(100% - 32px));
+  max-height: min(38vh, 360px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  background-color: var(--silk-bg);
+  background-image: var(--grain);
+  color: var(--silk-text);
+  border: 1.5px solid var(--silk-text);
+  box-shadow: 2px 2px 0 rgba(20, 18, 16, 0.22);
+  scrollbar-color: var(--line) transparent;
+}
+.stats-panel .scale-head { margin-bottom: 6px; cursor: default; }
+.stats-panel table { border-collapse: collapse; width: 100%; }
+.stats-panel td { text-align: right; padding: 2px 0 2px 12px; font-variant-numeric: tabular-nums; }
+.stats-panel td:first-child { text-align: left; padding-left: 0; }
+
+/* Orbit nav diagnostics (Debug → Nav diagnostics). Bottom-left so it does not fight stats. */
+.nav-diag {
+  position: absolute;
+  left: 16px;
+  bottom: 76px;
+  z-index: 6;
+  max-width: min(380px, calc(100% - 32px));
+  max-height: min(42vh, 320px);
+  overflow: auto;
+  padding: 10px 12px;
+  font-size: 0.72rem;
+  background-color: var(--silk-bg);
+  background-image: var(--grain);
+  color: var(--silk-text);
+  border: 1.5px solid var(--silk-text);
+  box-shadow: 2px 2px 0 rgba(20, 18, 16, 0.22);
+  pointer-events: none;
+}
+.nav-diag .scale-head { margin-bottom: 6px; }
+.nav-diag table { border-collapse: collapse; width: 100%; }
+.nav-diag td { text-align: right; padding: 1px 0 1px 10px; font-variant-numeric: tabular-nums; }
+.nav-diag td:first-child { text-align: left; padding-left: 0; color: var(--silk-textDim); }
+
 /* Scale view: the legend above the tool bar, and labels floating over the measured boxes. */
 .scale-legend {
   position: absolute; left: 16px; bottom: 76px; z-index: 6; padding: 10px 12px; font-size: 0.78rem;
+  max-width: min(420px, calc(100% - 32px));
+  max-height: min(42vh, 380px);
+  overflow-x: auto;
+  overflow-y: auto;
   background-color: var(--silk-bg); background-image: var(--grain); color: var(--silk-text);
   border: 1.5px solid var(--silk-text); box-shadow: 2px 2px 0 rgba(20, 18, 16, 0.22);
+  scrollbar-color: var(--line) transparent;
 }
 .scale-head { display: block; font: inherit; font-weight: bold; margin-bottom: 6px; padding: 0; background: none; border: none; color: inherit; cursor: pointer; }
 .scale-head::before { content: '◆ '; color: var(--silk-seal); font-size: 0.7em; vertical-align: 2px; }
@@ -292,4 +373,73 @@ h2 { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-top: 40px
   margin-right: 0.35em;
   border: 1px solid rgba(0, 0, 0, 0.25);
   vertical-align: baseline;
+}
+
+/* Wonderland View → Zones: on-canvas legend of zone colours. */
+.zone-legend {
+  position: absolute;
+  left: 16px;
+  bottom: 76px;
+  z-index: 6;
+  padding: 10px 12px;
+  min-width: 140px;
+  font-size: 0.78rem;
+  background-color: var(--silk-bg);
+  background-image: var(--grain);
+  color: var(--silk-text);
+  border: 1.5px solid var(--silk-text);
+  box-shadow: 2px 2px 0 rgba(20, 18, 16, 0.22);
+  pointer-events: none;
+}
+.zone-legend-title { font-weight: bold; margin-bottom: 6px; letter-spacing: 0.04em; }
+.zone-legend-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.zone-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--silk-text);
+  flex-shrink: 0;
+}
+@media (max-width: 1100px) { .zone-legend { bottom: 140px; } }
+
+/* Wonderland resource atlas (View → Resources). */
+.resource-atlas {
+  position: absolute; inset: 48px 16px 16px 16px; z-index: 20;
+  display: flex; flex-direction: column; gap: 10px;
+  background-color: var(--silk-bg); background-image: var(--grain); color: var(--silk-text);
+  border: 1.5px solid var(--silk-text); box-shadow: 3px 3px 0 rgba(20, 18, 16, 0.22);
+  padding: 12px 14px; overflow: hidden;
+}
+.resource-atlas-bar { display: flex; justify-content: space-between; align-items: center; }
+.resource-cats { display: flex; flex-wrap: wrap; gap: 6px; }
+.resource-cat, .resource-btn {
+  font: inherit; background: var(--silk-input); color: var(--silk-text);
+  border: 1px solid var(--silk-text); padding: 3px 10px; cursor: pointer;
+}
+.resource-cat.on, .resource-card.on { outline: 2px solid var(--silk-seal); }
+.resource-body { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.1fr); gap: 12px; min-height: 0; flex: 1; }
+.resource-cards { overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; align-content: start; }
+.resource-card {
+  display: flex; flex-direction: column; gap: 4px; text-align: left;
+  background: transparent; border: 1px solid var(--silk-text); padding: 6px; cursor: pointer; color: inherit; font: inherit;
+}
+.resource-thumb {
+  width: 100%; aspect-ratio: 4 / 3; height: auto; display: block; object-fit: contain;
+  border: 1px solid rgba(0,0,0,0.15); background: #ebe6dc;
+}
+.resource-card-name { font-weight: bold; }
+.resource-card-size, .resource-card-count, .resource-muted { font-size: 0.78rem; color: var(--silk-textDim); }
+.resource-detail { overflow: auto; border-left: 1px solid var(--silk-text); padding-left: 12px; }
+.resource-detail h3 { margin: 0 0 8px; }
+.resource-detail p { margin: 4px 0; font-size: 0.85rem; }
+.resource-preview-wrap { margin-top: 10px; }
+.resource-preview-host {
+  width: 100%; height: 220px; border: 1px solid var(--silk-text); background: #d8e0e2;
+  position: relative; overflow: hidden;
+}
+/* Do not CSS-stretch the bitmap — aspect is set by the renderer to match the host box. */
+.resource-preview-canvas { display: block; width: 100%; height: 100%; }
+.resource-preview-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+@media (max-width: 900px) {
+  .resource-body { grid-template-columns: 1fr; }
+  .resource-detail { border-left: none; border-top: 1px solid var(--silk-text); padding-left: 0; padding-top: 10px; }
 }

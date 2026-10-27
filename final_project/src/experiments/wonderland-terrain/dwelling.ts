@@ -2,14 +2,19 @@ import { createNoise2D, type Noise2D } from '../../core/noise';
 import { createRng, type Rng } from '../../core/rng';
 import { sampleGrid, type HeightGrid } from '../../core/terrain/heightGrid';
 import type { Water } from './water';
+import type { Zones } from './zones';
+
+// Zone indices (zones.ts ZONE): avoid a runtime import cycle with zones → walkable → dwelling.
+const Z_HABITAT = 8;
+const Z_OPEN = 9;
 
 /**
  * 栖居成玉 (stone turned jade by dwelling): one creature's day, and what it leaves on the ground.
  *
  * The island is warm white stone; where water and life have touched it for a long time it turns
- * to jade. A creature lives near the plunge pool below the terrace: it rests at its favourite
- * place, walks to the shore, drinks, and walks back. Every contact is recorded where and when it
- * happens, in a contact map over a small square of the meadow, one channel each:
+ * to jade. A creature lives in a dry-land region (zones.ts): it rests at a favourite place in
+ * habitat, walks to a reachable shore stand, drinks, and walks back. Every contact is recorded
+ * where and when it happens, in a contact map over a square of its home range, one channel each:
  *
  * - walk: each foot, where it comes down, at the moment it does (the feet are the creature's own:
  *   each planted where it landed until it steps again, so a mark is where a foot really stood);
@@ -43,8 +48,17 @@ export interface DwellWorld {
   /** The terrace's lowest plate (signed distance, negative inside): the creature keeps off it. */
   terrace: (x: number, z: number) => number;
   seed: number;
+  /** Island zones (dry-land regions, habitat, distance to water). Required for whole-island sites. */
+  zones?: Zones;
   /** What stands on the ground (trees, a platform): circles it keeps out of (x, z, radius). */
   obstacles?: { x: number; z: number; r: number }[];
+}
+
+/** Why a dry-land region was not given a creature (for checks and the panel). */
+export interface SiteSkip {
+  region: number;
+  area: number;
+  reason: string;
 }
 
 export interface Spot { x: number; z: number; /** Radians: which way it faces there. */ facing: number }
@@ -129,10 +143,22 @@ const WEAR = {
   rest: { along: 0.7, across: 0.38, rate: 0.006 },
 };
 const TIMES = { rest: [50, 90], drink: [15, 26] }; // seconds, each between the two
-const SITE = { near: 22, far: 65, homes: 3, apart: 22, keepOff: 6, sip: 0.12, stands: 2.5, wade: 0.03 }; // metres (sip: how far into the water its muzzle reaches; wade: the water a forefoot may stand in at the edge)
+/**
+ * Homes: near/far from the drink stand; shore stands where toWater is in [shoreLo, shoreHi].
+ * `wade` is not a permission to enter water: all planted feet must stay dry (depth ≤ 0). The old
+ * 3 cm allowance put a forefoot in the sheet while drinking and inflated check counts.
+ */
+const SITE = {
+  near: 18, far: 90, homes: 3, apart: 22, keepOff: 6, sip: 0.12, stands: 2.5,
+  shoreLo: 0.8, shoreHi: 14, // metres to water for a candidate stand (a little back from the lip)
+  minRegion: 2500, // m²: regions smaller than this are skipped (too small for a home range)
+};
 const WALKABLE = { slope: 0.6, rim: 4, terrace: 2, water: 0 }; // (a dug bank stands at 0.5)
-const ROUTE = { cell: 1, slope: 6, jitter: 0.9, familiar: 0.5, margin: 12 };
+const ROUTE = { cell: 1, slope: 6, jitter: 0.9, familiar: 0.5, margin: 12, clear: 0.7 }; // clear: extra metres routes keep from obstacles (gait jitter)
 const PAIRS = [[0, 3], [1, 2]]; // the diagonal pairs
+/** Last findSites skip list (one call); for check-world and diagnostics. */
+let lastSiteSkips: SiteSkip[] = [];
+export const siteSkips = (): SiteSkip[] => lastSiteSkips;
 
 /** Water's depth at (x, z), metres (negative: dry, by how far the ground stands above the water). */
 export function waterDepth(world: DwellWorld, x: number, z: number): number {
@@ -188,96 +214,180 @@ export function muzzleFrom(neck: number): [number, number] {
 }
 
 /**
- * Where it drinks and where it may rest, by rule: on the plunge pool's own shore, away from where
- * the fall lands, stands from which its muzzle, the neck bowed, meets the water SITE.sip in from
- * the edge, its feet all dry; homes on flat ground well away from water, slightly sheltered (lower
- * than the ground around), SITE.near to SITE.far from the shore, apart, and reachable on foot.
+ * One drinking stand from a shore sample: outward unit (ox, oz) points from water onto dry land.
+ * Muzzle meets the water SITE.sip in from the edge; feet dry (fore at most at the water's line).
  */
-export function findSites(world: DwellWorld): Sites | null {
-  const { plunge, impacts } = world.water;
-  if (!plunge.radius) return null;
+function tryDrinkStand(
+  world: DwellWorld,
+  groundAt: (x: number, z: number) => number,
+  slope: (x: number, z: number) => number,
+  shoreX: number,
+  shoreZ: number,
+  ox: number,
+  oz: number,
+): (Stand & { score: number }) | null {
+  const L = Math.hypot(ox, oz) || 1;
+  ox /= L; oz /= L;
+  // Water point its muzzle meets: a little into the water from the dry shore sample.
+  const wx = shoreX - ox * SITE.sip, wz = shoreZ - oz * SITE.sip;
+  const wy = waterLevel(world, wx, wz);
+  if (wy === null || waterDepth(world, wx, wz) <= 0) return null;
+  const facing = Math.atan2(-oz, -ox); // faces the water
+  let reach = 1.2, neck = 0, ok = true, sx = 0, sz = 0;
+  for (let it = 0; it < 4; it++) {
+    sx = wx + ox * reach; sz = wz + oz * reach;
+    const body = bodyOn(groundAt, sx, sz, facing, 0, 1);
+    const drop = wy - body.shoulder[1];
+    let lo = -1.5, hi = BODY.neckUp;
+    if (muzzleFrom(lo)[1] > drop) { ok = false; break; }
+    for (let b = 0; b < 30; b++) { const m = (lo + hi) / 2; if (muzzleFrom(m)[1] > drop) hi = m; else lo = m; }
+    neck = (lo + hi) / 2;
+    reach = Math.hypot(body.shoulder[0] - sx, body.shoulder[2] - sz) + muzzleFrom(neck)[0];
+  }
+  if (!ok || !walkable(world, sx, sz)) return null;
+  const c = Math.cos(facing), s = Math.sin(facing);
+  // Feet as planted while drinking (splay fully on): every foot dry, and on standable ground.
+  // Forefeet may sit at the water's line on dry bank (depth ≤ 0); they must not enter the sheet.
+  let driest = 0;
+  for (let k = 0; k < BODY.hips.length; k++) {
+    const [ha, hc] = BODY.hips[k];
+    const a = ha + BODY.drinkSplay[k < 2 ? 0 : 1], fx = sx + c * a - s * hc, fz = sz + s * a + c * hc;
+    const depth = waterDepth(world, fx, fz);
+    if (depth > 0) return null;
+    if (!walkable({ ...world, water: { ...world.water, field: null } }, fx, fz)) return null;
+    if (k < 2) driest = Math.min(driest, depth); // more negative = further onto dry bank
+  }
+  // Prefer flat stands, clear of the terrace, and with forefeet well clear of the water (not on the lip).
+  const score = -2 * slope(sx, sz) + (world.terrace(sx, sz) > SITE.keepOff ? 0.5 : 0) + Math.min(-driest, 1.5);
+  return { x: sx, z: sz, facing, neck, water: [wx, wy, wz], score };
+}
+
+/**
+ * Pair drink stands and homes inside one dry-land region. Returns null with a reason if the
+ * region cannot host a creature (no forced placement).
+ */
+function sitesInRegion(world: DwellWorld, zones: Zones, regionIndex: number): { sites: Sites; score: number } | { reason: string } {
   const groundAt = (x: number, z: number) => sampleGrid(world.grid, x, z);
   const slope = (x: number, z: number) => Math.hypot(sampleGrid(world.grid, x, z, 1), sampleGrid(world.grid, x, z, 2));
-  const landing = impacts.length ? impacts.reduce((a, b) => (b.flow * b.drop > a.flow * a.drop ? b : a)) : null;
-  // The shore, out along rays from the pool's middle (its own shore: not on down the channel).
-  const stands: (Stand & { score: number; ray: number })[] = [];
-  for (let a = 0; a < 144; a++) {
-    const ang = (a / 144) * 2 * Math.PI, dx = Math.cos(ang), dz = Math.sin(ang);
-    let m = 0;
-    while (m < plunge.radius * 1.6 && waterDepth(world, plunge.x + dx * m, plunge.z + dz * m) > 0) m += 0.1;
-    if (m < 0.5 || m >= plunge.radius * 1.6) continue;
-    // The point of water its muzzle meets, and the water's height there.
-    const wx = plunge.x + dx * (m - SITE.sip), wz = plunge.z + dz * (m - SITE.sip);
-    const wy = waterLevel(world, wx, wz);
-    if (wy === null) continue;
-    // The stand: back from that point by the neck's reach, the neck's angle such that the muzzle
-    // is at the water's height (found again with the ground under the stand, three times).
-    const facing = Math.atan2(-dz, -dx);
-    let reach = 1.2, neck = 0, ok = true, sx = 0, sz = 0;
-    for (let it = 0; it < 4; it++) {
-      sx = wx + dx * reach; sz = wz + dz * reach;
-      const body = bodyOn(groundAt, sx, sz, facing, 0, 1);
-      const drop = wy - body.shoulder[1];
-      // The neck's angle that brings the muzzle down to the water (bisected: lower is further down).
-      let lo = -1.5, hi = BODY.neckUp;
-      if (muzzleFrom(lo)[1] > drop) { ok = false; break; }
-      for (let b = 0; b < 30; b++) { const m = (lo + hi) / 2; if (muzzleFrom(m)[1] > drop) hi = m; else lo = m; }
-      neck = (lo + hi) / 2;
-      // How far ahead of the body's middle the muzzle is, then.
-      reach = Math.hypot(body.shoulder[0] - sx, body.shoulder[2] - sz) + muzzleFrom(neck)[0];
+  const { cell, nx, nz, x0, z0, region, zone, toWater } = zones;
+  const at = (i: number) => x0 + (i + 0.5) * cell, atZ = (j: number) => z0 + (j + 0.5) * cell;
+  // Shore candidates: dry cells of this region near water; outward = away from nearest wet neighbour.
+  const stands: (Stand & { score: number })[] = [];
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const t = j * nx + i;
+    if (region[t] !== regionIndex) continue;
+    const tw = toWater[t];
+    if (tw < SITE.shoreLo || tw > SITE.shoreHi) continue;
+    const x = at(i), z = atZ(j);
+    if (!walkable(world, x, z)) continue;
+    // Outward: from the nearest wet sample toward this cell (or fall back to -grad of toWater).
+    let ox = 0, oz = 0, found = false;
+    for (let a = 0; a < 8; a++) {
+      const dx = Math.cos((a * Math.PI) / 4), dz = Math.sin((a * Math.PI) / 4);
+      if (waterDepth(world, x + dx * cell, z + dz * cell) > 0) {
+        ox -= dx; oz -= dz; found = true;
+      }
     }
-    if (!ok || !walkable(world, sx, sz)) continue;
-    // Its feet as they stand to drink: the hind on walkable ground, the fore at most at the water's line.
-    const c = Math.cos(facing), s = Math.sin(facing);
-    const footOk = BODY.hips.every(([ha, hc], k) => {
-      const a = ha + BODY.drinkSplay[k < 2 ? 0 : 1], fx = sx + c * a - s * hc, fz = sz + s * a + c * hc;
-      return k < 2 ? waterDepth(world, fx, fz) < SITE.wade && walkable({ ...world, water: { ...world.water, field: null } }, fx, fz) : walkable(world, fx, fz);
-    });
-    if (!footOk) continue;
-    const quiet = landing ? Math.min(Math.hypot(sx - landing.x, sz - landing.z) / 20, 1) : 1;
-    const score = quiet - 2 * slope(sx, sz) + (world.terrace(sx, sz) > SITE.keepOff ? 0.5 : 0);
-    stands.push({ x: sx, z: sz, facing, neck, water: [wx, wy, wz], score, ray: a });
+    if (!found) {
+      const twX = toWater[j * nx + Math.min(i + 1, nx - 1)] - toWater[j * nx + Math.max(i - 1, 0)];
+      const twZ = toWater[Math.min(j + 1, nz - 1) * nx + i] - toWater[Math.max(j - 1, 0) * nx + i];
+      ox = twX; oz = twZ;
+    }
+    if (ox * ox + oz * oz < 1e-8) continue;
+    const stand = tryDrinkStand(world, groundAt, slope, x, z, ox, oz);
+    if (stand) stands.push(stand);
   }
-  if (!stands.length) return null;
-  const drink = stands.reduce((a, b) => (b.score > a.score ? b : a));
-  // Its other stands: along the same shore, within SITE.stands of the best.
-  const near = stands.filter((s) => Math.hypot(s.x - drink.x, s.z - drink.z) <= SITE.stands).map(({ score: _s, ray: _r, ...stand }) => stand);
-  // Homes: on a 3 m lattice around the shore.
-  const cands: (Spot & { score: number })[] = [];
-  for (let gx = -SITE.far; gx <= SITE.far; gx += 3) for (let gz = -SITE.far; gz <= SITE.far; gz += 3) {
-    const r = Math.hypot(gx, gz);
-    if (r < SITE.near || r > SITE.far) continue;
-    const x = drink.x + gx, z = drink.z + gz;
-    if (!walkable(world, x, z) || slope(x, z) > 0.08 || world.terrace(x, z) < SITE.keepOff * 2) continue;
-    let wet = false;
-    for (let a = 0; a < 8 && !wet; a++) wet = waterDepth(world, x + Math.cos(a) * 5, z + Math.sin(a) * 5) > -0.1;
-    if (wet) continue;
-    const h = groundAt(x, z);
-    let around = 0;
-    for (let a = 0; a < 8; a++) around += groundAt(x + Math.cos((a * Math.PI) / 4) * 7, z + Math.sin((a * Math.PI) / 4) * 7);
-    const shelter = around / 8 - h;
-    cands.push({ x, z, facing: Math.atan2(drink.z - z, drink.x - x), score: shelter * 3 - slope(x, z) * 10 - r / 200 });
+  if (!stands.length) return { reason: 'no valid drinking stand (muzzle/feet/shore)' };
+  stands.sort((a, b) => b.score - a.score);
+  // Keep a diverse set of top stands (not only the single best shore spot).
+  const picked: (Stand & { score: number })[] = [];
+  for (const s of stands) {
+    if (picked.every((p) => Math.hypot(p.x - s.x, p.z - s.z) > 4)) picked.push(s);
+    if (picked.length >= 12) break;
   }
-  cands.sort((a, b) => b.score - a.score);
-  // Only homes it can walk to from the shore (a stream between them closes the way: it does not swim).
-  const reach = SITE.far + ROUTE.margin;
-  const around = { x0: drink.x - reach, z0: drink.z - reach, size: 2 * reach };
+  let best: { sites: Sites; score: number } | null = null;
   const untouched: ContactMap = { x0: 0, z0: 0, texel: 1, cells: 0, walk: new Float32Array(0), drink: new Float32Array(0), rest: new Float32Array(0), ground: new Uint8Array(0), version: 0 };
   const flat = () => 0;
-  const homes: Spot[] = [];
-  for (const c of cands) {
-    if (!homes.every((h) => Math.hypot(h.x - c.x, h.z - c.z) > SITE.apart)) continue;
-    if (!route(world, untouched, around, [drink.x, drink.z], [c.x, c.z], flat)) continue;
-    homes.push({ x: c.x, z: c.z, facing: c.facing });
-    if (homes.length === SITE.homes) break;
+  for (const drink of picked) {
+    const cands: (Spot & { score: number })[] = [];
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const t = j * nx + i;
+      if (region[t] !== regionIndex) continue;
+      // Prefer habitat; allow open stone that still meets the old shelter/slope tests.
+      if (zone[t] !== Z_HABITAT && zone[t] !== Z_OPEN) continue;
+      const x = at(i), z = atZ(j);
+      const r = Math.hypot(x - drink.x, z - drink.z);
+      if (r < SITE.near || r > SITE.far) continue;
+      if (!walkable(world, x, z) || slope(x, z) > 0.1 || world.terrace(x, z) < SITE.keepOff * 2) continue;
+      let wet = false;
+      for (let a = 0; a < 8 && !wet; a++) wet = waterDepth(world, x + Math.cos(a) * 5, z + Math.sin(a) * 5) > -0.1;
+      if (wet) continue;
+      const h = groundAt(x, z);
+      let around = 0;
+      for (let a = 0; a < 8; a++) around += groundAt(x + Math.cos((a * Math.PI) / 4) * 7, z + Math.sin((a * Math.PI) / 4) * 7);
+      const shelter = around / 8 - h;
+      const habitatBonus = zone[t] === Z_HABITAT ? 2 : 0;
+      cands.push({ x, z, facing: Math.atan2(drink.z - z, drink.x - x), score: habitatBonus + shelter * 3 - slope(x, z) * 10 - r / 200 });
+    }
+    cands.sort((a, b) => b.score - a.score);
+    const reach = SITE.far + ROUTE.margin;
+    const around = { x0: drink.x - reach, z0: drink.z - reach, size: 2 * reach };
+    const homes: Spot[] = [];
+    for (const c of cands) {
+      if (!homes.every((h) => Math.hypot(h.x - c.x, h.z - c.z) > SITE.apart)) continue;
+      if (!route(world, untouched, around, [drink.x, drink.z], [c.x, c.z], flat)) continue;
+      homes.push({ x: c.x, z: c.z, facing: c.facing });
+      if (homes.length === SITE.homes) break;
+    }
+    if (!homes.length) continue;
+    const near = stands
+      .filter((s) => Math.hypot(s.x - drink.x, s.z - drink.z) <= SITE.stands)
+      .map(({ score: _s, ...stand }) => stand);
+    let minX = drink.x, maxX = drink.x, minZ = drink.z, maxZ = drink.z;
+    for (const h of homes) { minX = Math.min(minX, h.x); maxX = Math.max(maxX, h.x); minZ = Math.min(minZ, h.z); maxZ = Math.max(maxZ, h.z); }
+    const size = Math.ceil((Math.max(maxX - minX, maxZ - minZ) + 2 * ROUTE.margin) / 8) * 8;
+    const { score: drinkScore, ...bestDrink } = drink;
+    const sites: Sites = {
+      drink: bestDrink,
+      stands: near.length ? near : [bestDrink],
+      homes,
+      region: { x0: (minX + maxX) / 2 - size / 2, z0: (minZ + maxZ) / 2 - size / 2, size },
+    };
+    const score = drinkScore + homes.length + homes.reduce((s, h) => s + (cands.find((c) => c.x === h.x && c.z === h.z)?.score ?? 0), 0);
+    if (!best || score > best.score) best = { sites, score };
   }
-  if (!homes.length) return null;
-  // The map's square: all the sites and a margin, about the shore.
-  let x0 = drink.x, x1 = drink.x, z0 = drink.z, z1 = drink.z;
-  for (const h of homes) { x0 = Math.min(x0, h.x); x1 = Math.max(x1, h.x); z0 = Math.min(z0, h.z); z1 = Math.max(z1, h.z); }
-  const size = Math.ceil((Math.max(x1 - x0, z1 - z0) + 2 * ROUTE.margin) / 8) * 8;
-  const { score: _s, ray: _r, ...best } = drink;
-  return { drink: best, stands: near, homes, region: { x0: (x0 + x1) / 2 - size / 2, z0: (z0 + z1) / 2 - size / 2, size } };
+  if (!best) return { reason: 'no home reachable on foot from a valid stand' };
+  return best;
+}
+
+/**
+ * Where it drinks and where it may rest, by rule over the island's dry-land regions: each region
+ * is tried for a shore stand (real muzzle/feet tests) and habitat homes with a dry walking route.
+ * Invalid regions are skipped and recorded in `siteSkips()`. The best valid region is returned;
+ * null only if none work. Does not require the plunge pool, and does not force every region.
+ */
+export function findSites(world: DwellWorld): Sites | null {
+  lastSiteSkips = [];
+  const zones = world.zones;
+  if (!zones || !zones.regions.length) {
+    lastSiteSkips.push({ region: -1, area: 0, reason: 'no zone field / dry-land regions' });
+    return null;
+  }
+  const order = zones.regions.map((r, i) => ({ i, area: r.area })).sort((a, b) => b.area - a.area);
+  let best: { sites: Sites; score: number; region: number } | null = null;
+  for (const { i, area } of order) {
+    if (area < SITE.minRegion) {
+      lastSiteSkips.push({ region: i, area, reason: `area ${area.toFixed(0)} m² under ${SITE.minRegion}` });
+      continue;
+    }
+    const result = sitesInRegion(world, zones, i);
+    if ('reason' in result) {
+      lastSiteSkips.push({ region: i, area, reason: result.reason });
+      continue;
+    }
+    if (!best || result.score > best.score) best = { ...result, region: i };
+  }
+  return best?.sites ?? null;
 }
 
 /** The contact map: per cell of the square, how worn by walking, drinking, resting (0 to 1 each). */
@@ -332,6 +442,9 @@ function route(world: DwellWorld, map: ContactMap, region: Sites['region'], from
   const cell = ROUTE.cell, n = Math.round(region.size / cell);
   const at = (i: number) => region.x0 + (i + 0.5) * cell, atZ = (j: number) => region.z0 + (j + 0.5) * cell;
   const idx = (x: number, z: number) => [Math.min(Math.max(Math.floor((x - region.x0) / cell), 0), n - 1), Math.min(Math.max(Math.floor((z - region.z0) / cell), 0), n - 1)];
+  // Inflate obstacles while searching so a jittered walk does not clip trunks or the watching stone.
+  const saved = world.obstacles;
+  if (saved?.length) world.obstacles = saved.map((o) => ({ ...o, r: o.r + ROUTE.clear }));
   const cost = new Float32Array(n * n);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const x = at(i), z = atZ(j);
@@ -376,7 +489,7 @@ function route(world: DwellWorld, map: ContactMap, region: Sites['region'], from
       if (g[t] + step < g[u]) { g[u] = g[t] + step; came[u] = t; push(g[u] + h(u), u); }
     }
   }
-  if (!closed[goal]) return null;
+  if (!closed[goal]) { world.obstacles = saved; return null; }
   const cellsOnWay: number[] = [];
   for (let t = goal; t !== -1; t = came[t]) cellsOnWay.push(t);
   cellsOnWay.reverse();
@@ -393,15 +506,17 @@ function route(world: DwellWorld, map: ContactMap, region: Sites['region'], from
     }
   }
   let s = 0;
-  return pts.map(([x, z], k) => {
+  const path = pts.map(([x, z], k) => {
     if (k) s += Math.hypot(x - pts[k - 1][0], z - pts[k - 1][1]);
     const [ax, az] = pts[Math.max(k - 1, 0)], [bx, bz] = pts[Math.min(k + 1, pts.length - 1)];
     const ux = bx - ax, uz = bz - az, ul = Math.hypot(ux, uz) || 1;
     const ends = Math.min(1, s / 4) * Math.min(1, (pts.length - 1 - k) / 4);
     const off = WANDER * jitter(s / 9, 17.3) * ends;
     const wx = x - (uz / ul) * off, wz = z + (ux / ul) * off;
-    return walkable(world, wx, wz) ? [wx, wz] : [x, z];
+    return (walkable(world, wx, wz) ? [wx, wz] : [x, z]) as [number, number];
   });
+  world.obstacles = saved;
+  return path;
 }
 
 const RELAX = 40; // passes of the relaxing

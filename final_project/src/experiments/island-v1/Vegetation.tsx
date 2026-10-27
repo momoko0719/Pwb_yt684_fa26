@@ -16,8 +16,8 @@ const UP = new Vector3(0, 1, 0);
  * The forest, the rhododendron thickets and the boulders. Tens of thousands of trees cannot each be
  * a grown pine, so each tree is drawn at one of three levels by its distance to the camera, the
  * same idea as the lone pines' LOD (Class 07) but for instanced crowds: the grown L-system pine
- * (its lightest level) up close, a three-tier stand-in in the middle distance, a two-tier crown far
- * away. Shrubs and boulders are single instanced meshes.
+ * (its lightest level) up close, then mid/far stand-ins from `forestPineModel` (flat uneven pads,
+ * not a conical Christmas-tree stack). Shrubs and boulders are single instanced meshes.
  */
 export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial, uniforms, lod = SIZES.forest.lod }: {
   trees: Plant[];
@@ -60,23 +60,40 @@ export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial
       const mesh = new InstancedMesh(g, pineMaterial, Math.max(trees.length, 1));
       mesh.frustumCulled = false;
       mesh.count = 0;
+      // Orbit zoomToCursor / focus should hit terrain, not pine crowns.
+      mesh.raycast = () => {};
+      mesh.userData.orbitIgnore = true;
       return mesh;
     };
     return { near: shapes.near.map(make), mid: make(shapes.mid), far: make(shapes.far) };
   }, [shapes, pineMaterial, trees.length]);
 
   const last = useRef({ at: -Infinity, x: Infinity, z: Infinity });
+  /** Per-tree LOD band 0=near 1=mid 2=far — hysteresis avoids flicker at NEAR/MID. */
+  const band = useRef<Uint8Array | null>(null);
+  const HYST = 12; // metres past the threshold before leaving a band
   useFrame(({ camera, clock }) => {
     const { x, z } = camera.position;
     if (clock.elapsedTime - last.current.at < REBUCKET && Math.hypot(x - last.current.x, z - last.current.z) < MOVE) return;
     last.current = { at: clock.elapsedTime, x, z };
+    if (!band.current || band.current.length !== trees.length) band.current = new Uint8Array(trees.length);
     const counts = { near: new Array(PINE_VARIANTS).fill(0), mid: 0, far: 0 };
     const cy = camera.position.y;
     const into = (mesh: InstancedMesh, n: number, from: Float32Array, i: number) => (mesh.instanceMatrix.array as Float32Array).set(from.subarray(i * 16, i * 16 + 16), n * 16);
     trees.forEach((t, i) => {
       const d = Math.hypot(t.x - x, t.y - cy, t.z - z);
-      if (d < NEAR) into(meshes.near[t.variant], counts.near[t.variant]++, matrices.grown, i);
-      else if (d < MID) into(meshes.mid, counts.mid++, matrices.unit, i);
+      let b = band.current![i];
+      if (b === 0) {
+        if (d > NEAR + HYST) b = d < MID + HYST ? 1 : 2;
+      } else if (b === 1) {
+        if (d < NEAR - 2) b = 0;
+        else if (d > MID + HYST) b = 2;
+      } else {
+        if (d < MID - 2) b = d < NEAR ? 0 : 1;
+      }
+      band.current![i] = b;
+      if (b === 0) into(meshes.near[t.variant], counts.near[t.variant]++, matrices.grown, i);
+      else if (b === 1) into(meshes.mid, counts.mid++, matrices.unit, i);
       else into(meshes.far, counts.far++, matrices.unit, i);
     });
     meshes.near.forEach((mesh, v) => { mesh.count = counts.near[v]; mesh.instanceMatrix.needsUpdate = true; });
