@@ -1,22 +1,15 @@
 # Guixu
 
-![White Jade Island](final_project/public/atlas-img/white-jade-island.png)
+![Five mountains drift above the abyss](final_project/public/atlas-img/guixu-banner.jpg)
 
-**White Jade Island** is the island I am building now: white porcelain ground, a terrace of pools, streams that leave the rim, and a creature whose days slowly turn the stone it touches toward jade.
+Five mountains float on a sea of cloud. Two of them are open.
 
-## Open
-
-| | What you see | Open |
-| --- | --- | --- |
-| **White Jade Island** | Porcelain island, streams, the creature and its rock shelter | [Live](https://guixu-yt684.web.app/#/atlas/wonderland-terrain) · [Atlas card](https://guixu-yt684.web.app/#/atlas) |
-| **Penglai Island** | The first island: pines, wind, the 24 solar terms, paths and pavilions | [Live](https://guixu-yt684.web.app/#/atlas/island-v1) |
-| **Atlas** | Both islands and the class exercises, each with a short note | [Live](https://guixu-yt684.web.app/#/atlas) |
-
-| Penglai | A day at the shelter |
+| White Jade Island | Penglai Island |
 | --- | --- |
-| [![Penglai Island](final_project/public/atlas-img/penglai-island-v1-b.jpg)](https://guixu-yt684.web.app/#/atlas/island-v1) | [![Enter, lie, leave](final_project/docs/rock-shelter-684/slab-enter-lie-leave.gif)](final_project/docs/rock-shelter-slab-2026-10-28.md) |
+| [![White Jade Island](final_project/public/atlas-img/white-jade-island.png)](https://guixu-yt684.web.app/#/atlas/wonderland-terrain) | [![Penglai Island](final_project/public/atlas-img/penglai-island-v1-b.jpg)](https://guixu-yt684.web.app/#/atlas/island-v1) |
+| Porcelain ground, a terrace of pools, streams off the rim, and a creature whose days turn the stone it touches toward jade. [Live](https://guixu-yt684.web.app/#/atlas/wonderland-terrain) | Pines, wind, the 24 solar terms, paths and pavilions. [Live](https://guixu-yt684.web.app/#/atlas/island-v1) |
 
-Shelter notes and the other frames: [`final_project/docs/rock-shelter-slab-2026-10-28.md`](final_project/docs/rock-shelter-slab-2026-10-28.md).
+Both islands, and the class exercises, open from the [Atlas](https://guixu-yt684.web.app/#/atlas). Shelter notes: [`final_project/docs/rock-shelter-slab-2026-10-28.md`](final_project/docs/rock-shelter-slab-2026-10-28.md).
 
 ## Class exercises
 

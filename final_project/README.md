@@ -1,24 +1,15 @@
 # Guixu
 
-![White Jade Island](public/atlas-img/white-jade-island.png)
+![Five mountains drift above the abyss](public/atlas-img/guixu-banner.jpg)
 
-Final project for Cornell Tech DESIGN 6197 Procedural World Building. Five floating mountains over the abyss of Guixu. The island in progress is **White Jade Island**.
+Final project for Cornell Tech DESIGN 6197 Procedural World Building. Five mountains float on a sea of cloud. Two of them are open.
 
-Live: [White Jade Island](https://guixu-yt684.web.app/#/atlas/wonderland-terrain) · [Atlas](https://guixu-yt684.web.app/#/atlas)
-
-## Open
-
-| | What you see | Open |
-| --- | --- | --- |
-| **White Jade Island** | Porcelain ground, terrace, streams, a creature and its shelter | [Live](https://guixu-yt684.web.app/#/atlas/wonderland-terrain) |
-| **Penglai Island** | Pines, wind, the 24 solar terms, paths and pavilions | [Live](https://guixu-yt684.web.app/#/atlas/island-v1) |
-| **Atlas** | Both islands and the class cards | [Live](https://guixu-yt684.web.app/#/atlas) |
-
-| Penglai | A day at the shelter |
+| White Jade Island | Penglai Island |
 | --- | --- |
-| [![Penglai Island](public/atlas-img/penglai-island-v1-b.jpg)](https://guixu-yt684.web.app/#/atlas/island-v1) | [![Enter, lie, leave](docs/rock-shelter-684/slab-enter-lie-leave.gif)](docs/rock-shelter-slab-2026-10-28.md) |
+| [![White Jade Island](public/atlas-img/white-jade-island.png)](https://guixu-yt684.web.app/#/atlas/wonderland-terrain) | [![Penglai Island](public/atlas-img/penglai-island-v1-b.jpg)](https://guixu-yt684.web.app/#/atlas/island-v1) |
+| Porcelain ground, a terrace of pools, streams off the rim, and a creature whose days turn the stone it touches toward jade. [Live](https://guixu-yt684.web.app/#/atlas/wonderland-terrain) | Pines, wind, the 24 solar terms, paths and pavilions. [Live](https://guixu-yt684.web.app/#/atlas/island-v1) |
 
-Premise: [`docs/world-concept.md`](docs/world-concept.md). Shelter record: [`docs/rock-shelter-slab-2026-10-28.md`](docs/rock-shelter-slab-2026-10-28.md).
+Both islands, and the class cards, open from the [Atlas](https://guixu-yt684.web.app/#/atlas). Premise: [`docs/world-concept.md`](docs/world-concept.md). Shelter record: [`docs/rock-shelter-slab-2026-10-28.md`](docs/rock-shelter-slab-2026-10-28.md).
 
 ## Run
 
