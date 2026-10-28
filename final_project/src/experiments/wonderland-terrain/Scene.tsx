@@ -43,10 +43,14 @@ import { WONDER_BROWSE } from './wonderlandWalk';
 import { FrameRate, StatsPanel, SUN_AZIMUTH, TERRAIN_DPR, useHour, World } from './world';
 import { UNDERSIDE_DEFAULTS, type FromTerrain, type ToTerrain, type UndersideParams } from './terrain.worker';
 import { TERRACE_DEFAULTS, type OutletNode, type PoolNode, type TerraceParams } from './terrace';
-import { CornerBlocks, cornerObstacles, createIslandPineMaterial, planCorner, type Corner } from './corner';
+import { CornerBlocks, createIslandPineMaterial, type Corner } from './corner';
+import { HabitatStones } from './HabitatStoneMeshes';
+import { placeHabitat, type HabitatLayout } from './habitatStones';
+import { RockShelter } from './RockShelterMesh';
+import { placeShelter, type ShelterPlan } from './rockShelter';
 import Vegetation from '../island-v1/Vegetation';
 import type { Plant } from '../../core/generators/forest';
-import { growWoods, siteKeepOuts, TREE_CLEARANCE, WOODS_LOD } from './woods';
+import { growWoods, siteKeepOuts, WOODS_LOD } from './woods';
 import { ZONE_NAMES, type Zones } from './zones';
 import { DwellingView, type DwellingStats } from './creature';
 import { BODY, createDwelling, type Dwelling } from './dwelling';
@@ -247,18 +251,33 @@ export default function Scene() {
   // Low shrubs in patches (shrubs.ts), off the creature's dwelling ground (not its obstacles yet).
   const shrubs = useMemo(() => (ground ? growShrubs(ground.zones, ground.grid, ground.folds, params.seed, trees, dwelling ? [dwelling.sites.region] : []) : null), [ground, params, trees, dwelling]);
   const cover = useMemo(() => (ground ? buildCover(ground.zones, ground.grid, params.seed, coverAmount) : null), [ground, params, coverAmount]);
-  // Its corner (corner.tsx): a few trees by its home, a stone to watch it drink from, the view;
-  // what stands there is in its way too, as are the woods' trees on its ground.
-  const corner = useMemo(() => {
-    if (!dwelling) return null;
+  // Corner pines, then shore stones, then one shelter for the current home.
+  // Switching A/B/C rebuilds the shelter. It does not append, and it does not move the home anchor.
+  const shelterBoot = useRef<Dwelling | null>(null);
+  const habitat = useMemo(() => {
+    if (!dwelling || !ground) return null;
     dwelling.home = Math.min(dwell.home, dwelling.sites.homes.length - 1);
-    dwelling.setObstacles([]);
-    const c = planCorner(dwelling);
-    const { x0, z0, size } = dwelling.sites.region;
-    const mine = trees.filter((t) => t.x > x0 - 2 && t.z > z0 - 2 && t.x < x0 + size + 2 && t.z < z0 + size + 2);
-    dwelling.setObstacles([...cornerObstacles(c), ...mine.map((t) => ({ x: t.x, z: t.z, r: TREE_CLEARANCE }))]);
-    return c;
-  }, [dwelling, dwell.home, trees]);
+    const layout = placeHabitat({
+      seed: params.seed,
+      dwelling,
+      zones: ground.zones,
+      trees,
+      shrubs: (shrubs?.plants ?? []).map((p) => ({ x: p.x, z: p.z, r: p.height * p.width * 0.5 })),
+      pose: { x: dwelling.pose.x, z: dwelling.pose.z },
+    });
+    const shelter = placeShelter({ dwelling, obstacles: layout.obstacles, seed: params.seed });
+    if (shelter.plan) {
+      dwelling.setRestPlace({ bed: shelter.plan.bed, mouth: shelter.plan.mouth });
+      dwelling.setObstacles(shelter.plan.obstacles);
+    } else dwelling.setRestPlace(null);
+    // First time this dwelling exists: lie in the bed. Changing home does not teleport.
+    if (shelterBoot.current !== dwelling) {
+      shelterBoot.current = dwelling;
+      dwelling.reset();
+    }
+    return { layout, shelter };
+  }, [dwelling, dwell.home, trees, shrubs, ground, params.seed]);
+  const corner = habitat?.layout.corner ?? null;
 
   const scaleKnown = useMemo(() => {
     const heights = trees.map((p) => p.height);
@@ -424,7 +443,7 @@ export default function Scene() {
   return (
     <>
       {/* flat: no tone mapping, as Penglai: every material, built-in or our own, writes its colour in sRGB (without it the built-in ones went through ACES and ours did not). */}
-      <Canvas className={WONDER_WALK_CANVAS} flat dpr={TERRAIN_DPR} camera={{ position: [-430, 300, 380], fov: 40, near: 0.5, far: 5000 }}>
+      <Canvas className={WONDER_WALK_CANVAS} flat gl={{ localClippingEnabled: true }} dpr={TERRAIN_DPR} camera={{ position: [-430, 300, 380], fov: 40, near: 0.5, far: 5000 }}>
         <AtlasCameraBridge open={atlasOpen} saved={atlasCam} locateRef={locateRef} />
         {/* For the creature's figure (the built parts light themselves). */}
         <hemisphereLight args={[BLOCKOUT.skyLight, BLOCKOUT.groundLight, 1.6]} />
@@ -432,7 +451,7 @@ export default function Scene() {
         <World hour={hour} clouds={-BASE_DEPTH - underside.depth - 50}>
           {(uniforms) => ground && above && (
             <Ground uniforms={uniforms} grid={ground.grid} rim={ground.rim} terrace={ground.terrace} water={ground.water} underside={ground.underside} above={above} light={light} lod={view.lod} wire={debug.wire} marker={debug.particles} onDrawn={setDrawn} trees={trees} zones={ground.zones} folds={ground.folds} rock={rock} shrubs={view.shrubs ? shrubs : null} showZones={showZones} cover={cover} coverDebug={coverDebug} coverAmount={coverAmount} seed={params.seed} onCoverStats={onCoverStats} walking={view.walk} coverBuildMsRef={coverBuildMsRef} floorFlagsRef={floorFlagsRef}
-              dwelling={dwelling && { sim: dwelling, corner, seed: params.seed, run: dwell.run, speed: dwell.speed, show: dwell.show, calls: dwellCalls.current, onStats: setDwellStats }} />
+              dwelling={dwelling && habitat && { sim: dwelling, corner, stones: habitat.layout, shelter: habitat.shelter.plan, cut: false, seed: params.seed, run: dwell.run, speed: dwell.speed, show: dwell.show, calls: dwellCalls.current, onStats: setDwellStats }} />
           )}
         </World>
         {view.scale && !view.walk && (
@@ -701,7 +720,7 @@ function Ground({ uniforms, grid, rim, terrace, water: flowing, underside, above
   coverBuildMsRef?: { current: number };
   floorFlagsRef?: { current: { cam: boolean; target: boolean } };
   /** The creature and the jade it leaves (creature.tsx), and the panel's handles on it. */
-  dwelling: { sim: Dwelling; corner: Corner | null; seed: number; run: boolean; speed: number; show: boolean; calls: { reset: () => void; look: () => void }; onStats: (s: DwellingStats) => void } | null;
+  dwelling: { sim: Dwelling; corner: Corner | null; stones: HabitatLayout | null; shelter: ShelterPlan | null; cut: boolean; seed: number; run: boolean; speed: number; show: boolean; calls: { reset: () => void; look: () => void }; onStats: (s: DwellingStats) => void } | null;
 }) {
   const material = useMemo(() => createTerrainMaterial(uniforms), [uniforms]);
   const side = useMemo(() => createPorcelainMaterial(uniforms), [uniforms]);
@@ -960,6 +979,8 @@ function Ground({ uniforms, grid, rim, terrace, water: flowing, underside, above
       <Vegetation trees={trees} shrubs={NONE} boulders={NONE} seed={seed} pineMaterial={pines} uniforms={uniforms} lod={WOODS_LOD} />
       {cover && <CoverGrass cover={cover} grid={grid} uniforms={uniforms} seed={seed} map={dwelling?.sim.map ?? null} amount={coverAmount} walking={walking} onStats={onCoverStats} buildMsRef={coverBuildMsRef} />}
       {dwelling?.corner && <CornerBlocks corner={dwelling.corner} uniforms={uniforms} groundAt={dwelling.sim.groundAt} seed={dwelling.seed} />}
+      {dwelling?.stones && <HabitatStones layout={dwelling.stones} uniforms={uniforms} dwelling={dwelling.sim} />}
+      {dwelling?.shelter && <RockShelter plan={dwelling.shelter} cut={dwelling.cut} uniforms={uniforms} />}
       {dwelling && <DwellingView dwelling={dwelling.sim} ground={material} run={dwelling.run} speed={dwelling.speed} show={dwelling.show} calls={dwelling.calls} onStats={dwelling.onStats} />}
     </>
   );
@@ -968,7 +989,6 @@ function Ground({ uniforms, grid, rim, terrace, water: flowing, underside, above
 /** Default overview (matches the Canvas camera). */
 const OVERVIEW: Corner['view'] = { from: [-430, 300, 380], to: [0, 20, 0] };
 
-/** Presentation cameras: overview + look at the creature (other debug jumps removed). */
 function CornerCamera({ corner, drink, calls }: {
   corner: Corner;
   drink: { x: number; z: number };

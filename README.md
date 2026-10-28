@@ -1,12 +1,63 @@
-# Procedural World Building
+# Guixu 归墟
 
-This is a repo for **Design 4197-6197: Special Topics in Design 2026 — Procedural World Building**. This is Yifei Tao (Ella)'s repo. I will keep updating my progress, assignments, experiments, and notes here throughout the semester.
+![White Jade Island](final_project/public/atlas-img/white-jade-island.png)
 
----
+**White Jade Island** is the island I am building now: white porcelain ground, a terrace of pools, streams that leave the rim, and a creature whose days slowly turn the stone it touches toward jade.
 
-## Weekly log
+Live: [White Jade Island](https://guixu-yt684.web.app/#/atlas/wonderland-terrain)
 
-Newest first. Each entry is a short snapshot of what I explored that week.
+```bash
+cd final_project
+npm install
+npm run dev
+```
+
+Then open `#/atlas/wonderland-terrain`. Seed **684**.
+
+## Open
+
+| | What you see | Open |
+| --- | --- | --- |
+| **White Jade Island** | Porcelain island, streams, the creature and its rock shelter | [Live](https://guixu-yt684.web.app/#/atlas/wonderland-terrain) · [Atlas card](https://guixu-yt684.web.app/#/atlas) |
+| **Penglai Island** | The first island: pines, wind, the 24 solar terms, paths and pavilions | [Live](https://guixu-yt684.web.app/#/atlas/island-v1) |
+| **Atlas** | Both islands and the class exercises, each with a short note | [Live](https://guixu-yt684.web.app/#/atlas) |
+
+| Penglai | A day at the shelter |
+| --- | --- |
+| [![Penglai Island](final_project/public/atlas-img/penglai-island-v1-b.jpg)](https://guixu-yt684.web.app/#/atlas/island-v1) | [![Enter, lie, leave](final_project/docs/rock-shelter-684/slab-enter-lie-leave.gif)](final_project/docs/rock-shelter-slab-2026-10-28.md) |
+
+Shelter notes and the other frames: [`final_project/docs/rock-shelter-slab-2026-10-28.md`](final_project/docs/rock-shelter-slab-2026-10-28.md).
+
+## Class exercises
+
+Earlier studies. Each one was turned toward Guixu and also opens from the Atlas.
+
+| Class | Piece | Code | Notes |
+| --- | --- | --- | --- |
+| 07 | Penglai Pines · Guixu Chronicle | [`class_07/react-app-ts/`](class_07/react-app-ts/) | [Pines](class_07/tutorials/Penglai%20Pines.md) · [Chronicle](class_07/tutorials/Guixu%20Chronicle.md) |
+| 06 | One Stroke Landscape | [`class_06/react-app-ts/`](class_06/react-app-ts/) | [Notes](class_06/tutorials/One%20Stroke%20Landscape.md) |
+| 05 | Shader Lab | [`class_05/react-app-ts/`](class_05/react-app-ts/) | [Notes](class_05/tutorials/Shader%20Lab.md) |
+| 04 | Clay Studio | [`class_04/react-app-ts/`](class_04/react-app-ts/) · [Live](https://pwb-class04-clay.web.app) | [Notes](class_04/tutorials/) |
+| 03 | Island terrain | [`class_03/react-app-ts/`](class_03/react-app-ts/) | [Notes](class_03/tutorials/Noise%20and%20Procedural%20Terrain.md) |
+
+## Run the apps
+
+| App | Folder | Live |
+| --- | --- | --- |
+| Final project | [`final_project/`](final_project/) | [guixu-yt684.web.app](https://guixu-yt684.web.app) |
+| A class exercise | `class_XX/react-app-ts/` | Atlas, or that folder's own dev server |
+
+```bash
+cd final_project   # or class_02/react-app-ts, and so on
+npm install
+npm run dev
+```
+
+Each folder is its own Vite app. They share this git history and are deployed separately.
+
+## Process
+
+Newest first. The front of this page is the project; this log is how it got here.
 
 ### 2026-10 · Midterm — Guixu 归墟: the atlas, and a living Penglai
 
@@ -43,7 +94,7 @@ Two small pieces, one per assignment, in one app (switch at the top right, EN/�
 ![Guixu Chronicle — Class 07, six worlds with the same ending and different histories](docs/weekly/2026-10-class07-guixu-chronicle.jpg)
 
 - **AI workflow**: Claude Code built both apps. For Assignment 2 the first version was a text card table that felt too abstract, so we switched to "history → visible traces", which made the idea of a procedural world concrete for me.
-- App: [`class_07/react-app-ts/`](class_07/react-app-ts/)  
+- App: [`class_07/react-app-ts/`](class_07/react-app-ts/)
 - Notes: [`class_07/tutorials/Penglai Pines.md`](class_07/tutorials/Penglai%20Pines.md) · [`class_07/tutorials/Guixu Chronicle.md`](class_07/tutorials/Guixu%20Chronicle.md)
 
 ### 2026-10 · Class 06 — One Stroke Landscape 一笔山河 (scatter · paths · vector fields)
@@ -57,7 +108,7 @@ One interactive piece for the three assignments of the class (distributions, pat
 
 ![One Stroke Landscape — Class 06 screenshot](docs/weekly/2026-10-class06-one-stroke-landscape.jpg)
 
-- App: [`class_06/react-app-ts/`](class_06/react-app-ts/)  
+- App: [`class_06/react-app-ts/`](class_06/react-app-ts/)
 - Notes: [`class_06/tutorials/One Stroke Landscape.md`](class_06/tutorials/One%20Stroke%20Landscape.md)
 
 ### 2026-09 · Final project — Guixu 归墟: Penglai Island v1 (first floating island)
@@ -77,17 +128,17 @@ Started the final project: **Guixu**, five floating mountains above a sea of clo
 
 ![Guixu — Penglai Island v1 at dusk, with the techniques panel open](docs/weekly/2026-09-final-penglai-island-v1.webp)
 
-- App: [`final_project/`](final_project/)  
-- Live: [https://guixu-yt684.web.app](https://guixu-yt684.web.app)  
+- App: [`final_project/`](final_project/)
+- Live: [https://guixu-yt684.web.app](https://guixu-yt684.web.app)
 - Notes: [`final_project/src/experiments/island-v1/notes.md`](final_project/src/experiments/island-v1/notes.md) · World concept: [`final_project/docs/world-concept.md`](final_project/docs/world-concept.md)
 
 ### 2026-09 · Class 05 — Shader Lab (see → tweak → understand)
 
-Built a **Shader Lab** playground for class shader studies: vertex / fragment / uniforms, gradients, Fresnel, slope, distance, AO, contact, matcap, displacement, and a final combo. EN/中文 UI, “try this / takeaway / show mask,” and a suggested learning path — more material laboratory than documentation site.
+Built a **Shader Lab** playground for class shader studies: vertex / fragment / uniforms, gradients, Fresnel, slope, distance, AO, contact, matcap, displacement, and a final combo. EN/中文 UI, "try this / takeaway / show mask," and a suggested learning path — more material laboratory than documentation site.
 
 ![Shader Lab — Class 05 screenshot (Fresnel study)](docs/weekly/2026-09-class05-shader-lab.png)
 
-- App: [`class_05/react-app-ts/`](class_05/react-app-ts/)  
+- App: [`class_05/react-app-ts/`](class_05/react-app-ts/)
 - Notes: [`class_05/tutorials/Shader Lab.md`](class_05/tutorials/Shader%20Lab.md)
 
 ### 2026-09 · Class 04 — Clay Studio (voxels → clear UI → Firebase)
@@ -96,90 +147,6 @@ Explored **voxel / density** experiments from lecture, then reshaped them into a
 
 ![Clay Studio — Class 04 screenshot](docs/weekly/2026-09-class04-clay-studio.png)
 
-- App: [`class_04/react-app-ts/`](class_04/react-app-ts/)  
-- Live: [https://pwb-class04-clay.web.app](https://pwb-class04-clay.web.app)  
+- App: [`class_04/react-app-ts/`](class_04/react-app-ts/)
+- Live: [https://pwb-class04-clay.web.app](https://pwb-class04-clay.web.app)
 - Notes: [`class_04/tutorials/`](class_04/tutorials/)
-
----
-
-## Repo Structure
-
-```
-Pwb_yt684_fa26/
-├── class_XX/                  # One folder per class session
-│   ├── react-app-ts/          # In-class React + TypeScript exercise app
-│   └── tutorials/             # Markdown notes and walkthroughs for that session
-├── final_project/             # Semester final project: Guixu (separate app, separate deployment)
-│   ├── src/
-│   ├── package.json
-│   └── vite.config.ts
-├── docs/
-│   ├── weekly/                # Screenshots + short weekly log images
-│   ├── planning/              # Plans and schedules
-│   ├── tutorials/             # Shared notes across sessions
-│   └── analysis/              # Readings, case studies, and reflections
-├── BACKLOG.md                 # Features and experiments to try
-└── README.md
-```
-
----
-
-## Conventions
-
-### Monorepo layout
-
-This repo follows a **monorepo** structure: all class exercises and the final project live here in one place, but each is a fully independent app with its own `package.json` and `node_modules`. They share the same git history and notes, but are deployed separately.
-
-### Class sessions (`class_XX/`)
-
-Each class session gets its own top-level folder named `class_XX` (e.g. `class_02`).
-
-| Sub-folder | Purpose |
-| --- | --- |
-| `react-app-ts/` | The in-class React + TypeScript + Three.js exercise app |
-| `tutorials/` | Markdown notes written during or after the session |
-
-Run a class exercise locally:
-```bash
-cd class_02/react-app-ts
-npm install
-npm run dev
-```
-
-### Final project (`final_project/`)
-
-The semester final project, **Guixu**, lives in its own top-level folder. It is a separate Vite + React + TypeScript app, independent of any class exercise, deployed to its own URL: [https://guixu-yt684.web.app](https://guixu-yt684.web.app).
-
-Run the final project locally:
-```bash
-cd final_project
-npm install
-npm run dev
-```
-
-### Deployments
-
-Each app is deployed independently (e.g. via Vercel or Firebase Hosting) by pointing at that app's folder. This means each app gets its own URL:
-
-| App | Root Directory | Purpose |
-| --- | --- | --- |
-| Class exercises | `class_XX/react-app-ts` | Weekly in-class work |
-| Final project | `final_project` | Semester final ([guixu-yt684.web.app](https://guixu-yt684.web.app)) |
-
-### Tech stack
-
-- **React 19** + **TypeScript 6** via **Vite 8**
-- **Three.js** with **React Three Fiber** and **Drei**
-- **Firebase** (Auth · Firestore · Hosting) for class cloud demos
-- Version control: **Git** + **GitHub**
-
----
-
-## Docs
-
-| File / Folder | What's inside |
-| --- | --- |
-| [BACKLOG.md](BACKLOG.md) | Features and experiments to try |
-| [docs/weekly](docs/weekly) | Weekly screenshots for the log above |
-| [docs/planning](docs/planning) | Plans and schedules |
-| [docs/analysis](docs/analysis) | Readings, case studies, and reflections |

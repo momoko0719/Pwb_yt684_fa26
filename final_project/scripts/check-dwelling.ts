@@ -4,11 +4,15 @@ import { deflateSync } from 'zlib';
 import { mkdirSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 import { sampleGrid } from '../src/core/terrain/heightGrid';
-import { cornerObstacles, planCorner } from '../src/experiments/wonderland-terrain/corner';
 import { BODY, createDwelling, siteSkips, walkable, waterDepth } from '../src/experiments/wonderland-terrain/dwelling';
+import { placeHabitat } from '../src/experiments/wonderland-terrain/habitatStones';
+import { placeShelter } from '../src/experiments/wonderland-terrain/rockShelter';
+import { buildRockFolds } from '../src/experiments/wonderland-terrain/rockFolds';
+import { growShrubs } from '../src/experiments/wonderland-terrain/shrubs';
 import { bakeGround, groundRules, GROUND_DEFAULTS } from '../src/experiments/wonderland-terrain/ground';
 import { buildTerrace, TERRACE_DEFAULTS } from '../src/experiments/wonderland-terrain/terrace';
 import { buildWater, WATER_DEFAULTS } from '../src/experiments/wonderland-terrain/water';
+import { growWoods, siteKeepOuts } from '../src/experiments/wonderland-terrain/woods';
 import { buildZones } from '../src/experiments/wonderland-terrain/zones';
 
 const png = (w: number, h: number, rgb: Uint8Array) => {
@@ -36,10 +40,23 @@ if (!d) { console.log('no sites', siteSkips()); process.exit(1); }
 console.log(`site skips: ${siteSkips().length} (${siteSkips().slice(0, 4).map((s) => `#${s.region} ${s.reason}`).join('; ')})`);
 console.log(`sites in ${(performance.now() - t0).toFixed(0)} ms: drink (${d.sites.drink.x.toFixed(1)}, ${d.sites.drink.z.toFixed(1)}); homes ${d.sites.homes.map((h) => `(${h.x.toFixed(1)}, ${h.z.toFixed(1)})`).join(' ')}; square ${d.sites.region.size} m, ${d.map.cells}² cells`);
 d.home = homeAt;
-const corner = planCorner(d), obstacles = cornerObstacles(corner);
-d.setObstacles(obstacles);
+const woods = growWoods(zones, grid, seed, siteKeepOuts(d.sites));
+const trees = [...woods.trees, ...woods.lone];
+const folds = buildRockFolds(grid, rules.meadow);
+const shrubs = growShrubs(zones, grid, folds, seed, trees, [d.sites.region]);
+const layout = placeHabitat({
+  seed, dwelling: d, zones, trees,
+  shrubs: shrubs.plants.map((p) => ({ x: p.x, z: p.z, r: p.height * p.width * 0.5 })),
+  pose: { x: d.pose.x, z: d.pose.z },
+});
+const shelter = placeShelter({ dwelling: d, obstacles: layout.obstacles, seed });
+if (shelter.plan) {
+  d.setRestPlace({ bed: shelter.plan.bed, mouth: shelter.plan.mouth });
+  d.setObstacles(shelter.plan.obstacles);
+}
+const obstacles = shelter.plan?.obstacles ?? layout.obstacles;
 d.reset();
-console.log(`corner: pines ${corner.pines.map((t) => `(${t.x.toFixed(1)}, ${t.z.toFixed(1)}) ${t.height} m`).join(' ')}; stone (${corner.stone.x.toFixed(1)}, ${corner.stone.z.toFixed(1)})`);
+console.log(`stones ${layout.stones.length}, tris ${layout.triangles}; shelter ${shelter.plan ? 'yes' : shelter.skip}; path ${layout.pathBeforeM?.toFixed(1)} → ${layout.pathAfterM?.toFixed(1)} m`);
 let inside = 0;
 let bad = 0, wet = 0, steps = 0, stepMs = 0, slip = 0, footWet = 0, sideways = 0, drinks = 0;
 let legMin = Infinity, legMax = 0, muzzleWorst = 0;

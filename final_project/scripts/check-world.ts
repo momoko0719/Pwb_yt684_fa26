@@ -7,12 +7,15 @@ import { writeFileSync } from 'fs';
 import { deflateSync } from 'zlib';
 import { outlineRadius } from '../src/core/terrain/basinMesh';
 import { sampleGrid } from '../src/core/terrain/heightGrid';
-import { cornerObstacles, planCorner } from '../src/experiments/wonderland-terrain/corner';
 import { createDwelling, siteSkips, walkable, waterDepth } from '../src/experiments/wonderland-terrain/dwelling';
+import { placeHabitat } from '../src/experiments/wonderland-terrain/habitatStones';
+import { placeShelter } from '../src/experiments/wonderland-terrain/rockShelter';
+import { buildRockFolds } from '../src/experiments/wonderland-terrain/rockFolds';
+import { growShrubs } from '../src/experiments/wonderland-terrain/shrubs';
 import { bakeGround, groundRules, GROUND_DEFAULTS } from '../src/experiments/wonderland-terrain/ground';
 import { buildTerrace, TERRACE_DEFAULTS } from '../src/experiments/wonderland-terrain/terrace';
 import { buildWater, WATER_DEFAULTS } from '../src/experiments/wonderland-terrain/water';
-import { growWoods, siteKeepOuts, TREE_CLEARANCE } from '../src/experiments/wonderland-terrain/woods';
+import { growWoods, siteKeepOuts } from '../src/experiments/wonderland-terrain/woods';
 import { buildZones, ZONE, ZONE_NAMES } from '../src/experiments/wonderland-terrain/zones';
 
 const SEEDS = (process.argv[2] ?? '684,7,42,1234,2026,9001,5,333').split(',').map(Number);
@@ -122,9 +125,25 @@ for (const seed of SEEDS) {
   }
   const skipped = siteSkips().filter((s) => s.reason);
   if (skipped.length) console.log(`  site skips: ${skipped.length} regions (${skipped.slice(0, 3).map((s) => `#${s.region} ${s.reason}`).join('; ')}${skipped.length > 3 ? '…' : ''})`);
-  const corner = planCorner(dwelling);
-  const near = (x: number, z: number) => Math.hypot(x - dwelling.sites.region.x0 - dwelling.sites.region.size / 2, z - dwelling.sites.region.z0 - dwelling.sites.region.size / 2) < dwelling.sites.region.size;
-  dwelling.setObstacles([...cornerObstacles(corner), ...woods.trees.filter((t) => near(t.x, t.z)).map((t) => ({ x: t.x, z: t.z, r: TREE_CLEARANCE }))]);
+  const trees = [...woods.trees, ...woods.lone];
+  const folds = buildRockFolds(grid, rules.meadow);
+  const shrubs = growShrubs(zones, grid, folds, seed, trees, [dwelling.sites.region]);
+  const layout = placeHabitat({
+    seed,
+    dwelling,
+    zones,
+    trees,
+    shrubs: shrubs.plants.map((p) => ({ x: p.x, z: p.z, r: p.height * p.width * 0.5 })),
+    pose: { x: dwelling.pose.x, z: dwelling.pose.z },
+  });
+  if (!layout.homeRoundTrip.every(Boolean)) fail(seed, 'a home cannot make the smoothed round trip once stones are obstacles');
+  const shelter = placeShelter({ dwelling, obstacles: layout.obstacles, seed });
+  if (shelter.plan) {
+    dwelling.setRestPlace({ bed: shelter.plan.bed, mouth: shelter.plan.mouth });
+    dwelling.setObstacles(shelter.plan.obstacles);
+    const p = shelter.plan;
+    console.log(`  shelter: lie ${p.fromHome.toFixed(1)} m from the home anchor, mouth align ${p.drinkAlign.toFixed(2)}, headroom ${p.headroomMin.toFixed(2)} m, exterior ${p.exterior.along.toFixed(2)} × ${p.exterior.across.toFixed(2)} × ${p.exterior.height.toFixed(2)} m`);
+  } else console.log(`  shelter skipped (${shelter.skip})`);
   dwelling.reset();
   let off2 = 0, wet = 0, slip = 0;
   let was = dwelling.pose.feet.map((q) => [...q]), wasPlanted = [...dwelling.pose.planted];

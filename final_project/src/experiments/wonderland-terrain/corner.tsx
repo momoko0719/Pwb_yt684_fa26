@@ -37,6 +37,8 @@ export interface Corner {
   /** A middle view of the home; a close view of where it lies. */
   homeView: { from: [number, number, number]; to: [number, number, number] };
   closeView: { from: [number, number, number]; to: [number, number, number] };
+  /** Unit axes in the ground plane: home toward the drink, and the view's side. */
+  axes: { forward: [number, number]; view: [number, number] };
 }
 
 const PINE = { heights: [7.5, 9.5], ring: [6, 11], apart: 6.5, turn: 0.9, trunk: 0.5, slope: 0.25, offWay: 5 }; // metres (turn: radians the two keep apart about the home)
@@ -48,7 +50,12 @@ const STONE = {
   flat: WATCH_BASE.flat,
   offWay: WATCH_BASE.offWay,
 };
-const CLEAR = { home: 4.5, stand: 4 }; // metres anything placed keeps from the home, from the stands
+/**
+ * Metres pines and the watch seat keep from the home and the stands.
+ * The resting stone (habitatStones.ts) is allowed closer: a backrest at 4.5 m would not read as
+ * one. It keeps its own gap outside the lying body and stays in the obstacle list.
+ */
+const CLEAR = { home: 4.5, stand: 4 };
 
 /** Across the way, toward the view: the sun on the far side, over open ground. */
 function viewSide(d: Dwelling): [number, number] {
@@ -131,6 +138,7 @@ export function planCorner(d: Dwelling): Corner {
     view: { from: [cx, d.groundAt(cx, cz) + away * 0.6, cz], to: [mx, d.groundAt(mx, mz), mz] },
     homeView: { from: [hx, d.groundAt(hx, hz) + 3.2, hz], to: [H.x - vx * 3, hy + 1.6, H.z - vz * 3] },
     closeView: { from: [kx, d.groundAt(kx, kz) + 1.6, kz], to: [H.x - vx * 0.4, hy, H.z - vz * 0.4] },
+    axes: { forward: [ux, uz], view: [vx, vz] },
   };
 }
 

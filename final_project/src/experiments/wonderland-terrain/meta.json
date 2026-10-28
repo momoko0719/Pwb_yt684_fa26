@@ -2,8 +2,8 @@
   "id": "wonderland-terrain",
   "kind": "world-study",
   "title": {
-    "en": "Wonderland Island",
-    "zh": "Wonderland 白瓷岛"
+    "en": "White Jade Island",
+    "zh": "白玉岛"
   },
   "session": 8,
   "techniques": [
@@ -26,7 +26,8 @@
     "zh": "每种地形用最适合它的表示方法；水先是一张图，然后才是一层表面；一个地方的性格来自在那里生活的东西。"
   },
   "guixu": {
-    "en": "Wonderland beside Penglai: where living somewhere leaves a mark (栖居成玉).",
-    "zh": "与蓬莱对照的 Wonderland：栖居在一处，就会在那里留下痕迹（栖居成玉）。"
-  }
+    "en": "Wonderland beside Penglai: where living somewhere leaves a mark.",
+    "zh": "与蓬莱对照的 Wonderland：栖居在一处，就会在那里留下痕迹。"
+  },
+  "image": "atlas-img/white-jade-island.png"
 }

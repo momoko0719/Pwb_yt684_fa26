@@ -331,6 +331,17 @@ export const PORCELAIN = {
   terraceSeat: '#EDE6DA',
   cliffFace: '#A8A29A',
   rockFace: '#D2CBC0',
+  /** Habitat stones: warm grey-white, a step off the ground so the form reads. */
+  habitatStone: '#E3D5C4',
+  /** Smaller stone in a group: a little greyer, still warm. */
+  habitatStoneShade: '#CFC3B2',
+  /**
+   * The shelter's own stone. Warm grey-brown: darker than the white ground, lighter than pine bark.
+   * Lit faces shift toward the warm, shade toward the cool. Neither is a second island palette.
+   */
+  shelterSlab: '#AAA294',
+  shelterWarm: '#B6AD9B',
+  shelterCool: '#9C988E',
 };
 
 /** The dwelling's debug view: where it walks, drinks, rests (the contact map's three channels). */

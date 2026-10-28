@@ -62,6 +62,8 @@ export interface SiteSkip {
 }
 
 export interface Spot { x: number; z: number; /** Radians: which way it faces there. */ facing: number }
+/** An exact lie inside a shelter, and the mouth it walks through. No jitter. */
+export interface RestPlace { bed: Spot; mouth: Spot }
 /** Where it stands to drink: its neck's angle there (radians from level, down negative) and the point of water its muzzle meets. */
 export interface Stand extends Spot { neck: number; water: [number, number, number] }
 export interface Sites {
@@ -133,14 +135,16 @@ const GAIT = {
   lead: 0.3, // seconds of its speed a foot lands ahead of its place
 };
 const SUBSTEP = 0.05; // seconds, the longest step simulated at once
+/** Lying mark on the ground: half-axes in metres (along the heading, across it). About 1.4 by 0.76 m. */
+export const REST_MARK = { along: 0.7, across: 0.38 };
 const WEAR = {
   texel: 0.25, // metres per cell of the contact map
   step: { radius: 0.16, amount: 0.07 }, // one foot landing
   // Per second of drinking: at each planted foot, and (less) over the ground it stands over.
   drink: { radius: 0.3, rate: 0.022, under: [0.6, 0.35, 0.01] as [number, number, number] },
   // Per second of lying, over the body's footprint (the torso's where within 0.1 m of the ground,
-  // the folded legs under it: about 1.4 by 0.75 m).
-  rest: { along: 0.7, across: 0.38, rate: 0.006 },
+  // the folded legs under it).
+  rest: { along: REST_MARK.along, across: REST_MARK.across, rate: 0.006 },
 };
 const TIMES = { rest: [50, 90], drink: [15, 26] }; // seconds, each between the two
 /**
@@ -154,7 +158,9 @@ const SITE = {
   minRegion: 2500, // m²: regions smaller than this are skipped (too small for a home range)
 };
 const WALKABLE = { slope: 0.6, rim: 4, terrace: 2, water: 0 }; // (a dug bank stands at 0.5)
-const ROUTE = { cell: 1, slope: 6, jitter: 0.9, familiar: 0.5, margin: 12, clear: 0.7 }; // clear: extra metres routes keep from obstacles (gait jitter)
+/** Extra metres a search keeps outside an obstacle, so a wandering step does not clip it. */
+export const ROUTE_CLEAR = 0.7;
+const ROUTE = { cell: 1, slope: 6, jitter: 0.9, familiar: 0.5, margin: 12, clear: ROUTE_CLEAR };
 const PAIRS = [[0, 3], [1, 2]]; // the diagonal pairs
 /** Last findSites skip list (one call); for check-world and diagnostics. */
 let lastSiteSkips: SiteSkip[] = [];
@@ -560,6 +566,20 @@ export interface Dwelling {
   dry: (x: number, z: number) => boolean;
   /** What now stands in its way (trees, a platform): it keeps out of them from now on. */
   setObstacles: (o: { x: number; z: number; r: number }[]) => void;
+  /**
+   * One smoothed way between two points, using the obstacles set now.
+   * Same relax and wander as a trip; the noise is fixed for this seed, so it is one real
+   * curve, not every curve the creature might walk.
+   */
+  wayBetween: (from: [number, number], to: [number, number]) => [number, number][] | null;
+  /**
+   * Where it lies when a shelter is placed. Null: the old scatter around the home anchor.
+   * The anchor itself (sites.homes) does not move.
+   */
+  restPlace: RestPlace | null;
+  setRestPlace: (p: RestPlace | null) => void;
+  /** Walk to the lie or to the drink. The same leave a day uses; it does not wait out the stay. */
+  headFor: (where: 'rest' | 'drink') => void;
   step: (dt: number) => void;
   reset: () => void;
 }
@@ -574,6 +594,7 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
   // The current leg: where it goes, its way and arc lengths, how far along; how long it stays.
   let way: [number, number][] = [], lengths: number[] = [], along = 0, stay = 0, trip = 0, next: 'drink' | 'rest' = 'drink';
   let goal: Spot = sites.homes[0], spot: Spot = sites.homes[0], set = false;
+  let restPlace: RestPlace | null = null;
   // The feet: where each stands (or is in the air: from, to, how far through its swing).
   const feet = BODY.hips.map(() => ({ at: [0, 0, 0] as Point, from: [0, 0, 0] as Point, to: [0, 0, 0] as Point, t: 1 }));
   let lastPair = 1, vx = 0, vz = 0;
@@ -582,6 +603,10 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
     open: (x, z) => world.terrace(x, z) > 8 && sampleGrid(world.grid, x, z, 3) < -5,
     dry: (x, z) => walkable(world, x, z),
     setObstacles: (o) => { world.obstacles = o; },
+    wayBetween: (from, to) => route(world, map, sites.region, from, to, createNoise2D(world.seed * 31 + 1)),
+    restPlace: null,
+    setRestPlace: (p) => { restPlace = p; d.restPlace = p; },
+    headFor: () => {},
     pose: {
       x: 0, y: 0, z: 0, heading: 0, pitch: 0, torso: BODY.torso.lie, neck: BODY.neckLying, activity: 'rest', lying: 1, drinking: 0,
       hips: BODY.hips.map(() => [0, 0, 0] as Point), feet: BODY.hips.map(() => [0, 0, 0] as Point), muzzle: [0, 0, 0], planted: [true, true, true, true],
@@ -661,15 +686,28 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
     stay = activity === 'rest' ? TIMES.rest[0] + rng() * (TIMES.rest[1] - TIMES.rest[0]) : TIMES.drink[0] + rng() * (TIMES.drink[1] - TIMES.drink[0]);
     set = false;
   };
+  const joinWays = (a: [number, number][] | null, b: [number, number][] | null) => (
+    a && b ? [...a.slice(0, -1), ...b] : null
+  );
   const leave = (to: 'drink' | 'rest') => {
     next = to;
     if (to === 'drink') {
       d.stand = sites.stands[Math.floor(rng() * sites.stands.length)] ?? sites.drink;
       goal = d.stand;
-    } else goal = nearHome(sites.homes[d.home], 0.7);
+    } else goal = restPlace ? restPlace.bed : nearHome(sites.homes[d.home], 0.7);
     const p = d.pose;
     const jitter = createNoise2D(world.seed * 31 + ++trip);
-    const found = route(world, map, sites.region, [p.x, p.z], [goal.x, goal.z], jitter);
+    const here: [number, number] = [p.x, p.z], there: [number, number] = [goal.x, goal.z];
+    // Through the mouth, so the relaxed walk does not cut the corner of a wall.
+    // Already on the mouth: one leg is enough.
+    let found: [number, number][] | null;
+    if (restPlace && Math.hypot(here[0] - restPlace.mouth.x, here[1] - restPlace.mouth.z) > 1.2) {
+      const mouth: [number, number] = [restPlace.mouth.x, restPlace.mouth.z];
+      found = joinWays(
+        route(world, map, sites.region, here, mouth, jitter),
+        route(world, map, sites.region, mouth, there, jitter),
+      );
+    } else found = route(world, map, sites.region, here, there, jitter);
     if (!found) {
       // No way there (never a straight line through water): it stays where it is a while longer.
       begin(p.activity === 'walk' ? 'rest' : p.activity, spot);
@@ -695,12 +733,12 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
     rng = createRng(world.seed + 911);
     map.walk.fill(0); map.drink.fill(0); map.rest.fill(0); map.version++;
     d.time = 0; d.cycles = 0; trip = 0; d.way = null; d.stand = null;
-    const home = sites.homes[d.home];
+    const lie = restPlace?.bed ?? sites.homes[d.home];
     const p = d.pose;
-    p.x = home.x; p.z = home.z; p.heading = home.facing; p.lying = 1; p.drinking = 0;
+    p.x = lie.x; p.z = lie.z; p.heading = lie.facing; p.lying = 1; p.drinking = 0;
     vx = vz = 0;
     feet.forEach((f, k) => { f.at = placeFor(k, 0); f.t = 1; });
-    begin('rest', home);
+    begin('rest', lie);
     set = true;
     pose();
   };
@@ -763,6 +801,7 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
     stepFeet(dt, moving);
     pose();
   };
+  d.headFor = leave;
   d.step = (dt: number) => {
     let left = dt;
     while (left > 1e-9) { const h = Math.min(left, SUBSTEP); tick(h); left -= h; }
