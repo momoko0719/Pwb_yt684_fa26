@@ -1,18 +1,8 @@
-# Guixu 归墟
+# Guixu
 
 ![White Jade Island](final_project/public/atlas-img/white-jade-island.png)
 
 **White Jade Island** is the island I am building now: white porcelain ground, a terrace of pools, streams that leave the rim, and a creature whose days slowly turn the stone it touches toward jade.
-
-Live: [White Jade Island](https://guixu-yt684.web.app/#/atlas/wonderland-terrain)
-
-```bash
-cd final_project
-npm install
-npm run dev
-```
-
-Then open `#/atlas/wonderland-terrain`. Seed **684**.
 
 ## Open
 
@@ -40,26 +30,11 @@ Earlier studies. Each one was turned toward Guixu and also opens from the Atlas.
 | 04 | Clay Studio | [`class_04/react-app-ts/`](class_04/react-app-ts/) · [Live](https://pwb-class04-clay.web.app) | [Notes](class_04/tutorials/) |
 | 03 | Island terrain | [`class_03/react-app-ts/`](class_03/react-app-ts/) | [Notes](class_03/tutorials/Noise%20and%20Procedural%20Terrain.md) |
 
-## Run the apps
-
-| App | Folder | Live |
-| --- | --- | --- |
-| Final project | [`final_project/`](final_project/) | [guixu-yt684.web.app](https://guixu-yt684.web.app) |
-| A class exercise | `class_XX/react-app-ts/` | Atlas, or that folder's own dev server |
-
-```bash
-cd final_project   # or class_02/react-app-ts, and so on
-npm install
-npm run dev
-```
-
-Each folder is its own Vite app. They share this git history and are deployed separately.
-
 ## Process
 
 Newest first. The front of this page is the project; this log is how it got here.
 
-### 2026-10 · Midterm — Guixu 归墟: the atlas, and a living Penglai
+### 2026-10 · Midterm — Guixu: the atlas, and a living Penglai
 
 For the midterm exhibition (Oct 14) the site became one **atlas**: the class exercises 03–07 were reworked around Guixu and now open inside the site (back / previous / next), each card saying what I learned and what it becomes in the world. Then Penglai, the first island, got the techniques from Sessions 6 and 7 and a year to live in:
 
@@ -78,9 +53,9 @@ For the midterm exhibition (Oct 14) the site became one **atlas**: the class exe
 - App: [`final_project/`](final_project/) · Live: [https://guixu-yt684.web.app](https://guixu-yt684.web.app)
 - Notes: [`final_project/src/experiments/island-v1/notes.md`](final_project/src/experiments/island-v1/notes.md)
 
-### 2026-10 · Class 07 — Penglai Pines 蓬莱松 & Guixu Chronicle 归墟编年 (L-systems · LOD · branching worlds)
+### 2026-10 · Class 07 — Penglai Pines and Guixu Chronicle (L-systems, LOD, branching worlds)
 
-Two small pieces, one per assignment, in one app (switch at the top right, EN/中文).
+Two small pieces, one per assignment, in one app (switch at the top right, English or Chinese).
 
 **Assignment 1, Penglai Pines (L-systems + LOD).** A tree written as a few rules: a stochastic L-system grammar is expanded a few generations, then read by a 3D turtle into branches and flat cloud-like needle pads.
 - **Presets**: Huangshan welcome pine, weeping willow (same kind of grammar, heavy gravity), the textbook plant `F = F[+F]F[-F]F`, and a vine hanging under a floating rock. Rules can be edited live, and the string is shown generation by generation.
@@ -97,9 +72,9 @@ Two small pieces, one per assignment, in one app (switch at the top right, EN/�
 - App: [`class_07/react-app-ts/`](class_07/react-app-ts/)
 - Notes: [`class_07/tutorials/Penglai Pines.md`](class_07/tutorials/Penglai%20Pines.md) · [`class_07/tutorials/Guixu Chronicle.md`](class_07/tutorials/Guixu%20Chronicle.md)
 
-### 2026-10 · Class 06 — One Stroke Landscape 一笔山河 (scatter · paths · vector fields)
+### 2026-10 · Class 06 — One Stroke Landscape (scatter, paths, vector fields)
 
-One interactive piece for the three assignments of the class (distributions, paths, vector fields and particles). Draw a stroke on an empty landscape: it becomes a **river** that carves the ground (or a **road** that levels it and gets lanterns); life **regrows around it by rules**; and the water you drew **flows**, carrying thousands of particles that leave brush-stroke trails. Four chapters (Scatter · Path · Flow · All), ink-wash and blue-green styles, EN/中文.
+One interactive piece for the three assignments of the class (distributions, paths, vector fields and particles). Draw a stroke on an empty landscape: it becomes a **river** that carves the ground (or a **road** that levels it and gets lanterns); life **regrows around it by rules**; and the water you drew **flows**, carrying thousands of particles that leave brush-stroke trails. Four chapters (Scatter · Path · Flow · All), ink-wash and blue-green styles, English or Chinese.
 
 - **Scatter**: one rule layer per asset, reading height, slope, moisture and distance to water and road: rocks only on cliffs, reeds on banks, pines in clumps on gentle slopes (smaller up high, greener where wet), flowers on wet flat ground, pavilions on the flattest high spots, lanterns along roads.
 - **Path**: mouse points → Catmull-Rom spline → draped on the terrain; the line carves or levels the mesh, and the mesh's moisture moves the vegetation.
@@ -111,9 +86,9 @@ One interactive piece for the three assignments of the class (distributions, pat
 - App: [`class_06/react-app-ts/`](class_06/react-app-ts/)
 - Notes: [`class_06/tutorials/One Stroke Landscape.md`](class_06/tutorials/One%20Stroke%20Landscape.md)
 
-### 2026-09 · Final project — Guixu 归墟: Penglai Island v1 (first floating island)
+### 2026-09 · Final project — Guixu: Penglai Island v1 (first floating island)
 
-Started the final project: **Guixu**, five floating mountains above a sea of cloud and the bottomless abyss beneath them, drawn from the *Liezi* and the *Shanhaijing*, colored after blue-green landscape painting, lit like *Sky*. Built the site (Ideas · Atlas · World, EN/中文) and the first island study, **Penglai**, where everything is generated from rules and a seed:
+Started the final project: **Guixu**, five floating mountains above a sea of cloud and the bottomless abyss beneath them, drawn from the *Liezi* and the *Shanhaijing*, colored after blue-green landscape painting, lit like *Sky*. Built the site (Ideas, Atlas, World, English or Chinese) and the first island study, **Penglai**, where everything is generated from rules and a seed:
 
 - **Terrain**: Simplex noise → fBm → ridged shaping → heightmap; natural stone peaks from distance masks, merged by smooth union and painted ochre → malachite → azurite per peak.
 - **Underside**: the same heightmap idea hung upside down: a cliff wall and a few blunt hanging rocks.
@@ -134,7 +109,7 @@ Started the final project: **Guixu**, five floating mountains above a sea of clo
 
 ### 2026-09 · Class 05 — Shader Lab (see → tweak → understand)
 
-Built a **Shader Lab** playground for class shader studies: vertex / fragment / uniforms, gradients, Fresnel, slope, distance, AO, contact, matcap, displacement, and a final combo. EN/中文 UI, "try this / takeaway / show mask," and a suggested learning path — more material laboratory than documentation site.
+Built a **Shader Lab** playground for class shader studies: vertex / fragment / uniforms, gradients, Fresnel, slope, distance, AO, contact, matcap, displacement, and a final combo. English or Chinese UI, "try this / takeaway / show mask," and a suggested learning path — more material laboratory than documentation site.
 
 ![Shader Lab — Class 05 screenshot (Fresnel study)](docs/weekly/2026-09-class05-shader-lab.png)
 

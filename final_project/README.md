@@ -1,4 +1,4 @@
-# Guixu 归墟
+# Guixu
 
 ![White Jade Island](public/atlas-img/white-jade-island.png)
 
