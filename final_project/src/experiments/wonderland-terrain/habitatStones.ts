@@ -191,7 +191,19 @@ export function stoneGeometry(seed: number, shape: StoneShape): BufferGeometry {
   return g;
 }
 
-export function measureStone(seed: number, shape: StoneShape): { planR: number; triangles: number; bounds: StoneBounds } {
+type Measured = { planR: number; triangles: number; bounds: StoneBounds };
+const measured = new Map<string, Measured>();
+/** A stone's plan radius, triangles and bounds (kept by seed and shape: rebuilding the island asks again). */
+export function measureStone(seed: number, shape: StoneShape): Measured {
+  const key = JSON.stringify([seed, shape]);
+  const hit = measured.get(key);
+  if (hit) return hit;
+  const v = measureStoneNow(seed, shape);
+  if (measured.size > 2000) measured.delete(measured.keys().next().value as string);
+  measured.set(key, v);
+  return v;
+}
+function measureStoneNow(seed: number, shape: StoneShape): Measured {
   const g = stoneGeometry(seed, shape);
   const box = g.boundingBox!;
   const p = g.getAttribute('position');

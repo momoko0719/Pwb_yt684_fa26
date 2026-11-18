@@ -349,6 +349,48 @@ export const PORCELAIN = {
   fishEye: '#2E3330',
 };
 
+/**
+ * The island's layers (LayersPanel.tsx): views that show the rules at work, never change them.
+ * Ground ramps (height, slope), the water graph, the creatures' sites and goals, their relation,
+ * the school's rule. Inks strong enough to read over white porcelain, kept to the jade family
+ * plus water blue and the seal red for warnings.
+ */
+export const LAYER = {
+  heightLow: '#EDE6D6',
+  heightMid: '#9DBFB4',
+  heightHigh: '#3E5A52',
+  contour: '#2E3330',
+  slopeFlat: '#F6F3EC',
+  slopeMid: '#D9B26A',
+  slopeSteep: '#B8452F',
+  water: '#3FA6B8',
+  waterMain: '#1F6E8C',
+  home: '#5F877D',
+  den: '#8A6E5A',
+  stand: '#2C6CB0',
+  graze: '#6E9B5A',
+  route: '#2C6CB0',
+  heading: '#2E3330',
+  move: '#C47B2B',
+  goal: '#5F877D',
+  muzzle: '#E0A85A',
+  rest: '#B8452F',
+  follow: '#5F877D',
+  yieldTo: '#C47B2B',
+  fishRepel: '#B8452F',
+  fishAlign: '#5F877D',
+  fishAttract: '#8FB3AA',
+  fishGoal: '#C47B2B',
+  /** The legends of the older debug ramps (as the shader draws them: cdlod.ts). */
+  densityNone: '#1F1A1A',
+  densityFull: '#40BF59',
+  trampled: '#8C5933',
+  foldNone: '#000000',
+  foldFull: '#FFFFFF',
+  /** Bands riding down the falls in the flow view (fallMaterial.ts). */
+  fallBand: '#D91A1A',
+};
+
 /** The dwelling's debug view: where it walks, drinks, rests (the contact map's three channels). */
 export const WEAR_DEBUG = {
   walk: '#D9534F',

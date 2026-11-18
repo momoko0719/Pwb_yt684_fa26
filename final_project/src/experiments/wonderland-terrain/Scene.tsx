@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei';
 import { button, levaStore, useControls } from 'leva';
 import { BufferAttribute, BufferGeometry, DataTexture, LinearFilter, NearestFilter, RGBAFormat, RedFormat, UnsignedByteType, Vector3, Vector4 } from 'three';
-import { BLOCKOUT, ZONE_DEBUG } from '../../core/palette';
+import { BLOCKOUT } from '../../core/palette';
 import type { BasinMesh } from '../../core/terrain/basinMesh';
 import { createBuiltMaterial } from '../../core/terrain/builtMaterial';
 import { createFallMaterial } from '../../core/terrain/fallMaterial';
@@ -12,7 +12,10 @@ import type { UndersideMesh } from '../../core/terrain/undersideMesh';
 import { sunElevation } from '../../core/params/scene';
 import { SIZES } from '../../core/scale';
 import { BASE_DEPTH } from '../../core/sdf/terraceField';
-import { createTerrainMaterial, heightTexture, LOD_DEFAULTS, lightTexture, setTerrainCover, setTerrainFolds, setTerrainShrubGround, setTerrainZones, TerrainLod } from '../../core/terrain/cdlod';
+import { createTerrainMaterial, heightTexture, LOD_DEFAULTS, lightTexture, setTerrainCover, setTerrainFolds, setTerrainShrubGround, setTerrainView, setTerrainZones, TerrainLod } from '../../core/terrain/cdlod';
+import { LayersButton, LayersLegend, LayersPanel, NO_LAYERS, type Layers } from './LayersPanel';
+import { RelationLayer, SchoolLayer, SitesLayer, WaterGraphLayer } from './layers3d';
+import { WALKABLE_SLOPE } from './dwelling';
 import { sampleGrid, type HeightGrid } from '../../core/terrain/heightGrid';
 import { rimWall } from '../../core/terrain/rimWall';
 import { createPorcelainMaterial } from '../../core/shaders/porcelain';
@@ -55,7 +58,7 @@ import { placeShelter, type ShelterPlan } from './rockShelter';
 import Vegetation from '../island-v1/Vegetation';
 import type { Plant } from '../../core/generators/forest';
 import { growWoods, siteKeepOuts, WOODS_LOD } from './woods';
-import { ZONE_NAMES, type Zones } from './zones';
+import type { Zones } from './zones';
 import { CompanionView, DwellingView, type Antlers, type CreatureReadout, type DwellingStats } from './creature';
 import { dwellerForm, dwellerNames } from './dwellerNames';
 import { birthShell, type ShellParams } from './rockShell';
@@ -84,6 +87,9 @@ const JADE_PROBE = import.meta.env.DEV && new URLSearchParams(window.location.se
  * (terrace.ts), their falls, the plunge pool and the streams (water.ts), the underside: meshes
  * generated from their rules. Where the parts lie comes from the seed (frame.ts).
  */
+/** The knobs an island is built from (the worker's input). */
+type Built = { params: GroundParams; terrace: TerraceParams; water: WaterParams; underside: UndersideParams };
+
 export default function Scene() {
   const { language, t } = useLanguage();
   const text = (key: string) => ({ label: t(`leva.${key}` as StringKey), hint: t(`hint.${key}` as StringKey) });
@@ -122,8 +128,12 @@ export default function Scene() {
   useControls('View', {
     [t('leva.resources')]: button(() => { setAtlasFocus(null); setAtlasPicked(false); setAtlasOpen(true); }),
   }, [language]);
-  const showZones = view.envView === 'zones';
-  const coverDebug = view.envView === 'density';
+  // Layers (LayersPanel.tsx): views that reveal the rules; Settings change the island.
+  const [layers, setLayers] = useState<Layers>(NO_LAYERS);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const showZones = layers.surface === 'zones';
+  const coverDebug = layers.surface === 'density';
+  const showScale = view.scale || layers.scale;
   const [walkLocked, setWalkLocked] = useState(false);
   const [walkHint, setWalkHint] = useState({ mode: 'browse', mps: WONDER_BROWSE.browse });
   const [walkPose, setWalkPose] = useState<WalkMapPose | null>(null);
@@ -228,7 +238,8 @@ export default function Scene() {
   const hour = useHour();
   const coverAmount = view.grass;
   const key = useSettled(JSON.stringify({ range, pools, flow, under, island, layout }), REBUILD_DELAY);
-  const { params, terrace, water, underside } = useMemo<{ params: GroundParams; terrace: TerraceParams; water: WaterParams; underside: UndersideParams }>(() => {
+  // What the knobs ask for now; the island on screen keeps what it was built with (`built`) until the new one is ready.
+  const asking = useMemo<Built>(() => {
     const { range: r, pools: q, flow: w, under: u, island: i, layout: l } = JSON.parse(key) as { range: typeof range; pools: typeof pools; flow: typeof flow; under: typeof under; island: typeof island; layout: typeof layout };
     return {
       water: { ...w },
@@ -245,7 +256,8 @@ export default function Scene() {
   // The worker (made in an effect, so React's mount-unmount-mount check gets a live one).
   const worker = useRef<Worker | null>(null);
   const asked = useRef({ ground: 0, light: 0 });
-  const [ground, setGround] = useState<{ grid: HeightGrid; rim: Float32Array; terrace: BasinMesh[]; tops: number[]; pools: PoolNode[]; outlets: OutletNode[]; water: Water; zones: Zones; folds: RockFolds; underside: UndersideMesh; ms: number } | null>(null);
+  const [ground, setGround] = useState<{ built: Built; grid: HeightGrid; rim: Float32Array; terrace: BasinMesh[]; tops: number[]; pools: PoolNode[]; outlets: OutletNode[]; water: Water; zones: Zones; folds: RockFolds; underside: UndersideMesh; ms: number } | null>(null);
+  const { params, underside } = ground?.built ?? asking;
   const [light, setLight] = useState<{ light: Uint8Array; size: number; ms: number } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
@@ -267,7 +279,9 @@ export default function Scene() {
         return;
       }
       if (m.type === 'ground' && m.id === asked.current.ground) {
-        setGround({ grid: m.grid, rim: m.rim, terrace: m.terrace, tops: m.tops, pools: m.pools, outlets: m.outlets, water: m.water, zones: m.zones, folds: m.folds, underside: m.underside, ms: m.ms });
+        builtSeed.current = askedSeed.current;
+        setReshaping(false);
+        setGround({ built: askedBuilt.current ?? asking, grid: m.grid, rim: m.rim, terrace: m.terrace, tops: m.tops, pools: m.pools, outlets: m.outlets, water: m.water, zones: m.zones, folds: m.folds, underside: m.underside, ms: m.ms });
         setLoadProgress({ percent: 86, step: 'light' });
       }
       if (m.type === 'light' && m.id === asked.current.light) {
@@ -282,15 +296,29 @@ export default function Scene() {
     attachWorker(w);
     return () => { w.terminate(); worker.current = null; };
   }, []);
+  // The first island, and another island (a new seed), load behind the loading screen. Once in,
+  // reshaping the same island keeps it where it is (camera, creatures) until the new one is ready,
+  // with a small note in the corner: the visitor's journey is not cut off by a reload.
+  const builtSeed = useRef<number | null>(null);
+  const askedSeed = useRef<number | null>(null);
+  const askedBuilt = useRef<Built | null>(null);
+  const [reshaping, setReshaping] = useState(false);
   useEffect(() => {
-    setGround(null);
-    setShown(false);
-    setShowComplete(false);
+    const soft = builtSeed.current !== null && builtSeed.current === asking.params.seed;
     setLoadProgress({ percent: 0, step: 'ground' });
     setLoadError(null);
+    if (soft) setReshaping(true);
+    else {
+      setGround(null);
+      setShown(false);
+      setShowComplete(false);
+      setReshaping(false);
+    }
+    askedSeed.current = asking.params.seed;
+    askedBuilt.current = asking;
     const id = ++asked.current.ground;
-    worker.current?.postMessage({ type: 'ground', id, params, terrace, water, underside } satisfies ToTerrain);
-  }, [params, terrace, water, underside]);
+    worker.current?.postMessage({ type: 'ground', id, ...asking } satisfies ToTerrain);
+  }, [asking]);
   // What the camera keeps above: the ground, and on the terrace each plate's top.
   const above = useMemo(() => {
     if (!ground) return null;
@@ -422,6 +450,7 @@ export default function Scene() {
   const corner = habitat?.layout.corner ?? null;
   // Each chapter's view, by rule from the island as built.
   const views = useMemo(() => (ground && above ? chapterViews(groundRules(params).frame, ground.water.plunge, corner, above) : null), [ground, above, params, corner]);
+  const heights = useMemo<[number, number] | null>(() => (ground ? [ground.grid.bottom, ground.grid.top] : null), [ground]);
   const islandBox = useMemo(() => (ground ? boxFromRim(ground.rim, ground.underside.positions, ground.grid, -BASE_DEPTH, ground.water.falls.map((fall) => fall.positions)) : null), [ground]);
 
   const scaleKnown = useMemo(() => {
@@ -645,7 +674,6 @@ export default function Scene() {
   const slider = (label: string, path: string, value: number, min: number, max: number, step: number): SettingControl => row(label, path, value, { kind: 'range', min, max, step });
   const settingsSections: SettingSection[] = [
     { id: 'explore', title: t('exhibit.explore'), controls: [
-      row(t('leva.scaleView'), 'View.scale', view.scale),
       row(t('leva.walk'), 'View.walk', view.walk),
       ...(view.walk ? [slider(t('leva.walkSpeed'), 'View.walkSpeed', view.walkSpeed, 1, 6, 0.1)] : []),
     ] },
@@ -675,9 +703,6 @@ export default function Scene() {
     { id: 'plants', title: t('exhibit.groupPlants'), controls: [
       slider(t('leva.shrubAmount'), 'View.shrubAmount', view.shrubAmount, 0, 1, 0.05),
       slider(t('leva.grassAmount'), 'View.grass', view.grass, 0, 1, 0.05),
-      row(t('leva.envView'), 'View.envView', view.envView, { kind: 'select', options: [
-        { label: t('leva.envNormal'), value: 'normal' }, { label: t('leva.envZones'), value: 'zones' }, { label: t('leva.envDensity'), value: 'density' },
-      ] }),
     ] },
     { id: 'quality', title: t('exhibit.groupQuality'), controls: [
       slider(t('leva.lodRange'), 'View.lod', view.lod, 45, 240, 5),
@@ -689,7 +714,6 @@ export default function Scene() {
         { label: 'Off', value: 'off' }, { label: 'Mountain', value: 'mountain' }, { label: 'Folds', value: 'folds' }, { label: 'Hollow', value: 'wide' }, { label: 'Region', value: 'gate' }, { label: 'Final', value: 'final' },
       ] }),
       row(t('leva.lodWire'), 'Debug.wire', debug.wire),
-      row(t('leva.waterParticles'), 'Debug.particles', debug.particles),
     ] },
   ];
 
@@ -701,11 +725,15 @@ export default function Scene() {
     setShowComplete(false);
     setGround(null);
     setShown(false);
+    setReshaping(false);
+    builtSeed.current = null;
+    askedSeed.current = asking.params.seed;
+    askedBuilt.current = asking;
     worker.current?.terminate();
     const w = new Worker(new URL('./terrain.worker.ts', import.meta.url), { type: 'module' });
     attachWorker(w);
     const id = ++asked.current.ground;
-    w.postMessage({ type: 'ground', id, params, terrace, water, underside } satisfies ToTerrain);
+    w.postMessage({ type: 'ground', id, ...asking } satisfies ToTerrain);
   };
 
   return (
@@ -719,20 +747,24 @@ export default function Scene() {
         <directionalLight position={[-300, 400, 200]} intensity={1.6} />
         <World hour={hour} seed={params.seed} clouds={-BASE_DEPTH - underside.depth - 50} islandBox={islandBox} arrival={views?.arrival ?? null}>
           {(uniforms) => ground && above && (
-            <Ground uniforms={uniforms} grid={ground.grid} rim={ground.rim} terrace={ground.terrace} poolNodes={ground.pools} outlets={ground.outlets} water={ground.water} underside={ground.underside} above={above} light={light} lod={view.lod} wire={debug.wire} marker={debug.particles} onDrawn={setDrawn} trees={trees} zones={ground.zones} folds={ground.folds} rock={rock} shrubs={shrubs} showZones={showZones} cover={cover} coverDebug={coverDebug} coverAmount={coverAmount} seed={params.seed} onCoverStats={onCoverStats} walking={view.walk} coverBuildMsRef={coverBuildMsRef} floorFlagsRef={floorFlagsRef} lifeGoal={creatureRef} prewarmLife={chapter === 'life' && followLife} coverFlightRef={focusAnimRef}
+            <Ground uniforms={uniforms} grid={ground.grid} rim={ground.rim} terrace={ground.terrace} poolNodes={ground.pools} outlets={ground.outlets} water={ground.water} underside={ground.underside} above={above} light={light} lod={view.lod} wire={debug.wire} marker={debug.particles || layers.flow} onDrawn={setDrawn} trees={trees} zones={ground.zones} folds={ground.folds} rock={layers.surface === 'folds' ? { ...rock, foldView: 'folds' } : rock} groundView={layers.surface === 'height' ? 1 : layers.surface === 'slope' ? 2 : 0} heightRange={heights} shrubs={shrubs} showZones={showZones} cover={cover} coverDebug={coverDebug} coverAmount={coverAmount} seed={params.seed} onCoverStats={onCoverStats} walking={view.walk} coverBuildMsRef={coverBuildMsRef} floorFlagsRef={floorFlagsRef} lifeGoal={creatureRef} prewarmLife={chapter === 'life' && followLife} coverFlightRef={focusAnimRef}
               onPickResource={exhibit ? pickResource : undefined}
               fish={fish}
               onPickFish={exhibit ? (f) => { setSelectedFish(f); setStatusOpen(false); setFishCard(true); } : undefined}
-              dwelling={dwelling && habitat && { sim: dwelling, corner, stones: habitat.layout, shelter: habitat.shelter.plan, cut: false, seed: params.seed, run: dwell.run, speed: dwell.speed, show: dwell.show, debug: { skeleton: dwell.dbgSkeleton, feet: dwell.dbgFeet, state: dwell.dbgState, route: dwell.dbgRoute, drink: dwell.dbgDrink, rest: dwell.dbgRest }, selecting: exhibit, onSelect: () => pickCreature(0), antlers: who[0].antlers, calls: dwellCalls.current, onStats: setDwellStats, onReadout: setReadout, companion: dwelling2 ? { sim: dwelling2, shelter: habitat.shelter2?.plan ?? null, onSelect: () => pickCreature(1), onStats: setDwellStats2, antlers: who[1].antlers } : null }} />
+              dwelling={dwelling && habitat && { sim: dwelling, corner, stones: habitat.layout, shelter: habitat.shelter.plan, cut: false, seed: params.seed, run: dwell.run, speed: dwell.speed, show: dwell.show || layers.surface === 'jade', debug: { skeleton: dwell.dbgSkeleton, feet: dwell.dbgFeet, state: dwell.dbgState || layers.goals, route: dwell.dbgRoute || layers.traces, drink: dwell.dbgDrink || layers.goals, rest: dwell.dbgRest || layers.goals }, selecting: exhibit, onSelect: () => pickCreature(0), antlers: who[0].antlers, calls: dwellCalls.current, onStats: setDwellStats, onReadout: setReadout, companion: dwelling2 ? { sim: dwelling2, shelter: habitat.shelter2?.plan ?? null, onSelect: () => pickCreature(1), onStats: setDwellStats2, antlers: who[1].antlers } : null }} />
           )}
         </World>
-        {view.scale && !view.walk && (
+        {showScale && !view.walk && (
           <WonderlandScaleView known={scaleKnown} anchors={scaleAnchors} onMeasure={setScaleRows} bar={scaleBar as RefObject<ScaleBar>} show={scaleShow} />
         )}
         {corner && dwelling && !view.walk && (
           <CornerCamera corner={corner} drink={dwelling.sites.drink} calls={dwellCalls.current} />
         )}
-        {debug.particles && ground && <FlowParticles pools={ground.pools} outlets={ground.outlets} water={ground.water} grid={ground.grid} />}
+        {(debug.particles || layers.flow) && ground && <FlowParticles pools={ground.pools} outlets={ground.outlets} water={ground.water} grid={ground.grid} />}
+        {ground && layers.waterGraph && <WaterGraphLayer pools={ground.pools} outlets={ground.outlets} water={ground.water} />}
+        {ground && layers.sites && dwelling && habitat && <SitesLayer grid={ground.grid} dwellings={dwelling2 ? [dwelling, dwelling2] : [dwelling]} names={who.map((w) => t(`dweller.name.${w.nameIndex}` as StringKey))} />}
+        {layers.relations && dwelling && dwelling2 && <RelationLayer dwellings={[dwelling, dwelling2]} />}
+        {layers.school && fish.length > 0 && <SchoolLayer fish={fish} />}
         <FrameRate />
         {!view.walk && (
           <OrbitControls
@@ -785,13 +817,21 @@ export default function Scene() {
       {exhibit && !view.walk && (
         <>
           {shown && !loadError && <CameraRail chapter={chapter} onChapter={chooseChapter} />}
+          {shown && reshaping && !loadError && <div className="island-reshaping" role="status"><span aria-hidden="true" />{t('exhibit.reshaping')} {Math.round(loadProgress.percent)}%</div>}
           {(!shown || showComplete || loadError) && <IslandLoading phase={ground ? 'frame' : 'ground'} percent={shown ? 100 : loadProgress.percent} step={loadProgress.step} failed={!!loadError} onRetry={retryLoad} />}
         </>
+      )}
+      {exhibit && shown && !loadError && !view.walk && !drawer && (
+        <div className="layers-dock">
+          <LayersButton open={layersOpen} count={(layers.surface !== 'normal' ? 1 : 0) + Object.entries(layers).filter(([k, v]) => k !== 'surface' && v === true).length} onOpen={(o) => { setLayersOpen(o); if (o) setDrawer(false); }} />
+          {layersOpen && <LayersPanel layers={layers} onChange={setLayers} onClose={() => setLayersOpen(false)} onClear={() => setLayers(NO_LAYERS)} />}
+        </div>
       )}
       {exhibit && shown && !loadError && (
         <SettingsDrawer
           open={drawer}
-          onOpen={setDrawer}
+          onOpen={(o) => { setDrawer(o); if (o) setLayersOpen(false); }}
+          onLayers={() => { setDrawer(false); setLayersOpen(true); }}
           run={dwell.run}
           onRun={(on) => levaStore.setValueAtPath('Dwelling.run', on, true)}
           speed={dwell.speed}
@@ -878,9 +918,8 @@ export default function Scene() {
           ]}
         />
       )}
-      {showZones && <ZoneLegend t={t} />}
-      {coverDebug && <CoverLegend t={t} />}
-      {view.scale && (
+      {exhibit && shown && !view.walk && <LayersLegend layers={layers} heights={heights} />}
+      {showScale && (
         <WonderlandScaleLegend
           rows={scaleRows}
           steps={scaleSteps}
@@ -913,43 +952,7 @@ export default function Scene() {
   );
 }
 
-/** Legend for View → Zones: colour swatches with zone names (en/zh via strings). */
-function ZoneLegend({ t }: { t: (k: StringKey) => string }) {
-  const entries = ZONE_NAMES.map((id, i) => ({ id, color: ZONE_DEBUG[i] })).filter((e) => e.id !== 'outside');
-  return (
-    <div className="zone-legend" aria-label={t('zones.legendTitle')}>
-      <div className="zone-legend-title">{t('zones.legendTitle')}</div>
-      {entries.map((e) => (
-        <div key={e.id} className="zone-legend-row">
-          <span className="zone-legend-swatch" style={{ background: e.color }} />
-          <span>{t(`zones.${e.id}` as StringKey)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
-/** Legend for View → Cover suitability (same density texture the terrain samples). */
-function CoverLegend({ t }: { t: (k: StringKey) => string }) {
-  // Heatmap reads softCoverDensityBytes (final density), not raw suit — labels match that.
-  return (
-    <div className="zone-legend cover-legend" aria-label={t('cover.legendTitle')}>
-      <div className="zone-legend-title">{t('cover.legendTitle')}</div>
-      <div className="zone-legend-row">
-        <span className="zone-legend-swatch" style={{ background: '#1f1a1a' }} />
-        <span>{t('cover.legendBare')}</span>
-      </div>
-      <div className="zone-legend-row">
-        <span className="zone-legend-swatch" style={{ background: '#40bf59' }} />
-        <span>{t('cover.legendDensity')}</span>
-      </div>
-      <div className="zone-legend-row">
-        <span className="zone-legend-swatch" style={{ background: '#8c5933' }} />
-        <span>{t('cover.legendTrample')}</span>
-      </div>
-    </div>
-  );
-}
 
 const CLEARANCE = SIZES.camera.clearance; // metres the camera keeps above the ground
 const NONE: Plant[] = [];
@@ -1015,7 +1018,10 @@ function OrbitRestoreCapture({ restore, active }: { restore: React.MutableRefObj
 }
 
 /** The ground: its patches (CDLOD), the island's side, the terrace's pools; the camera kept above it. */
-function Ground({ uniforms, grid, rim, terrace, poolNodes, outlets, water: flowing, underside, above, light, lod, wire, marker, onDrawn, dwelling, trees, zones, showZones, cover, coverDebug, coverAmount, seed, onCoverStats, walking = false, coverBuildMsRef, floorFlagsRef, lifeGoal, prewarmLife, coverFlightRef, folds, rock, shrubs, onPickResource, fish, onPickFish}: {
+function Ground({ groundView = 0, heightRange = null, uniforms, grid, rim, terrace, poolNodes, outlets, water: flowing, underside, above, light, lod, wire, marker, onDrawn, dwelling, trees, zones, showZones, cover, coverDebug, coverAmount, seed, onCoverStats, walking = false, coverBuildMsRef, floorFlagsRef, lifeGoal, prewarmLife, coverFlightRef, folds, rock, shrubs, onPickResource, fish, onPickFish}: {
+  /** The layers' ground view: 0 off, 1 height, 2 slope. */
+  groundView?: 0 | 1 | 2;
+  heightRange?: [number, number] | null;
   uniforms: WorldUniforms;
   grid: HeightGrid;
   rim: Float32Array;
@@ -1132,6 +1138,8 @@ function Ground({ uniforms, grid, rim, terrace, poolNodes, outlets, water: flowi
             : rock.foldView === 'final' ? 5 : 0;
     setTerrainFolds(material, rock.folds || view > 0 ? foldMap : null, rock.folds ? rock.foldMix : 0, view);
   }, [material, foldMap, rock.folds, rock.foldMix, rock.foldView]);
+  // The layers' height and slope views (LayersPanel.tsx).
+  useEffect(() => { setTerrainView(material, groundView, heightRange ?? [grid.bottom, grid.top], WALKABLE_SLOPE); }, [material, groundView, heightRange, grid]);
   // The ground under shrub patches: bytes on the zone grid.
   const shrubMap = useMemo(() => {
     if (!shrubs) return null;

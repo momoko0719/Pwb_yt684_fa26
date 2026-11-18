@@ -291,7 +291,7 @@ export interface SettingControl {
 export interface SettingSection { id?: string; title: string; controls: SettingControl[]; advanced?: boolean }
 
 /** One visitor-facing panel. Leva still owns the underlying parameters but is not shown here. */
-export function SettingsDrawer({ open, onOpen, run, onRun, speed, onSpeed, onAnother, onReset, debug, onDebug, sections, onResources, onCreature, hour, onHour, activity, trips }: {
+export function SettingsDrawer({ onLayers, open, onOpen, run, onRun, speed, onSpeed, onAnother, onReset, sections, onResources, onCreature, hour, onHour, activity, trips }: {
   open: boolean;
   onOpen: (open: boolean) => void;
   run: boolean;
@@ -302,6 +302,8 @@ export function SettingsDrawer({ open, onOpen, run, onRun, speed, onSpeed, onAno
   onReset: () => void;
   debug: DebugToggles;
   onDebug: (key: keyof DebugToggles, on: boolean) => void;
+  /** Open the Layers panel (views that reveal the rules live there, not here). */
+  onLayers?: () => void;
   sections: SettingSection[];
   onResources: () => void;
   onCreature: () => void;
@@ -327,10 +329,11 @@ export function SettingsDrawer({ open, onOpen, run, onRun, speed, onSpeed, onAno
       {open && (
         <aside className="exhibit-drawer" aria-label={t('exhibit.settings')}>
           <header className="exhibit-drawer-header">
-            <div><small>{t('exhibit.panelEyebrow')}</small><h2>{t('exhibit.settings')}</h2></div>
+            <div><small>{t('exhibit.settingsEyebrow')}</small><h2>{t('exhibit.settings')}</h2></div>
             <button type="button" className="exhibit-close" aria-label={t('exhibit.close')} onClick={() => onOpen(false)}>×</button>
           </header>
           <div className="exhibit-drawer-body">
+            {onLayers && <button type="button" className="exhibit-to-layers" onClick={onLayers}>{t('exhibit.toLayers')} <span aria-hidden="true">→</span></button>}
             <section className="exhibit-panel-section">
               <h3>{t('exhibit.explore')}</h3>
               <div className="exhibit-panel-actions">
@@ -352,18 +355,6 @@ export function SettingsDrawer({ open, onOpen, run, onRun, speed, onSpeed, onAno
               <SettingRow control={{ label: t('exhibit.run'), value: run, onChange: (v) => onRun(Boolean(v)) }} />
               <div className="exhibit-speed"><span>{t('exhibit.creatureSpeed')}</span><div>{[1, 10, 30].map((s) => <button type="button" key={s} className={s === speed ? 'active' : ''} onClick={() => onSpeed(s)}>{s}×</button>)}</div></div>
               {activity && <p className="exhibit-creature-now">{trips !== null ? `${t('exhibit.day').replace('{n}', String(trips + 1))} · ` : ''}{activity}{trips !== null ? ` · ${t('exhibit.returns').replace('{n}', String(trips))}` : ''}</p>}
-              <h4>{t('exhibit.groupTraces')}</h4>
-              <div className="exhibit-control-list">
-                <SettingRow control={{ label: t('exhibit.pathNow'), value: debug.route, onChange: (v) => onDebug('route', Boolean(v)) }} />
-                <SettingRow control={{ label: t('exhibit.prints'), value: debug.contact, onChange: (v) => onDebug('contact', Boolean(v)), hint: t('exhibit.printsHint') }} />
-                <SettingRow control={{ label: t('exhibit.debugFeet'), value: debug.feet, onChange: (v) => onDebug('feet', Boolean(v)), hint: t('exhibit.printsHint') }} />
-              </div>
-              <h4>{t('exhibit.groupGoals')}</h4>
-              <div className="exhibit-control-list">
-                <SettingRow control={{ label: t('exhibit.dbg.state'), value: debug.state, onChange: (v) => onDebug('state', Boolean(v)) }} />
-                <SettingRow control={{ label: t('exhibit.dbg.drink'), value: debug.drink, onChange: (v) => onDebug('drink', Boolean(v)) }} />
-                <SettingRow control={{ label: t('exhibit.debugRest'), value: debug.rest, onChange: (v) => onDebug('rest', Boolean(v)) }} />
-              </div>
             </section>
             <details className="exhibit-panel-section">
               <summary>{t('exhibit.groupShape')}<span aria-hidden="true">›</span></summary>

@@ -222,6 +222,8 @@ const SITE = {
   minRegion: 2500, // m²: regions smaller than this are skipped (too small for a home range)
 };
 const WALKABLE = { slope: 0.6, rim: 4, terrace: 2, water: 0 }; // (a dug bank stands at 0.5)
+/** The steepest ground a creature walks (rise over run): the slope layer's limit. */
+export const WALKABLE_SLOPE = WALKABLE.slope;
 /** Extra metres a search keeps outside an obstacle, so a wandering step does not clip it. */
 export const ROUTE_CLEAR = 0.7;
 const ROUTE = { cell: 1, slope: 6, jitter: 0.9, familiar: 0.5, margin: 12, clear: ROUTE_CLEAR };
@@ -507,6 +509,26 @@ function deposit(map: ContactMap, channel: Float32Array, x: number, z: number, a
   map.version++;
 }
 
+type RouteBase = { grid: unknown; water: unknown; terrace: unknown; jitter: unknown; key: string; base: Float32Array };
+const routeBases: RouteBase[] = [];
+/** A route's fixed cost per cell (Infinity where the ground itself does not let it stand), kept for the same ground and square; obstacles are added per route. */
+function routeBase(world: DwellWorld, region: Sites['region'], n: number, jitter: Noise2D, at: (i: number) => number, atZ: (j: number) => number): Float32Array {
+  const key = `${region.x0},${region.z0},${region.size},${n}`;
+  const hit = routeBases.find((r) => r.grid === world.grid && r.water === world.water && r.terrace === world.terrace && r.jitter === jitter && r.key === key);
+  if (hit) return hit.base;
+  const base = new Float32Array(n * n);
+  const bare: DwellWorld = { ...world, obstacles: [] };
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const x = at(i), z = atZ(j);
+    if (!walkable(bare, x, z)) { base[j * n + i] = Infinity; continue; }
+    const slope = Math.hypot(sampleGrid(world.grid, x, z, 1), sampleGrid(world.grid, x, z, 2));
+    base[j * n + i] = 1 + ROUTE.slope * slope + ROUTE.jitter * (0.5 + 0.5 * jitter(x / 14, z / 14));
+  }
+  routeBases.unshift({ grid: world.grid, water: world.water, terrace: world.terrace, jitter, key, base });
+  if (routeBases.length > 6) routeBases.pop();
+  return base;
+}
+
 /** The cheapest way from a to b over the square (A*, 1 m cells, eight ways); null if there is none. */
 function route(world: DwellWorld, map: ContactMap, region: Sites['region'], from: [number, number], to: [number, number], jitter: Noise2D): [number, number][] | null {
   const cell = ROUTE.cell, n = Math.round(region.size / cell);
@@ -515,11 +537,23 @@ function route(world: DwellWorld, map: ContactMap, region: Sites['region'], from
   // Inflate obstacles while searching so a jittered walk does not clip trunks or the watching stone.
   const saved = world.obstacles;
   if (saved?.length) world.obstacles = saved.map((o) => ({ ...o, r: o.r + ROUTE.clear }));
+  // What does not change between routes (where it may stand, the slope, the fixed jitter) is kept
+  // for the same ground and obstacles: many routes are asked for in a row while the island is set up.
+  const base = routeBase(world, region, n, jitter, at, atZ);
   const cost = new Float32Array(n * n);
+  // Anything standing (inflated above), stamped on the cells whose middles it covers: the same
+  // test walkable makes, without asking every cell about every obstacle.
+  const blocked = new Uint8Array(n * n);
+  for (const o of world.obstacles ?? []) {
+    const i0 = Math.max(0, Math.floor((o.x - o.r - region.x0) / cell)), i1 = Math.min(n - 1, Math.ceil((o.x + o.r - region.x0) / cell));
+    const j0 = Math.max(0, Math.floor((o.z - o.r - region.z0) / cell)), j1 = Math.min(n - 1, Math.ceil((o.z + o.r - region.z0) / cell));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (Math.hypot(at(i) - o.x, atZ(j) - o.z) < o.r) blocked[j * n + i] = 1;
+  }
+  const fresh = map.version === 0;
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const b = blocked[j * n + i] ? Infinity : base[j * n + i];
+    if (b === Infinity || fresh) { cost[j * n + i] = b; continue; }
     const x = at(i), z = atZ(j);
-    if (!walkable(world, x, z)) { cost[j * n + i] = Infinity; continue; }
-    const slope = Math.hypot(sampleGrid(world.grid, x, z, 1), sampleGrid(world.grid, x, z, 2));
     // How worn the ground is here (the walk channel, its densest cell around).
     const mi = Math.floor((x - map.x0) / map.texel), mj = Math.floor((z - map.z0) / map.texel);
     let worn = 0;
@@ -527,7 +561,7 @@ function route(world: DwellWorld, map: ContactMap, region: Sites['region'], from
       const ii = mi + di, jj = mj + dj;
       if (ii >= 0 && jj >= 0 && ii < map.cells && jj < map.cells) worn = Math.max(worn, map.walk[jj * map.cells + ii]);
     }
-    cost[j * n + i] = (1 + ROUTE.slope * slope + ROUTE.jitter * (0.5 + 0.5 * jitter(x / 14, z / 14))) * (1 - ROUTE.familiar * worn);
+    cost[j * n + i] = b * (1 - ROUTE.familiar * worn);
   }
   const [si, sj] = idx(...from), [ti, tj] = idx(...to);
   const start = sj * n + si, goal = tj * n + ti;
@@ -643,6 +677,8 @@ export interface Dwelling {
   form: HeadNeck;
   /** Standing aside on its way for a companion to pass (the other then walks round it). */
   yielding: boolean;
+  /** This trip joins a companion's (it got up because the other set out for water or grass); null on its own. For the layers. */
+  joined: 'drink' | 'eat' | null;
   /** A new form (the atlas's "save to this creature"): its head and neck from now on, no restart. */
   setForm: (axes: MorphAxes) => void;
   sites: Sites;
@@ -736,7 +772,7 @@ export function createDwelling(world: DwellWorld, opts: DwellingOptions = {}): D
     intent.vz = vz;
   };
   const d: Dwelling = {
-    id, traits, companions: [], form: opts.axes ? headNeckOf(opts.axes) : BODY, yielding: false, setForm: () => {}, sites, map, home: Math.min(opts.home ?? 0, sites.homes.length - 1), time: 0, cycles: 0, needs: { ...NEEDS.initial }, way: null, stand: null, groundAt,
+    id, traits, companions: [], form: opts.axes ? headNeckOf(opts.axes) : BODY, yielding: false, joined: null, setForm: () => {}, sites, map, home: Math.min(opts.home ?? 0, sites.homes.length - 1), time: 0, cycles: 0, needs: { ...NEEDS.initial }, way: null, stand: null, groundAt,
     open: (x, z) => world.terrace(x, z) > 8 && sampleGrid(world.grid, x, z, 3) < -5,
     dry: (x, z) => walkable(world, x, z),
     setObstacles: (o) => { world.obstacles = o; },
@@ -878,6 +914,7 @@ export function createDwelling(world: DwellWorld, opts: DwellingOptions = {}): D
   const leave = (to: 'drink' | 'rest' | 'eat') => {
     const joining = follow;
     follow = null;
+    d.joined = joining;
     detoured = false; waited = 0;
     if (to === 'eat' && (!d.grazing || d.grazing.biomass < NEEDS.grazing.minBiomass)) to = 'rest';
     next = to;

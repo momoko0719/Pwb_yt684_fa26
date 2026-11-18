@@ -2,7 +2,7 @@ import {
   Box3, Color, DataTexture, FloatType, Frustum, Group, InstancedBufferAttribute, InstancedBufferGeometry, LinearFilter, Matrix4, Mesh, NearestFilter,
   PlaneGeometry, RGBAFormat, ShaderMaterial, UnsignedByteType, Vector2, Vector3, Vector4, type Camera, type Texture,
 } from 'three';
-import { PORCELAIN, WEAR_DEBUG, ZONE_DEBUG } from '../palette';
+import { LAYER, PORCELAIN, WEAR_DEBUG, ZONE_DEBUG } from '../palette';
 import { PORCELAIN_GLSL, porcelainUniforms } from '../shaders/porcelain';
 import { JADE_REVEAL_GLSL } from '../shaders/jadeReveal';
 import type { WorldUniforms } from '../shaders/uniforms';
@@ -82,6 +82,10 @@ uniform sampler2D uLight;
 uniform sampler2D uFolds; // R mountain, G fold 6/18 m, B fine, A cross-slope wide hollow
 uniform float uFoldMix; // strength of the olive tint (0: off)
 uniform float uFoldView; // 0 off, 1 mountain, 2 folds, 3 wide, 4 gate, 5 final weight
+uniform float uGroundView; // the layers' ground views: 0 off, 1 height (with contours), 2 slope
+uniform vec2 uHeightRange; // lowest and highest ground, metres
+uniform float uSlopeLimit; // the steepest a creature walks (rise over run)
+uniform vec3 uHeightLow, uHeightMid, uHeightHigh, uContour, uSlopeFlat, uSlopeMid, uSlopeSteep;
 uniform vec3 uFoldStone; // grey-olive for folds and wide hollows
 uniform float uOutlineKeep; // rim join: discard when outline > this (shared with rimWall)
 uniform sampler2D uShrubGround; // shrubs.ts: how much each zone cell lies in a shrub patch (LinearFilter)
@@ -426,6 +430,26 @@ void main() {
     else if (uFoldView > 1.5) shown = dbgFold;
     color = vec3(clamp(shown, 0.0, 1.0));
   }
+  if (uGroundView > 0.5) {
+    // Lit a little by the same light, so the form still reads under the flat ramp.
+    float shadeL = 0.78 + 0.22 * clamp(dot(n, normalize(uSunDir)), 0.0, 1.0);
+    if (uGroundView < 1.5) {
+      float h = clamp((vWorld.y - uHeightRange.x) / max(uHeightRange.y - uHeightRange.x, 1.0), 0.0, 1.0);
+      vec3 ramp = h < 0.5 ? mix(uHeightLow, uHeightMid, h * 2.0) : mix(uHeightMid, uHeightHigh, h * 2.0 - 1.0);
+      // A contour every 5 m, a stronger one every 25 m; their width held in screen space.
+      float lv = vWorld.y / 5.0, w = fwidth(lv);
+      float line5 = 1.0 - smoothstep(0.0, w * 1.2, abs(fract(lv - 0.5) - 0.5));
+      float lv25 = vWorld.y / 25.0, w25 = fwidth(lv25);
+      float line25 = 1.0 - smoothstep(0.0, w25 * 1.6, abs(fract(lv25 - 0.5) - 0.5));
+      color = ramp * shadeL;
+      color = mix(color, uContour, max(line5 * 0.28, line25 * 0.6));
+    } else {
+      float rise = length(f.yz);
+      float t = clamp(rise / uSlopeLimit, 0.0, 1.6);
+      vec3 ramp = t < 1.0 ? mix(uSlopeFlat, uSlopeMid, t) : mix(uSlopeMid, uSlopeSteep, clamp((t - 1.0) / 0.25, 0.0, 1.0));
+      color = ramp * shadeL;
+    }
+  }
   gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>
 }
@@ -469,6 +493,16 @@ export function createTerrainMaterial(uniforms: WorldUniforms, wireframe = false
       uFolds: { value: null as Texture | null },
       uFoldMix: { value: 0 },
       uFoldView: { value: 0 },
+      uGroundView: { value: 0 },
+      uHeightRange: { value: new Vector2(0, 100) },
+      uSlopeLimit: { value: 0.6 },
+      uHeightLow: { value: new Color(LAYER.heightLow) },
+      uHeightMid: { value: new Color(LAYER.heightMid) },
+      uHeightHigh: { value: new Color(LAYER.heightHigh) },
+      uContour: { value: new Color(LAYER.contour) },
+      uSlopeFlat: { value: new Color(LAYER.slopeFlat) },
+      uSlopeMid: { value: new Color(LAYER.slopeMid) },
+      uSlopeSteep: { value: new Color(LAYER.slopeSteep) },
       uFoldStone: { value: new Color(PORCELAIN.foldStone) },
       uOutlineKeep: { value: RIM_JOIN.outlineKeep },
       uShrubGround: { value: null as Texture | null },
@@ -533,6 +567,14 @@ export function setTerrainFolds(material: ShaderMaterial, folds: Texture | null,
   u.uFolds.value = folds;
   u.uFoldMix.value = folds ? strength : 0;
   u.uFoldView.value = folds ? view : 0;
+}
+
+/** The layers' ground views (LayersPanel.tsx): 0 off, 1 height with contours, 2 slope against the creature's limit. */
+export function setTerrainView(material: ShaderMaterial, view: 0 | 1 | 2, heights: [number, number], slopeLimit: number) {
+  const u = material.uniforms;
+  u.uGroundView.value = view;
+  (u.uHeightRange.value as Vector2).set(heights[0], heights[1]);
+  u.uSlopeLimit.value = slopeLimit;
 }
 
 /** The ground under shrub patches (shrubs.ts; bytes on the zone grid, bound with the zones' square); null for none. */

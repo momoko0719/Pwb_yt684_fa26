@@ -1,5 +1,5 @@
 import { Color, DoubleSide, ShaderMaterial } from 'three';
-import { PORCELAIN } from '../palette';
+import { LAYER, PORCELAIN } from '../palette';
 import type { WorldUniforms } from '../shaders/uniforms';
 
 const NOISE = /* glsl */ `
@@ -43,7 +43,7 @@ float valueNoise(vec2 p) {
  */
 export function createFallMaterial(uniforms: WorldUniforms): ShaderMaterial {
   return new ShaderMaterial({
-    uniforms: { uTime: uniforms.uTime, uWater: { value: new Color(PORCELAIN.water) }, uFoam: { value: new Color(PORCELAIN.body) }, uMarker: { value: 0 } },
+    uniforms: { uTime: uniforms.uTime, uWater: { value: new Color(PORCELAIN.water) }, uFoam: { value: new Color(PORCELAIN.body) }, uMarker: { value: 0 }, uMarkerColour: { value: new Color(LAYER.fallBand) } },
     vertexShader: /* glsl */ `
       attribute vec4 aFlow;
       attribute vec3 aExtra;
@@ -63,6 +63,7 @@ export function createFallMaterial(uniforms: WorldUniforms): ShaderMaterial {
       uniform vec3 uWater;
       uniform vec3 uFoam;
       uniform float uMarker;
+      uniform vec3 uMarkerColour;
       varying vec4 vFlow;
       varying vec3 vExtra;
       varying vec3 vWorld;
@@ -91,7 +92,7 @@ export function createFallMaterial(uniforms: WorldUniforms): ShaderMaterial {
         vec3 colour = mix(uWater * 0.92, uFoam, air * (0.6 + 0.4 * streak)) + 0.06 * (streak - 0.5) * near;
         if (uMarker > 0.5) {
           float band = 1.0 - step(0.15, fract(phase / 0.6));
-          colour = mix(colour, vec3(0.85, 0.1, 0.1), band);
+          colour = mix(colour, uMarkerColour, band);
           alpha = max(alpha, band);
         }
         gl_FragColor = vec4(colour, alpha);

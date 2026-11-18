@@ -1066,3 +1066,74 @@ body[data-world-pointer='creature'] .wonderland-canvas, body[data-world-pointer=
 .ideas-enter-text h2 { max-width: 16em; margin: 0 auto; }
 .ideas-sky .ideas-enter-text .ideas-enter { margin-top: 26px; background: var(--jade-paper); border-color: var(--jade-paper); color: var(--jade-ink); text-shadow: none; box-shadow: 0 10px 30px color-mix(in srgb, var(--jade-ink) 30%, transparent); }
 .ideas-sky .ideas-enter-text .ideas-enter:hover { background: var(--jade-jade); border-color: var(--jade-jade); color: var(--jade-ink); }
+
+/* Reshaping the island in place (after the first load): a small note, the island stays. */
+.island-reshaping { position: absolute; right: 20px; bottom: 20px; z-index: 6; display: flex; align-items: center; gap: 10px; padding: 8px 14px; border: 1px solid var(--jade-line); border-radius: 999px; background: color-mix(in srgb, var(--jade-paper) 92%, transparent); backdrop-filter: blur(6px); color: var(--jade-ink); font: .82rem system-ui, sans-serif; box-shadow: 0 8px 24px #2e333018; }
+.island-reshaping span { width: 12px; height: 12px; border: 2px solid var(--jade-line); border-top-color: var(--jade-jadeDeep); border-radius: 50%; animation: island-reshaping-spin .9s linear infinite; }
+@keyframes island-reshaping-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .island-reshaping span { animation: none; } }
+
+/* Layers (LayersPanel.tsx): see the rules. A button above the map's, a panel to its left, one legend bottom left. */
+.layers-dock { position: absolute; right: 18px; bottom: 74px; z-index: 14; font-family: system-ui, sans-serif; }
+.layers-toggle { position: relative; width: 46px; height: 46px; display: grid; place-items: center; border: 1px solid var(--jade-line); border-radius: 14px; background: var(--jade-paper); color: var(--jade-jadeDeep); box-shadow: 0 6px 20px #354d4928; cursor: pointer; }
+.layers-toggle[aria-expanded='true'] { background: var(--jade-jadeDeep); color: var(--jade-paper); border-color: var(--jade-jadeDeep); }
+.layers-count { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: var(--jade-seal); color: var(--jade-paper); font: 600 .68rem/18px system-ui, sans-serif; }
+.layers-panel { position: absolute; right: 58px; bottom: -56px; width: 320px; max-height: calc(100vh - var(--header-height) - 60px); display: flex; flex-direction: column; border: 1px solid var(--jade-line); border-radius: 16px; background: var(--jade-paper); color: var(--jade-ink); box-shadow: 0 12px 32px #354d4933; overflow: hidden; }
+.layers-panel header { display: flex; justify-content: space-between; align-items: flex-start; padding: 16px 18px 6px; }
+.layers-panel header small { display: block; font: 600 .66rem system-ui, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: var(--jade-jadeDeep); }
+.layers-panel header h2 { margin: 2px 0 0; padding: 0; border: 0; font: 500 1.2rem var(--font-text), var(--font-zh), serif; }
+.layers-lead { margin: 0; padding: 0 18px 10px; font-size: .78rem; line-height: 1.5; color: var(--jade-inkDim); }
+.layers-panel section { padding: 10px 18px; border-top: 1px solid var(--jade-line); }
+.layers-panel > section:last-of-type { padding-bottom: 12px; }
+.layers-panel { overflow-y: auto; scrollbar-color: var(--jade-line) transparent; }
+.layers-panel h3 { margin: 0 0 8px; padding: 0; border: 0; font: 600 .7rem system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--jade-inkDim); }
+.layers-surfaces { display: flex; flex-wrap: wrap; gap: 6px; }
+.layers-surfaces button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border: 1px solid var(--jade-line); border-radius: 999px; background: var(--jade-paper); color: var(--jade-ink); font: .78rem system-ui, sans-serif; cursor: pointer; }
+.layers-surfaces button[aria-checked='true'] { border-color: var(--jade-jadeDeep); background: var(--jade-mist); box-shadow: inset 0 0 0 1px var(--jade-jadeDeep); }
+.layers-swatch { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #2e333022; }
+.layers-swatch-normal { background: var(--jade-paper); }
+.layers-swatch-height { background: linear-gradient(135deg, var(--layer-heightLow), var(--layer-heightMid) 50%, var(--layer-heightHigh)); }
+.layers-swatch-slope { background: linear-gradient(135deg, var(--layer-slopeFlat), var(--layer-slopeMid) 60%, var(--layer-slopeSteep)); }
+.layers-swatch-folds { background: linear-gradient(135deg, var(--layer-foldNone), var(--layer-foldFull)); }
+.layers-swatch-zones { background: conic-gradient(var(--zone-1) 0 25%, var(--zone-6) 0 50%, var(--zone-7) 0 75%, var(--zone-5) 0); }
+.layers-swatch-density { background: linear-gradient(135deg, var(--layer-densityNone), var(--layer-densityFull)); }
+.layers-swatch-jade { background: conic-gradient(var(--wear-walk) 0 33%, var(--wear-drink) 0 66%, var(--wear-rest) 0); }
+.layers-note { margin: 8px 0 0; font-size: .74rem; line-height: 1.5; color: var(--jade-inkDim); }
+.layers-row { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: start; padding: 5px 0; cursor: pointer; }
+.layers-row input { margin: 3px 0 0; accent-color: var(--jade-jadeDeep); }
+.layers-row b { display: block; font: 500 .84rem system-ui, sans-serif; }
+.layers-row small { display: block; margin-top: 1px; font-size: .72rem; line-height: 1.45; color: var(--jade-inkDim); }
+.layers-panel footer { padding: 10px 18px 14px; border-top: 1px solid var(--jade-line); }
+.layers-clear { padding: 6px 12px; border: 1px solid var(--jade-line); border-radius: 999px; background: none; color: var(--jade-inkDim); font: .76rem system-ui, sans-serif; cursor: pointer; }
+.layers-clear:hover { color: var(--jade-ink); border-color: var(--jade-ink); }
+
+.layers-legend { position: absolute; left: 16px; bottom: 16px; z-index: 13; display: grid; gap: 8px; max-width: 250px; max-height: calc(100vh - var(--header-height) - 140px); overflow-y: auto; padding: 12px 14px; border: 1px solid var(--jade-line); border-radius: 14px; background: color-mix(in srgb, var(--jade-paper) 94%, transparent); backdrop-filter: blur(8px); color: var(--jade-ink); font: .74rem system-ui, sans-serif; box-shadow: 0 8px 24px #354d491f; }
+.layers-legend-block { display: grid; gap: 4px; }
+.layers-legend-block + .layers-legend-block { padding-top: 8px; border-top: 1px solid var(--jade-line); }
+.layers-legend-block strong { font: 600 .68rem system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--jade-inkDim); }
+.layers-legend-row { display: flex; align-items: center; gap: 8px; }
+.layers-legend-row i { flex: none; width: 18px; height: 10px; }
+.layers-legend-row .lg-box { border-radius: 3px; background: var(--c); }
+.layers-legend-row .lg-line { height: 3px; border-radius: 2px; background: var(--c); }
+.layers-legend-row .lg-ring { width: 12px; height: 12px; margin: 0 3px; border: 2px solid var(--c); border-radius: 50%; box-sizing: border-box; }
+.layers-legend-row .lg-dash { height: 0; border-top: 2px dashed var(--c); }
+.layers-legend-bar i { display: block; height: 10px; border-radius: 3px; }
+.layers-legend-bar span { display: flex; justify-content: space-between; margin-top: 3px; color: var(--jade-inkDim); }
+.layers-legend-bar em { font-style: normal; }
+
+/* Tags drawn in the world by the overlay layers (layers3d.tsx). */
+.layer-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--jade-paper) 92%, transparent); border: 1px solid var(--jade-line); color: var(--jade-ink); font: 500 11px/1.5 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 2px 8px #2e333018; }
+.layer-tag-water { color: var(--layer-waterMain); }
+.layer-tag-warm { color: var(--layer-den); }
+.layer-tag-relation[data-on='1'] { color: var(--jade-paper); background: var(--jade-jadeDeep); border-color: var(--jade-jadeDeep); }
+
+/* Settings point to Layers (the two are not the same thing: change vs. see). */
+.exhibit-to-layers { display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 6px 0 4px; padding: 10px 12px; border: 1px dashed var(--jade-line); border-radius: 10px; background: var(--jade-mist); color: var(--jade-jadeDeep); font: .8rem system-ui, sans-serif; cursor: pointer; text-align: left; }
+.exhibit-to-layers:hover { border-color: var(--jade-jadeDeep); }
+.layers-legend { min-width: 210px; }
+.layers-legend-bar span { gap: 10px; }
+.layers-legend-bar em:nth-child(2):not(:last-child) { text-align: center; }
+/* While Settings are open, the map's button steps aside (the drawer covers the right edge). */
+body:has(.exhibit-drawer) .island-navigator { visibility: hidden; }
+/* The scale table keeps the bottom left; the layers' legend then sits beside it. */
+body:has(.scale-legend) .layers-legend { left: 452px; bottom: 76px; }

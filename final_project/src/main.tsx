@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter, Navigate, NavLink, Route, Routes } from 'react-router-dom';
-import { ATLAS_UI, JADE_UI, SILK_UI, UI } from './core/palette';
+import { ATLAS_UI, JADE_UI, SILK_UI, UI, LAYER, WEAR_DEBUG, ZONE_DEBUG } from './core/palette';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { LANGUAGES } from './i18n/strings';
 import Home from './pages/Home';
@@ -20,6 +20,14 @@ for (const [name, color] of Object.entries(ATLAS_UI)) {
 for (const [name, color] of Object.entries(JADE_UI)) {
   document.documentElement.style.setProperty(`--jade-${name}`, color);
 }
+// The layers' inks (LayersPanel.tsx swatches and world tags), the wear and zone debug colours.
+for (const [name, color] of Object.entries(LAYER)) {
+  document.documentElement.style.setProperty(`--layer-${name}`, color);
+}
+for (const [name, color] of Object.entries(WEAR_DEBUG)) {
+  document.documentElement.style.setProperty(`--wear-${name}`, color);
+}
+ZONE_DEBUG.forEach((color, i) => document.documentElement.style.setProperty(`--zone-${i}`, color));
 for (const [name, color] of Object.entries(SILK_UI)) {
   document.documentElement.style.setProperty(`--silk-${name}`, color);
 }

@@ -66,6 +66,19 @@ export const SHELL_RULES = {
 } as const;
 
 /** The den's knobs as its seed sets them (what the island grows). */
+/**
+ * Results of pure functions kept by their inputs (bounded): reshaping the island in place asks for
+ * the same stones and dens again, and these are the slow parts of a rebuild.
+ */
+function remember<T>(cache: Map<string, T>, key: string, make: () => T, limit = 400): T {
+  const hit = cache.get(key);
+  if (hit !== undefined) return hit;
+  const v = make();
+  if (cache.size >= limit) cache.delete(cache.keys().next().value as string);
+  cache.set(key, v);
+  return v;
+}
+
 export function birthShell(formSeed: number): ShellParams {
   const rand = createRng(formSeed * 53 + 29);
   return { size: rand() * 0.5, lumps: 3 + Math.floor(rand() * 3), lumpSize: 0.3 + rand() * 0.4, swell: 0.4 + rand() * 0.5, weather: 0.35 + rand() * 0.4 };
@@ -261,7 +274,11 @@ export function shellGeometry(mirror: boolean, formSeed: number, params?: ShellP
  * Circles round the boulder's foot (local x, z, r), for the creature's ways: walked round its outline at
  * knee height, one every 20°, each set in from the edge. None on the mouth's side, where the way in is.
  */
+const footCache = new Map<string, { lx: number; lz: number; r: number }[]>();
 export function shellFootCircles(formSeed: number, params?: ShellParams): { lx: number; lz: number; r: number }[] {
+  return remember(footCache, JSON.stringify([formSeed, params ?? null]), () => footCircles(formSeed, params));
+}
+function footCircles(formSeed: number, params?: ShellParams): { lx: number; lz: number; r: number }[] {
   const { rock } = shellField(formSeed, params);
   const out: { lx: number; lz: number; r: number }[] = [];
   const cx = -0.5, cz = 0.15, r = 0.45, y = 0.6;
@@ -290,7 +307,12 @@ function shellExtent(rock: (x: number, y: number, z: number) => number) {
 }
 
 /** Checks: no rock in the habitable box or the walk out of the mouth; the roof covers the bed; size. */
-export function shellAudit(formSeed: number, withMesh = true, params?: ShellParams) {
+type Audit = { fault: string | null; triangles: number; exterior: { along: number; across: number; height: number } };
+const auditCache = new Map<string, Audit>();
+export function shellAudit(formSeed: number, withMesh = true, params?: ShellParams): Audit {
+  return remember(auditCache, JSON.stringify([formSeed, withMesh, params ?? null]), () => audit(formSeed, withMesh, params));
+}
+function audit(formSeed: number, withMesh: boolean, params?: ShellParams): Audit {
   const { rock } = shellField(formSeed, params);
   const C = SHELTER_CAVITY;
   let fault: string | null = null;
