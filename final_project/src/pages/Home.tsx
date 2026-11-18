@@ -7,7 +7,7 @@ export default function Home() {
     <section className="page home">
       <h1>{t('site.title')}</h1>
       <p>{t('home.tagline')}</p>
-      <Link className="seal" to="/atlas">{t('home.enter')}</Link>
+      <Link className="seal" to="/world">{t('home.enter')}</Link>
     </section>
   );
 }

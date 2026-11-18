@@ -16,4 +16,4 @@ Read before planning or recommending next steps:
   24 solar terms). Mention the relevant ones when proposing the next round of work.
 
 Working agreement with the owner: send a short plan in Chinese and wait for confirmation before
-new features; code, comments and docs in English; chat in Chinese; the owner commits.
+new features; code and comments in English; docs and plans written for the owner in Chinese (from 2026-11-16; older English docs to be archived or translated); chat in Chinese; the owner commits.

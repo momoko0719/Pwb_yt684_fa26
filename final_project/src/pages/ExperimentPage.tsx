@@ -1,9 +1,10 @@
-import { lazy, Suspense, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Leva } from 'leva';
 import { SILK_UI } from '../core/palette';
 import { useLanguage } from '../i18n/LanguageContext';
 import { experiments, externalEntries } from '../experiments/registry';
+import { StudioContext } from './studio';
 
 const LEVA_THEME = {
   colors: {
@@ -25,11 +26,16 @@ const LEVA_THEME = {
   fonts: { sans: "'Songti SC', 'Noto Serif SC', Georgia, serif" },
 };
 
-export default function ExperimentPage() {
-  const { id } = useParams();
+/** `id` set: this page shows that experiment wherever it is routed (the World page shows the island). */
+export default function ExperimentPage({ id: fixed }: { id?: string } = {}) {
+  const params = useParams();
+  const id = fixed ?? params.id;
   const { language, t } = useLanguage();
   const entry = experiments.find((e) => e.meta.id === id);
   const Scene = useMemo(() => (entry ? lazy(entry.load) : null), [entry]);
+  const exhibit = entry?.meta.exhibit === true;
+  const [studio, setStudio] = useState(!exhibit);
+  useEffect(() => setStudio(!exhibit), [exhibit]);
 
   const technique = externalEntries.findIndex((e) => e.id === id);
   if (technique >= 0) return <TechniqueFrame index={technique} />;
@@ -44,18 +50,22 @@ export default function ExperimentPage() {
   }
 
   return (
-    <section className="experiment">
-      <div className="experiment-caption">
-        <Link to="/atlas">← {t('experiment.back')}</Link>
-        <span>{entry.meta.title[language]}</span>
-      </div>
-      <div className="leva-dock">
-        <Leva fill flat theme={LEVA_THEME} />
-      </div>
-      <Suspense fallback={<p className="page dim">{t('experiment.loading')}</p>}>
-        <Scene />
-      </Suspense>
-    </section>
+    <StudioContext.Provider value={{ exhibit, studio, setStudio }}>
+      <section className={exhibit ? 'experiment exhibit' : 'experiment'}>
+        {!exhibit && (
+          <div className="experiment-caption">
+            <Link to="/atlas">← {t('experiment.back')}</Link>
+            <span>{entry.meta.title[language]}</span>
+          </div>
+        )}
+        <div className="leva-dock" hidden={exhibit || !studio}>
+          <Leva fill flat theme={LEVA_THEME} hidden={exhibit || !studio} />
+        </div>
+        <Suspense fallback={exhibit ? <div className="exhibit-loading" role="status"><div className="exhibit-loading-card"><span className="exhibit-spinner" aria-hidden="true" /><p>{t('exhibit.loadingGround')}</p></div></div> : <p className="page dim">{t('experiment.loading')}</p>}>
+          <Scene />
+        </Suspense>
+      </section>
+    </StudioContext.Provider>
   );
 }
 

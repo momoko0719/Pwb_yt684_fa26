@@ -17,6 +17,7 @@ import { buildTerrace, TERRACE_DEFAULTS } from '../src/experiments/wonderland-te
 import { buildWater, WATER_DEFAULTS } from '../src/experiments/wonderland-terrain/water';
 import { growWoods, siteKeepOuts } from '../src/experiments/wonderland-terrain/woods';
 import { buildZones, ZONE, ZONE_NAMES } from '../src/experiments/wonderland-terrain/zones';
+import { createStreamFish, FISH_RULES } from '../src/experiments/wonderland-terrain/streamFish';
 
 const SEEDS = (process.argv[2] ?? '684,7,42,1234,2026,9001,5,333').split(',').map(Number);
 const MAPS = process.argv[3];
@@ -89,6 +90,14 @@ for (const seed of SEEDS) {
   // The water.
   if (!water.plunge.radius) fail(seed, 'no plunge pool');
   console.log(`  water: ${water.ways.length} ways, plunge pool r ${water.plunge.radius.toFixed(1)} m (continuity: scripts/check-water.ts)`);
+  const fish = createStreamFish(seed, water, grid);
+  if (fish.length < FISH_RULES.count[0] || fish.length > FISH_RULES.count[1]) fail(seed, `stream fish count ${fish.length}`);
+  for (const item of fish) {
+    const i = Math.round((item.x - water.field!.x0) / water.field!.step), j = Math.round((item.z - water.field!.z0) / water.field!.step);
+    const level = water.field!.level[j * water.field!.nx + i];
+    if (level - sampleGrid(grid, item.x, item.z) < FISH_RULES.minDepth || item.y >= level || item.y <= sampleGrid(grid, item.x, item.z)) fail(seed, `fish ${item.id} outside safe water depth`);
+  }
+  console.log(`  stream fish: ${fish.length} seeded individuals in deep pool cells`);
   // The zones.
   const land = zones.area.reduce((s, a, k) => s + (k ? a : 0), 0);
   const pct = (k: number) => ((zones.area[k] / land) * 100).toFixed(1);

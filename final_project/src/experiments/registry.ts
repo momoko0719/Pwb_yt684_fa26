@@ -34,6 +34,8 @@ export interface ExperimentMeta {
   learned?: Localized;
   guixu?: Localized;
   image?: string;
+  /** Shown as an exhibit (its own interface; the leva panel only in studio mode). */
+  exhibit?: boolean;
 }
 
 /** Hand-written card pointing at a separately deployed site. */

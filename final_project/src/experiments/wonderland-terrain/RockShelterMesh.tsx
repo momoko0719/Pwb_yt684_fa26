@@ -2,7 +2,10 @@ import { useEffect, useLayoutEffect, useMemo } from 'react';
 import { Color, Plane, ShaderMaterial, Vector3 } from 'three';
 import { PORCELAIN } from '../../core/palette';
 import type { WorldUniforms } from '../../core/shaders/uniforms';
-import { shelterGeometry, type ShelterPlan } from './rockShelter';
+import type { ShelterPlan } from './rockShelter';
+import { shellGeometry } from './rockShell';
+import { setWorldPointer } from './worldPointer';
+import type { ThreeEvent } from '@react-three/fiber';
 
 /**
  * Fractured slab. The shared sun shades the normals; occlusion is structural
@@ -109,8 +112,9 @@ void main() {
 }
 `;
 
-export function RockShelter({ plan, cut, uniforms }: { plan: ShelterPlan; cut: boolean; uniforms: WorldUniforms }) {
-  const geometry = useMemo(() => shelterGeometry(plan.mirror, plan.formSeed), [plan.mirror, plan.formSeed]);
+export function RockShelter({ plan, cut, uniforms, onPick }: { plan: ShelterPlan; cut: boolean; uniforms: WorldUniforms; onPick?: () => void }) {
+  // One boulder with a cave (rockShell.ts) round the same habitable air the slabs used.
+  const geometry = useMemo(() => shellGeometry(plan.mirror, plan.formSeed, plan.shell), [plan.mirror, plan.formSeed, plan.shell]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   const material = useMemo(() => new ShaderMaterial({
     uniforms: {
@@ -150,7 +154,11 @@ export function RockShelter({ plan, cut, uniforms }: { plan: ShelterPlan; cut: b
       material={material}
       position={[plan.bed.x, plan.originY, plan.bed.z]}
       rotation-y={-plan.yaw}
-      raycast={() => {}}
+      // Passing raycast={undefined} would erase the mesh's own raycast: only override it when not pickable.
+      {...(onPick ? {} : { raycast: () => {} })}
+      onPointerOver={onPick ? (e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); setWorldPointer('resource'); } : undefined}
+      onPointerOut={onPick ? () => setWorldPointer(null) : undefined}
+      onClick={onPick ? (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onPick(); } : undefined}
       userData={{ liveFrom: plan.liveView.from, liveTo: plan.liveView.to }}
     />
   );

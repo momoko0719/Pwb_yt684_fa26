@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Color, DataTexture, LinearFilter, RGBAFormat, Vector4 } from 'three';
 import { PORCELAIN } from '../../core/palette';
 import { createRng } from '../../core/rng';
@@ -9,7 +9,7 @@ import type { WorldUniforms } from '../../core/shaders/uniforms';
 import { sampleGrid, type HeightGrid } from '../../core/terrain/heightGrid';
 import { COVER_DEFAULTS, type CoverField } from './cover';
 import { COVER_FOCUS, resolveCoverFocus } from './coverFocus';
-import type { ContactMap } from './dwelling';
+import type { ContactMap, GrazingPatch } from './dwelling';
 import { ZONE } from './zones';
 
 /**
@@ -274,6 +274,7 @@ export function buildSites(cover: CoverField, grid: HeightGrid, seed: number, fx
 
 export function CoverGrass({
   cover, grid, uniforms, seed, map, amount = COVER_DEFAULTS.amount, walking = false, onStats, buildMsRef,
+  lifeGoal, prewarmLife = false, flightRef, grazing,
 }: {
   cover: CoverField;
   grid: HeightGrid;
@@ -286,7 +287,19 @@ export function CoverGrass({
   onStats?: (s: CoverLiveStats) => void;
   /** Latest chunk rebuild ms (for nav diagnostics). */
   buildMsRef?: { current: number };
+  lifeGoal?: { current: { pose: { x: number; z: number } } | null };
+  prewarmLife?: boolean;
+  flightRef?: { current: boolean };
+  grazing?: GrazingPatch | null;
 }) {
+  const { gl } = useThree();
+  const wheelAt = useRef(-Infinity);
+  useEffect(() => {
+    if (walking) return;
+    const onWheel = () => { wheelAt.current = performance.now(); };
+    gl.domElement.addEventListener('wheel', onWheel, { passive: true });
+    return () => gl.domElement.removeEventListener('wheel', onWheel);
+  }, [gl, walking]);
   const grassMat = useMemo(() => {
     const m = createGrassMaterial(uniforms);
     m.uniforms.uMeadow = { value: new Color(PORCELAIN.cover) };
@@ -321,6 +334,7 @@ export function CoverGrass({
   const wearUploaded = useRef(-1);
   useFrame(() => {
     const u = grassMat.uniforms;
+    (u.uGrazing.value as Vector4).set(grazing?.x ?? 0, grazing?.z ?? 0, grazing?.radius ?? 0, grazing?.biomass ?? 1);
     if (!wearTex || !map || map.cells <= 0) {
       u.uWear.value = null;
       (u.uWearRect.value as Vector4).w = 0;
@@ -441,12 +455,13 @@ export function CoverGrass({
     }
     // Hard disc cull around **retention** only — look-hit must not strip grass at the feet.
     const go: number[] = [], gs: number[] = [];
+    const radius2 = RADIUS * RADIUS;
     let grassClumps = 0, bladesKept = 0;
     for (const key of need) {
       const c = cache.current.get(key)!;
       for (let i = 0, n = c.go.length / 3; i < n; i++) {
         const x = c.go[i * 3], y = c.go[i * 3 + 1], z = c.go[i * 3 + 2];
-        if (Math.hypot(x - fx, z - fz) > RADIUS) continue;
+        if ((x - fx) ** 2 + (z - fz) ** 2 > radius2) continue;
         go.push(x, y, z);
         gs.push(c.gs[i * 4], c.gs[i * 4 + 1], c.gs[i * 4 + 2], c.gs[i * 4 + 3]);
         bladesKept++;
@@ -457,7 +472,7 @@ export function CoverGrass({
     const flowerAt: { x: number; y: number; z: number }[] = [];
     let flowerClumps = 0;
     for (const site of cover.flowerAnchors) {
-      if (Math.hypot(site.x - fx, site.z - fz) > RADIUS) continue;
+      if ((site.x - fx) ** 2 + (site.z - fz) ** 2 > radius2) continue;
       if (HARD_OFF.has(cover.zoneAt(site.x, site.z))) continue;
       flowerClumps++;
       const rng = createRng(((seed * 0x85ebca6b) ^ Math.imul(Math.round(site.x * 10), 0x27d4eb2d) ^ Math.imul(Math.round(site.z * 10), 0x165667b1)) >>> 0);
@@ -478,6 +493,7 @@ export function CoverGrass({
       for (const a of cover.flowerAnchors.slice(0, 4)) flowerAt.push({ x: a.x, y: a.y, z: a.z });
     }
     const buildMs = performance.now() - t0;
+    if (import.meta.env.DEV) performance.measure('white-jade-cover-build', { start: t0, duration: buildMs, detail: { built, chunks: need.length } });
     // Stale: a newer camera request started assemble after this one.
     if (gen !== assembleGen.current) return;
     lastBuildMs.current = buildMs;
@@ -508,6 +524,22 @@ export function CoverGrass({
   };
 
   useFrame(({ camera }) => {
+    if (prewarmLife && flightRef?.current && lifeGoal?.current) {
+      const { x, z } = lifeGoal.current.pose;
+      const cx = Math.floor(x / COVER_NEAR.chunk), cz = Math.floor(z / COVER_NEAR.chunk);
+      // Spread the destination's chunk work across the flight. The same cache is used on arrival.
+      outer: for (let ring = 0; ring <= COVER_NEAR.chunkRing; ring++) {
+        for (let dz = -ring; dz <= ring; dz++) for (let dx = -ring; dx <= ring; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dz)) !== ring) continue;
+          const key = `${cx + dx},${cz + dz}`;
+          if (cache.current.has(key)) continue;
+          const start = performance.now();
+          cache.current.set(key, buildChunk(cover, grid, seed, cx + dx, cz + dz));
+          if (import.meta.env.DEV) performance.measure('white-jade-cover-prewarm', { start, duration: performance.now() - start });
+          break outer;
+        }
+      }
+    }
     const now = performance.now();
     const resolved = resolveCoverFocus(grid, camera, walking ? 'walk' : 'orbit', {
       x: focus.current.x, z: focus.current.z, near: focus.current.near,
@@ -539,6 +571,13 @@ export function CoverGrass({
       lastHitAt,
     };
 
+    // During a guided flight, build around the live destination first. Intermediate camera
+    // positions are never visited long enough to justify assembling their near-field grass.
+    if (prewarmLife && flightRef?.current && lifeGoal?.current) {
+      const p = lifeGoal.current.pose;
+      if (Math.hypot(camera.position.x - p.x, camera.position.z - p.z) > 28) return;
+    }
+
     if (!resolved.near) {
       if (hasInstances.current && visibility < 0.03) {
         clearNear(resolved.x, resolved.z, resolved.source, resolved.hitDist, resolved.lookDist);
@@ -555,6 +594,9 @@ export function CoverGrass({
     // (no scroll). Empty land still records the key so we do not spin every frame.
     const pending = lastAssembledKey.current !== wantKey;
     if (retentionMoved || prefetchMoved || pending) {
+      // A wheel gesture may cross many near-field chunks in one second. Keep the
+      // already drawn patch during the gesture and rebuild once it settles.
+      if (!walking && hasInstances.current && now - wheelAt.current < 160) return;
       assemble(
         resolved.x, resolved.z, resolved.source, visibility, resolved.hitDist, resolved.lookDist,
         resolved.prefetchX, resolved.prefetchZ, resolved.hasPrefetch,

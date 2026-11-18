@@ -4,6 +4,11 @@ Status: agreed with the owner 2026-10-25. Kept current while the work runs; the 
 new session is `wonderland-handoff.md`. Design and art direction: `wonderland.md`. Course:
 `course.md` (final review Dec 2, deliverables Dec 18).
 
+2026-11-07: the page shows the island first. Camera bookmarks stay rule-based and are not a
+scripted tour. Creature debug, the data-flow note, and the water/stone note are in
+`creature-debug-round-2026-11-07.md`. The reusable list is `creature-worldbuilding-checklist.md`.
+Do not add a tail slider until the shelter clearance is checked with that length.
+
 ## 1. Goal
 
 The final show opens on **one whole island that holds together**, then zooms into a peak, a pool

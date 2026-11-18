@@ -1,0 +1,12 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await page.goto('http://localhost:5181/?islandSeed=684#/atlas/wonderland-terrain');
+await page.locator('.exhibit-cameras').waitFor({ timeout: 60000 });
+await page.getByRole('button', { name: 'Settings' }).click();
+await page.waitForFunction(() => document.querySelector('.exhibit-creature-now')?.textContent?.toLowerCase().includes('walking'), null, { timeout: 60000 });
+await page.getByRole('button', { name: 'Close' }).first().click();
+await page.getByRole('button', { name: 'Creature' }).click();
+await page.waitForTimeout(2000);
+await page.screenshot({ path: 'docs/current-pass-walk.png' });
+await browser.close();

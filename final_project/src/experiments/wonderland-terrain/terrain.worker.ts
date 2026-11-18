@@ -23,6 +23,7 @@ export type ToTerrain =
   | { type: 'ground'; id: number; params: GroundParams; terrace: TerraceParams; water: WaterParams; underside: UndersideParams }
   | { type: 'light'; id: number; sun: [number, number, number] };
 export type FromTerrain =
+  | { type: 'progress'; id: number; step: 'ground' | 'terrace' | 'water' | 'habitat' | 'underside' | 'light'; percent: number }
   | { type: 'ground'; id: number; grid: HeightGrid; rim: Float32Array; terrace: BasinMesh[]; tops: number[]; pools: PoolNode[]; outlets: OutletNode[]; water: Water; zones: Zones; folds: RockFolds; underside: UndersideMesh; ms: number }
   | { type: 'light'; id: number; light: Uint8Array; size: number; ms: number };
 
@@ -35,10 +36,16 @@ self.onmessage = (e: MessageEvent<ToTerrain>) => {
   const m = e.data;
   const t0 = performance.now();
   if (m.type === 'ground') {
+    const progress = (step: 'ground' | 'terrace' | 'water' | 'habitat' | 'underside', percent: number) =>
+      (self as unknown as Worker).postMessage({ type: 'progress', id: m.id, step, percent } satisfies FromTerrain);
+    progress('ground', 3);
     const { grid, rim } = bakeGround(m.params);
+    progress('terrace', 24);
     const rules = groundRules(m.params);
     const terrace = buildTerrace(rules, grid, m.terrace, m.water.flow);
+    progress('water', 42);
     const water = buildWater(rules, grid, terrace, m.water, m.params.seed); // digs into the grid
+    progress('habitat', 61);
     // The side's top follows the ground as dug (a stream's notch where it pours over the rim).
     for (let k = 0; k < rim.length; k += 3) rim[k + 2] = sampleGrid(grid, rim[k], rim[k + 1]);
     // The zones (zones.ts), from the ground as dug and the water.
@@ -47,6 +54,7 @@ self.onmessage = (e: MessageEvent<ToTerrain>) => {
     const folds = buildRockFolds(grid, rules.meadow);
     casting = castHeights(rules, grid, terrace.tops);
     wet = water.mask.slice();
+    progress('underside', 79);
     const underside = undersideMesh({ rim, top: -BASE_DEPTH, keel: rules.frame.keel, depth: m.underside.depth, rocks: m.underside.rocks, seed: m.params.seed });
     const buffers: ArrayBufferLike[] = [grid.data.buffer, rim.buffer];
     for (const b of terrace.meshes) buffers.push(b.positions.buffer, b.normals.buffer, b.occlusion.buffer, b.indices.buffer, b.water.positions.buffer, b.water.depths.buffer, b.water.flow.buffer, b.water.indices.buffer);
@@ -57,6 +65,7 @@ self.onmessage = (e: MessageEvent<ToTerrain>) => {
     const reply: FromTerrain = { type: 'ground', id: m.id, grid, rim, terrace: terrace.meshes, tops: terrace.tops, pools: terrace.pools, outlets: terrace.outlets, water, zones, folds, underside, ms: performance.now() - t0 };
     (self as unknown as Worker).postMessage(reply, buffers as ArrayBuffer[]);
   } else if (casting) {
+    (self as unknown as Worker).postMessage({ type: 'progress', id: m.id, step: 'light', percent: 91 } satisfies FromTerrain);
     const light = bakeLight(casting, m.sun, wet ?? undefined);
     const reply: FromTerrain = { type: 'light', id: m.id, light, size: casting.size, ms: performance.now() - t0 };
     (self as unknown as Worker).postMessage(reply, [light.buffer]);

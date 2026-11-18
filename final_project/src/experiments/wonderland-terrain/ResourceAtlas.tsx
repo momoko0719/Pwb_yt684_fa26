@@ -7,6 +7,9 @@ import { expandPine, GROWN_PINE_HEIGHT, interpretPine, pineGeometry } from '../.
 import { formatSizeBox, type ResourceCategory, type ResourceDef, type SizeBox } from '../../core/resources/types';
 import { PERSON_HEIGHT } from '../../core/scale';
 import { PORCELAIN } from '../../core/palette';
+import { CreatureMorphPreview, DEFAULT_CREATURE_SEED, MorphThumb } from './CreatureMorphPreview';
+import { birthAxes, type MorphAxes } from './creatureMorph';
+import { createRng } from '../../core/rng';
 import { useLanguage } from '../../i18n/LanguageContext';
 import type { StringKey } from '../../i18n/strings';
 import { getPalette } from '../../core/palette';
@@ -20,6 +23,14 @@ import { makeShrubPreviewGeometry, shrubToneColors } from './ShrubPatches';
 import type { ShrubTone } from './shrubs';
 import { steleGeometry } from './stele';
 import { wonderlandResourceList, type IslandResourceMap } from './resourceCatalog';
+import type { DwellingStats } from './creature';
+import type { StreamFishData } from './streamFish';
+import { FishPreview } from './FishSchool';
+import { FishEditor } from './FishGrowth';
+import { DenEditor } from './DenEditor';
+import { birthShell, type ShellParams } from './rockShell';
+import { dwellerForm } from './dwellerNames';
+import { formFromSeed, type FishForm } from './fishForm';
 
 const CATS: ResourceCategory[] = ['vegetation', 'creatures', 'props', 'terrain'];
 
@@ -359,7 +370,8 @@ function renderThumbDataUrl(def: ResourceDef): string | null {
   }
 }
 
-function Thumb({ def }: { def: ResourceDef }) {
+function Thumb({ def, morph, fish }: { def: ResourceDef; morph?: { worldSeed: number; creatureSeed: number; axes: MorphAxes }; fish?: StreamFishData | null }) {
+  const { t } = useLanguage();
   const cacheKey = def.preview ? `${THUMB_VER}:${def.preview}` : '';
   const [url, setUrl] = useState<string | null>(() => (cacheKey ? thumbUrlCache.get(cacheKey) ?? null : null));
   useEffect(() => {
@@ -372,10 +384,21 @@ function Thumb({ def }: { def: ResourceDef }) {
     const id = requestAnimationFrame(() => setUrl(renderThumbDataUrl(def)));
     return () => cancelAnimationFrame(id);
   }, [def]);
+  if (def.id === 'wonderland-creature' && morph) return <MorphThumb worldSeed={morph.worldSeed} creatureSeed={morph.creatureSeed} axes={morph.axes} />;
+  if (def.id === 'wonderland-stream-fish' && fish) return <FishPreview fish={fish} compact />;
   if (!url) {
+    const terrainMark = def.id === 'wonderland-island'
+      ? <><path d="M13 51c21-9 52-9 77 0l-7 12c-23 8-48 8-63 0z" /><path d="m20 49 15-18 10 7 15-25 19 33" /><path d="M24 65c18 7 43 7 55 0" /></>
+      : def.id === 'wonderland-peak'
+        ? <><path d="m13 66 22-35 9 12 17-29 27 52z" /><path d="m54 26 7-12 11 18" /></>
+        : def.id === 'wonderland-pool'
+          ? <><path d="M13 41c12-11 24-10 34-6 11 4 20-6 34-1 9 3 12 10 7 17-5 9-22 10-36 7-13-3-26 5-37-1-9-5-10-11-2-16z" /><path d="M24 47c14-6 28 4 43-3" /></>
+          : null;
     return (
-      <div className="resource-thumb" style={{ display: 'grid', placeItems: 'center', fontSize: 11, color: '#5a5348' }}>
-        {def.preview ? '…' : (def.category === 'creatures' ? '场景定位' : '定位')}
+      <div className="resource-thumb resource-thumb-mark">
+        {terrainMark
+          ? <svg viewBox="0 0 100 80" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{terrainMark}</svg>
+          : def.preview ? '…' : t('resources.locate')}
       </div>
     );
   }
@@ -409,33 +432,97 @@ export interface ResourceAtlasProps {
   onClose: () => void;
   island: IslandResourceMap;
   onLocate: (pos: { x: number; y: number; z: number }) => void;
+  /** Open this card. Only the creature is wired from a click in the world. */
+  worldSeed?: number;
+  focusId?: string | null;
+  /** True when the card was opened by clicking the live creature. */
+  picked?: boolean;
+  activity?: string | null;
+  day?: number | null;
+  creatureStats?: DwellingStats | null;
+  fish?: StreamFishData | null;
+  /** The whole school (the fish entry's school panel). */
+  fishSchool?: StreamFishData[];
+  /** The island's den's form seed (its editor starts from it). */
+  denSeed?: number | null;
+  /** The island's creatures (each a target of the form editor): name, form now, form at birth. */
+  dwellers?: { name: string; axes: MorphAxes; birth: MorphAxes }[];
+  onSaveForm?: (i: number, axes: MorphAxes) => void;
+  /** The island's dens: name, seed, knobs now and at birth. */
+  dens?: { name: string; seed: number; params: ShellParams; birth: ShellParams }[];
+  onSaveDen?: (i: number, params: ShellParams) => void;
+  /** Which creature the editor opens on (the one whose card was open). */
+  lifeIndex?: number;
+  onShowDebug?: () => void;
 }
 
-export function ResourceAtlas({ open, onClose, island, onLocate }: ResourceAtlasProps) {
+export function ResourceAtlas({ open, onClose, island, onLocate, worldSeed = 0, focusId = null, fish, fishSchool, denSeed = null, dwellers, onSaveForm, dens, onSaveDen, lifeIndex = 0 }: ResourceAtlasProps) {
   const { language, t } = useLanguage();
-  const list = useMemo(() => wonderlandResourceList(), []);
+  const list = useMemo(() => wonderlandResourceList().filter((item) => item.id !== 'person' && item.id !== 'wonderland-stele'), []);
   const [cat, setCat] = useState<ResourceCategory>('vegetation');
   const [sel, setSel] = useState<string | null>(null);
   const [sampleSeed, setSampleSeed] = useState(1);
   const [personRef, setPersonRef] = useState(true);
   const [shrubTone, setShrubTone] = useState<ShrubTone>(0);
+  const [creatureSeed, setCreatureSeed] = useState(DEFAULT_CREATURE_SEED);
+  const birth = useMemo(() => birthAxes(creatureSeed), [creatureSeed]);
+  const [morphAxes, setMorphAxes] = useState<MorphAxes>(() => birthAxes(DEFAULT_CREATURE_SEED));
+  // The fish entry's preview form (sliders) and the growth step on show; back to the live fish when it changes.
+  const birthForm = (f: StreamFishData): FishForm => ({ seed: f.seed, length: f.length, depth: f.depth, fork: f.fork, marks: f.marks, fin: f.fin });
+  const [fishEdit, setFishEdit] = useState<FishForm | null>(null);
+  const fishRoll = useRef(0);
+  useEffect(() => { setFishEdit(null); }, [fish]);
+  const fishShown: FishForm | null = fishEdit ?? (fish ? birthForm(fish) : null);
+  // The den entry's preview: a seed and its knobs; back to the island's den when that changes.
+  const [denEdit, setDenEdit] = useState<{ seed: number; params: ShellParams } | null>(null);
+  useEffect(() => { setDenEdit(null); }, [denSeed]);
+  // Which creature / den the editors work on; they start from its form now, and save to it.
+  const [editing, setEditing] = useState(0);
+  const [denEditing, setDenEditing] = useState(0);
+  useEffect(() => { if (open) setEditing(Math.min(lifeIndex, (dwellers?.length ?? 1) - 1)); }, [open, lifeIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+  const target = dwellers?.[editing];
+  const targetKey = target ? JSON.stringify(target.axes) : '';
+  useEffect(() => { if (target) setMorphAxes(target.axes); }, [targetKey, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  const denTarget = dens?.[denEditing];
+  const denKey = denTarget ? JSON.stringify(denTarget.params) : '';
+  useEffect(() => { setDenEdit(null); }, [denKey, denEditing]);
+  const denShown = denEdit ?? (denTarget ? { seed: denTarget.seed, params: denTarget.params } : denSeed != null ? { seed: denSeed, params: birthShell(denSeed) } : null);
+  const sameAxes = (a?: MorphAxes, b?: MorphAxes) => !!a && !!b && (Object.keys(a) as (keyof MorphAxes)[]).every((k) => a[k] === b[k]);
+  const seenSeed = useRef(creatureSeed);
+  useEffect(() => {
+    if (seenSeed.current === creatureSeed) return;
+    seenSeed.current = creatureSeed;
+    setMorphAxes(birth);
+  }, [birth, creatureSeed]);
+  const roll = useRef(1);
   const def = list.find((r) => r.id === sel) ?? null;
   const live = def ? island[def.id] : undefined;
   const hasPreview = !!def?.preview;
 
   useEffect(() => { if (!open) setSel(null); }, [open]);
+  useEffect(() => {
+    if (!list.some((item) => item.category === cat)) setCat(list[0]?.category ?? 'vegetation');
+  }, [list, cat]);
+  useEffect(() => {
+    if (!open || !focusId) return;
+    const found = list.find((r) => r.id === focusId);
+    if (!found) return;
+    setCat(found.category);
+    setSel(found.id);
+  }, [open, focusId, list]);
   if (!open) return null;
 
+  const cats = CATS.filter((c) => list.some((item) => item.category === c));
   const cards = list.filter((r) => r.category === cat);
 
   return (
-    <div className="resource-atlas" role="dialog" aria-label={t('resources.title')}>
+    <div className={`resource-atlas${def ? ' has-detail' : ''}${def?.id === 'wonderland-creature' || def?.id === 'wonderland-stream-fish' || def?.id === 'wonderland-den' ? ' creature-editor' : ''}`} role="dialog" aria-label={t('resources.title')}>
       <div className="resource-atlas-bar">
-        <strong>{t('resources.title')}</strong>
+        <strong>{def?.id === 'wonderland-creature' || def?.id === 'wonderland-stream-fish' || def?.id === 'wonderland-den' ? nameOf(def, language, t) : t('resources.title')}</strong>
         <button type="button" className="resource-btn" onClick={onClose}>{t('resources.close')}</button>
       </div>
       <div className="resource-cats">
-        {CATS.map((c) => (
+        {cats.map((c) => (
           <button
             key={c}
             type="button"
@@ -457,7 +544,7 @@ export function ResourceAtlas({ open, onClose, island, onLocate }: ResourceAtlas
                 className={`resource-card${sel === r.id ? ' on' : ''}`}
                 onClick={() => { setSel(r.id); setSampleSeed((s) => s + 1); }}
               >
-                <Thumb def={r} />
+                <Thumb def={r} morph={r.id === 'wonderland-creature' ? { worldSeed, creatureSeed, axes: morphAxes } : undefined} fish={fish} />
                 <div className="resource-card-text">
                   <div className="resource-card-name">{nameOf(r, language, t)}</div>
                   <div className="resource-card-size">{formatSizeBox(r.config, t('resources.metre'))}</div>
@@ -470,21 +557,51 @@ export function ResourceAtlas({ open, onClose, island, onLocate }: ResourceAtlas
         </div>
         {def && (
           <div className="resource-detail">
-            <h3>{nameOf(def, language, t)}</h3>
-            <p><b>{t('resources.sizeRange')}</b> {formatSizeBox(def.config, t('resources.metre'))}</p>
-            {hasPreview && (
-              <p><b>{t('resources.sampleSize')}</b> {formatSizeBox(sampleSize(def, sampleSeed), t('resources.metre'))}</p>
-            )}
-            <p><b>{t('resources.islandSize')}</b> {islandSizeText(live, t)}</p>
-            <p><b>{t('resources.count')}</b> {countLabel(live, t)}</p>
-            {def.variants != null && <p><b>{t('resources.variants')}</b> {def.variants}</p>}
-            <p><b>{t('resources.rule')}</b> {language === 'zh' ? def.ruleZh : def.ruleEn}</p>
-            {(def.noteEn || def.noteZh) && (
+            {def.id !== 'wonderland-creature' && def.id !== 'wonderland-stream-fish' && def.id !== 'wonderland-den' && <>
+              <h3>{nameOf(def, language, t)}</h3>
+              {hasPreview && <p><b>{t('resources.previewSample')}</b></p>}
+              <p><b>{t('resources.sizeRange')}</b> {formatSizeBox(def.config, t('resources.metre'))}</p>
+              {hasPreview && <p><b>{t('resources.sampleSize')}</b> {formatSizeBox(sampleSize(def, sampleSeed), t('resources.metre'))}</p>}
+              <p><b>{t('resources.islandSize')}</b> {islandSizeText(live, t)}</p>
+              <p><b>{t('resources.count')}</b> {countLabel(live, t)}</p>
+              {def.variants != null && <p><b>{t('resources.variants')}</b> {def.variants}</p>}
+              <p><b>{t('resources.rule')}</b> {language === 'zh' ? def.ruleZh : def.ruleEn}</p>
+            </>}
+            {def.id !== 'wonderland-creature' && def.id !== 'wonderland-stream-fish' && def.id !== 'wonderland-den' && (def.noteEn || def.noteZh) && (
               <p className="resource-muted">{language === 'zh' ? def.noteZh : def.noteEn}</p>
             )}
             <div className="resource-preview-wrap">
-              {hasPreview ? (
+              {def.id === 'wonderland-creature' ? (
+                <CreatureMorphPreview
+                  worldSeed={worldSeed}
+                  creatureSeed={creatureSeed}
+                  axes={morphAxes}
+                  birth={birth}
+                  onAxes={setMorphAxes}
+                  onRandom={() => {
+                    roll.current += 1;
+                    const next = 1 + Math.floor(createRng(creatureSeed + roll.current * 997)() * 999983);
+                    if (target) setMorphAxes(dwellerForm(next, 0));
+                    else setCreatureSeed(next);
+                  }}
+                  onRestore={() => setMorphAxes(target ? target.birth : birth)}
+                  targets={dwellers && onSaveForm ? { names: dwellers.map((w) => w.name), index: editing, onPick: setEditing } : undefined}
+                  onSave={dwellers && onSaveForm ? () => onSaveForm(editing, morphAxes) : undefined}
+                  saved={sameAxes(morphAxes, target?.axes)}
+                />
+              ) : hasPreview ? (
                 <DetailPreview def={def} sampleSeed={sampleSeed} personRef={personRef && def.preview !== 'person'} shrubTone={shrubTone} />
+              ) : def.id === 'wonderland-den' && denShown ? (
+                <DenEditor seed={denShown.seed} params={denShown.params} onParams={(p) => setDenEdit({ seed: denShown.seed, params: p })}
+                  onNew={() => { const next = 1 + Math.floor(createRng(denShown.seed * 7 + roll.current++ * 13)() * 999983); setDenEdit({ seed: denShown.seed, params: birthShell(next) }); }}
+                  onBirth={() => setDenEdit(denTarget ? { seed: denTarget.seed, params: denTarget.birth } : null)}
+                  targets={dens && onSaveDen ? { names: dens.map((x) => x.name), index: denEditing, onPick: setDenEditing } : undefined}
+                  onSave={dens && onSaveDen ? () => onSaveDen(denEditing, denShown.params) : undefined}
+                  saved={!denEdit} />
+              ) : def.id === 'wonderland-stream-fish' && fish && fishShown ? (
+                <FishEditor form={fishShown} onForm={setFishEdit} school={fishSchool}
+                  onNew={() => { fishRoll.current += 1; setFishEdit(formFromSeed(1 + Math.floor(createRng(fish.seed + fishRoll.current * 997)() * 999983))); }}
+                  onBirth={() => setFishEdit(null)} />
               ) : (
                 <p className="resource-muted">
                   {language === 'zh'
@@ -493,7 +610,7 @@ export function ResourceAtlas({ open, onClose, island, onLocate }: ResourceAtlas
                 </p>
               )}
               <div className="resource-preview-tools">
-                {hasPreview && (
+                {hasPreview && def.id !== 'wonderland-creature' && (
                   <>
                     <label>
                       <input type="checkbox" checked={personRef} onChange={(e) => setPersonRef(e.target.checked)} />
@@ -514,19 +631,20 @@ export function ResourceAtlas({ open, onClose, island, onLocate }: ResourceAtlas
                     </button>
                   </>
                 )}
-                <button
+                {/* The creature and its den are found by their card (and its next arrow), not here. */}
+                {def.id !== 'wonderland-creature' && def.id !== 'wonderland-den' && <button
                   type="button"
                   className="resource-btn"
                   disabled={!live?.locate}
                   onClick={() => live?.locate && onLocate(live.locate)}
                 >
                   {t('resources.locate')}
-                </button>
+                </button>}
               </div>
               {hasPreview && (
                 <p className="resource-muted">{t('resources.rotate')} · 1 {t('resources.metre')}</p>
               )}
-              {live?.note && <p className="resource-muted">{live.note}</p>}
+              {def.id !== 'wonderland-creature' && def.id !== 'wonderland-stream-fish' && def.id !== 'wonderland-den' && (live?.noteEn || live?.noteZh || live?.note) && <p className="resource-muted">{language === 'zh' ? (live.noteZh ?? live.note) : (live.noteEn ?? live.note)}</p>}
             </div>
           </div>
         )}

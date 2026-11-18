@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Color, Group, InstancedMesh, Matrix4, Quaternion, Vector3, type BufferGeometry, type ShaderMaterial } from 'three';
 import { BOULDER_VARIANTS, boulderGeometry, shrubGeometry, type Plant } from '../../core/generators/forest';
 import { expandPine, forestPineModel, GROWN_PINE_HEIGHT, interpretPine, pineGeometry, PINE_VARIANTS } from '../../core/generators/pine';
@@ -19,7 +19,7 @@ const UP = new Vector3(0, 1, 0);
  * (its lightest level) up close, then mid/far stand-ins from `forestPineModel` (flat uneven pads,
  * not a conical Christmas-tree stack). Shrubs and boulders are single instanced meshes.
  */
-export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial, uniforms, lod = SIZES.forest.lod }: {
+export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial, uniforms, lod = SIZES.forest.lod, onPickTree, onHoverTree }: {
   trees: Plant[];
   shrubs: Plant[];
   boulders: Plant[];
@@ -28,6 +28,8 @@ export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial
   uniforms: WorldUniforms;
   /** Metres: grown pines inside the first, three-tier stand-ins inside the second, two-tier crowns beyond. */
   lod?: [number, number];
+  onPickTree?: () => void;
+  onHoverTree?: (hover: boolean) => void;
 }) {
   const [NEAR, MID] = lod;
   // Shapes: the grown pine variants (same seeds as the lone pines) and the two stand-ins.
@@ -56,17 +58,17 @@ export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial
 
   // One instanced mesh per shape, sized for every tree; each frame they draw only their share.
   const meshes = useMemo(() => {
-    const make = (g: BufferGeometry) => {
+    const make = (g: BufferGeometry, pickable = false) => {
       const mesh = new InstancedMesh(g, pineMaterial, Math.max(trees.length, 1));
       mesh.frustumCulled = false;
       mesh.count = 0;
       // Orbit zoomToCursor / focus should hit terrain, not pine crowns.
-      mesh.raycast = () => {};
+      if (!pickable) mesh.raycast = () => {};
       mesh.userData.orbitIgnore = true;
       return mesh;
     };
-    return { near: shapes.near.map(make), mid: make(shapes.mid), far: make(shapes.far) };
-  }, [shapes, pineMaterial, trees.length]);
+    return { near: shapes.near.map((g) => make(g, Boolean(onPickTree))), mid: make(shapes.mid, Boolean(onPickTree)), far: make(shapes.far, Boolean(onPickTree)) };
+  }, [shapes, pineMaterial, trees.length, Boolean(onPickTree)]);
 
   const last = useRef({ at: -Infinity, x: Infinity, z: Infinity });
   /** Per-tree LOD band 0=near 1=mid 2=far — hysteresis avoids flicker at NEAR/MID. */
@@ -96,11 +98,13 @@ export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial
       else if (b === 1) into(meshes.mid, counts.mid++, matrices.unit, i);
       else into(meshes.far, counts.far++, matrices.unit, i);
     });
-    meshes.near.forEach((mesh, v) => { mesh.count = counts.near[v]; mesh.instanceMatrix.needsUpdate = true; });
+    meshes.near.forEach((mesh, v) => { mesh.count = counts.near[v]; mesh.instanceMatrix.needsUpdate = true; if (onPickTree) mesh.boundingSphere = null; });
     meshes.mid.count = counts.mid;
     meshes.mid.instanceMatrix.needsUpdate = true;
+    if (onPickTree) meshes.mid.boundingSphere = null;
     meshes.far.count = counts.far;
     meshes.far.instanceMatrix.needsUpdate = true;
+    if (onPickTree) meshes.far.boundingSphere = null;
   });
 
   // Shrubs and boulders: static, one instanced mesh each (boulders one per variant).
@@ -134,9 +138,18 @@ export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial
 
   return (
     <>
-      {meshes.near.map((mesh, v) => <primitive key={`n${v}`} object={mesh} />)}
-      <primitive object={meshes.mid} />
-      <primitive object={meshes.far} />
+      {meshes.near.map((mesh, v) => <primitive key={`n${v}`} object={mesh}
+        onPointerOver={onPickTree ? (e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); onHoverTree?.(true); } : undefined}
+        onPointerOut={onPickTree ? () => onHoverTree?.(false) : undefined}
+        onClick={onPickTree ? (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onPickTree(); } : undefined} />)}
+      <primitive object={meshes.mid}
+        onPointerOver={onPickTree ? (e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); onHoverTree?.(true); } : undefined}
+        onPointerOut={onPickTree ? () => onHoverTree?.(false) : undefined}
+        onClick={onPickTree ? (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onPickTree(); } : undefined} />
+      <primitive object={meshes.far}
+        onPointerOver={onPickTree ? (e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); onHoverTree?.(true); } : undefined}
+        onPointerOut={onPickTree ? () => onHoverTree?.(false) : undefined}
+        onClick={onPickTree ? (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onPickTree(); } : undefined} />
       <primitive object={ground.group} />
     </>
   );

@@ -14,7 +14,7 @@ export type { ScaleBar };
 export { surveySteps } from '../island-v1/ScaleView';
 
 /** Wonderland scale row — may be a shared ScaleId or a local kind (stele / watchBase / groups). */
-export type WonderlandScaleKey = ScaleId | 'stele' | 'watchBase' | 'terraceGroup' | 'rangeMassif';
+export type WonderlandScaleKey = ScaleId | 'stele' | 'watchBase' | 'terraceGroup' | 'rangeMassif' | 'dweller' | 'streamling' | 'den';
 
 export interface ScaleRow {
   id: WonderlandScaleKey;
@@ -41,6 +41,9 @@ export const WONDERLAND_SCALE_TARGET: Partial<Record<WonderlandScaleKey, [number
   pool: [8, 40],
   terraceGroup: [40, 120], // across the stacked pools as a group
   rangeMassif: [180, 320], // across the main range mass
+  dweller: [1.3, 2.0], // standing, to the antlers' tips (CROWN_LIMIT_M 2.0)
+  streamling: [0.45, 0.75], // body length (fishForm.ts)
+  den: [3.4, 5], // height of the rock den (rockShell.ts)
 };
 
 export interface WonderlandKnown {
@@ -54,9 +57,14 @@ export interface WonderlandKnown {
   terraceGroup?: { across: number; height: number; center: Vector3; size: Vector3 };
   /** Main range mass: [across, height] from generation. */
   rangeMassif?: { across: number; height: number; center: Vector3; size: Vector3 };
+  /** The island's lives and dens, measured: the creatures to their antlers, the fish's lengths, the dens' heights, the shrubs. */
+  dwellers?: [number, number];
+  streamlings?: [number, number];
+  dens?: [number, number];
+  shrubs?: [number, number];
 }
 
-type ScaleGroup = 'mass' | 'landmarks' | 'vegetation' | 'person';
+type ScaleGroup = 'mass' | 'landmarks' | 'vegetation' | 'life' | 'person';
 
 const GROUP_OF: Partial<Record<WonderlandScaleKey, ScaleGroup>> = {
   island: 'mass',
@@ -70,6 +78,10 @@ const GROUP_OF: Partial<Record<WonderlandScaleKey, ScaleGroup>> = {
   flower: 'vegetation',
   stele: 'landmarks',
   watchBase: 'landmarks',
+  den: 'landmarks',
+  shrub: 'vegetation',
+  dweller: 'life',
+  streamling: 'life',
   person: 'person',
 };
 
@@ -83,7 +95,7 @@ const BAR_PIXELS = 110;
 const box = new Box3();
 const ORDER: WonderlandScaleKey[] = [
   'island', 'rangeMassif', 'mainPeak', 'terraceGroup', 'pool',
-  'pine', 'forest', 'watchBase', 'stele', 'grass', 'flower', 'person',
+  'pine', 'forest', 'shrub', 'watchBase', 'stele', 'den', 'grass', 'flower', 'dweller', 'streamling', 'person',
 ];
 
 function labelKey(id: WonderlandScaleKey): StringKey {
@@ -91,6 +103,7 @@ function labelKey(id: WonderlandScaleKey): StringKey {
   if (id === 'watchBase') return 'scale.row.watchBase' as StringKey;
   if (id === 'terraceGroup') return 'scale.row.terraceGroup' as StringKey;
   if (id === 'rangeMassif') return 'scale.row.rangeMassif' as StringKey;
+  if (id === 'dweller' || id === 'streamling' || id === 'den') return `scale.row.${id}` as StringKey;
   return `scale.row.${id}` as StringKey;
 }
 
@@ -168,6 +181,10 @@ export function WonderlandScaleView({ known, anchors, onMeasure, bar, show }: {
     if (known.poolAcross) add('pool', [known.poolAcross, known.poolAcross]);
     add('grass', known.grass);
     add('flower', known.flower);
+    if (known.shrubs) add('shrub', known.shrubs);
+    if (known.dens) add('den', known.dens);
+    if (known.dwellers) add('dweller', known.dwellers);
+    if (known.streamlings) add('streamling', known.streamlings);
     add('person', [PERSON_HEIGHT, PERSON_HEIGHT]);
     rows.sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
     return { boxes: found, rows };
@@ -261,6 +278,7 @@ export function WonderlandScaleLegend({ rows, steps, bar, show, onShow }: {
     { id: 'mass', key: 'scale.group.mass' as StringKey },
     { id: 'landmarks', key: 'scale.group.landmarks' as StringKey },
     { id: 'vegetation', key: 'scale.group.vegetation' as StringKey },
+    { id: 'life', key: 'scale.group.life' as StringKey },
     { id: 'person', key: 'scale.group.person' as StringKey },
   ];
   return (
@@ -334,6 +352,7 @@ export type { ScaleGroup };
 export const DEFAULT_SCALE_SHOW: Record<ScaleGroup, boolean> = {
   mass: true,
   landmarks: true,
+  life: true,
   vegetation: false,
   person: true,
 };

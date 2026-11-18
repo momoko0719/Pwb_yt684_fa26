@@ -1,0 +1,22 @@
+import { chromium } from 'playwright';
+import fs from 'node:fs';
+import path from 'node:path';
+const screenshot = path.resolve(process.argv[2] ?? 'docs/art-direction-2026-11-09/creature-morph-stage3/rework-preview.png');
+fs.mkdirSync(path.dirname(screenshot), { recursive: true });
+const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const page = await browser.newPage({ viewport: { width: Number(process.argv[3] ?? 1440), height: Number(process.argv[4] ?? 900) } });
+page.on('console', (m) => { if (m.type() === 'error') console.log('console', m.text().slice(0, 200)); });
+await page.goto('http://localhost:5181/?islandSeed=684#/atlas/wonderland-terrain');
+await page.locator('.exhibit-cameras').waitFor({ timeout: 90000 });
+await page.getByRole('button', { name: 'Settings' }).click();
+await page.getByRole('button', { name: 'Meet the creature' }).click();
+await page.locator('.morph-panel canvas').waitFor();
+await page.waitForTimeout(500);
+await page.screenshot({ path: screenshot });
+console.log(JSON.stringify(await page.evaluate(() => {
+  const panel = document.querySelector('.resource-atlas');
+  const editor = document.querySelector('.morph-editor');
+  const stage = document.querySelector('.morph-stage');
+  return { panel: panel && { height: panel.clientHeight, scrollHeight: panel.scrollHeight }, editor: editor && { height: editor.clientHeight, scrollHeight: editor.scrollHeight }, stage: stage && { height: stage.clientHeight, scrollHeight: stage.scrollHeight } };
+})));
+await browser.close();

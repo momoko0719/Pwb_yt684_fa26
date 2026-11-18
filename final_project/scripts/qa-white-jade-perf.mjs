@@ -1,0 +1,22 @@
+import { chromium } from 'playwright';
+import fs from 'node:fs';
+import path from 'node:path';
+const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await page.goto('http://localhost:5181/?islandSeed=684#/atlas/wonderland-terrain', { waitUntil: 'domcontentloaded' });
+await page.locator('.exhibit-cameras').waitFor({ timeout: 60000 });
+const measure = async (action) => {
+  await page.evaluate(() => performance.clearMeasures('white-jade-cover-build'));
+  await page.evaluate(() => { window.__frames = []; let last = performance.now(); window.__record = true; const token = window.__frameToken = (window.__frameToken || 0) + 1; const tick = t => { if (!window.__record || token !== window.__frameToken) return; window.__frames.push(t - last); last = t; requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
+  if (action) await page.getByRole('button', { name: 'Creature' }).click();
+  await page.waitForTimeout(5000);
+  return page.evaluate(() => { window.__record = false; const a = window.__frames.filter(x => x > 0).sort((x,y)=>x-y); const builds = performance.getEntriesByName('white-jade-cover-build', 'measure').map(e=>({start:e.startTime, duration:e.duration, detail:e.detail})); return { count:a.length, median:a[Math.floor(a.length*.5)], p95:a[Math.floor(a.length*.95)], max:a.at(-1), over50:a.filter(x=>x>50).length, over100:a.filter(x=>x>100).length, coverBuilds:builds }; });
+};
+const idle = await measure(false);
+const life = await measure(true);
+console.log('idle', JSON.stringify(idle));
+console.log('Life', JSON.stringify(life));
+const output = path.resolve(process.argv[2] ?? 'docs/ui-qa-2026-11-08/final/performance.json');
+fs.mkdirSync(path.dirname(output), { recursive: true });
+fs.writeFileSync(output, JSON.stringify({ idle, life }, null, 2));
+await browser.close();

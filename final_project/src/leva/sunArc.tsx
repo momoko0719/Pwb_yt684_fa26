@@ -31,6 +31,41 @@ function arcPath(from: number, to: number) {
     .join('');
 }
 
+/** The same sun arc the Leva clock uses, drawn for the island settings panel. */
+export function HourArc({ hour, onChange, label }: { hour: number; onChange: (hour: number) => void; label: string }) {
+  const svg = useRef<SVGSVGElement>(null);
+  const drag = (e: PointerEvent<SVGSVGElement>) => {
+    if (e.type === 'pointermove' && !(e.buttons & 1)) return;
+    if (e.type === 'pointerdown') e.currentTarget.setPointerCapture(e.pointerId);
+    const box = svg.current!.getBoundingClientRect();
+    const px = ((e.clientX - box.left) / box.width) * W;
+    const py = ((e.clientY - box.top) / box.height) * H;
+    const angle = Math.atan2((CY - py) / RY, (CX - px) / RX);
+    onChange(Math.round(wrap(6 + (angle * 12) / Math.PI) * 4) / 4);
+  };
+  const [sx, sy] = pointOf(hour);
+  const minutes = Math.round((hour % 1) * 60).toString().padStart(2, '0');
+  return (
+    <div className="exhibit-hour">
+      <span>{label}</span>
+      <svg ref={svg} viewBox={`0 0 ${W} ${H}`} width="100%" style={{ touchAction: 'none', cursor: 'grab' }}
+        onPointerDown={drag} onPointerMove={drag}>
+        <line x1={0} x2={W} y1={CY} y2={CY} stroke="var(--jade-line)" />
+        <path d={arcPath(6, 18)} fill="none" stroke="var(--jade-inkDim)" />
+        <path d={arcPath(18, 30)} fill="none" stroke="var(--jade-line)" strokeDasharray="3 4" />
+        {[0, 6, 12, 18].map((h) => {
+          const [x, y] = pointOf(h);
+          return <circle key={h} cx={x} cy={y} r={2} fill="var(--jade-inkDim)" />;
+        })}
+        <text x={CX} y={CY - 8} textAnchor="middle" fill="var(--jade-ink)" fontSize={12}>
+          {`${Math.floor(hour)}:${minutes}`}
+        </text>
+        <circle cx={sx} cy={sy} r={7} fill={hour >= 6 && hour <= 18 ? 'var(--jade-jadeDeep)' : 'var(--jade-paper)'} stroke="var(--jade-jadeDeep)" />
+      </svg>
+    </div>
+  );
+}
+
 function SunArc() {
   const { label, value, onUpdate, settings } = useInputContext<{ value: number; settings: SunArcSettings; onUpdate: (v: number) => void }>();
   const svg = useRef<SVGSVGElement>(null);

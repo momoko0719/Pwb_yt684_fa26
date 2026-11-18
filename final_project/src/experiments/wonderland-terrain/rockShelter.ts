@@ -1,5 +1,6 @@
 import { BufferGeometry, Float32BufferAttribute } from 'three';
 import { ROUTE_CLEAR, type Dwelling, type Spot } from './dwelling';
+import { shellAudit, shellFootCircles, type ShellParams } from './rockShell';
 
 /**
  * A semi-open shelter for a home that is already chosen. The habitable volume is the same set of
@@ -49,6 +50,8 @@ export interface ShelterPlan {
   mirror: boolean;
   /** World seed and home index. The slab's outline uses this; coordinates are not hand-set. */
   formSeed: number;
+  /** The den's knobs when they were saved in the atlas (else its birth ones, from formSeed). */
+  shell?: ShellParams;
   /** Pines, trees, shore stones, and the wall circles. */
   obstacles: ShelterCircle[];
   /** Wall circles only, already in world space. */
@@ -70,7 +73,8 @@ export interface ShelterPlan {
 }
 
 /** The air the body uses. The slab must not place a vertex in here. */
-const CAVITY = { x0: -1.55, x1: 0.48, z0: -0.95, z1: 1.05, y0: 0.4, y1: 2.36 };
+export const SHELTER_CAVITY = { x0: -1.55, x1: 0.48, z0: -0.95, z1: 1.05, y0: 0.4, y1: 2.36 };
+const CAVITY = SHELTER_CAVITY;
 /** The white-box roof footprint. The slab's underside has to keep covering it, at the same height. */
 const ROOF_RECT = { x0: -2.9, x1: 0.58, z0: -0.2, z1: 2.42 };
 
@@ -308,13 +312,18 @@ function loft(slab: Slab, profiles: Corner[][], inside: [number, number, number]
 }
 
 function addRoof(slab: Slab, phase: number, outline: Poly, tris: number[]) {
-  const top: number[] = [], bot: number[] = [];
+  const top: number[] = [], inner: number[] = [], bot: number[] = [];
+  const cx = -1.22, cz = 0.48;
   for (let i = 0; i < outline.length; i++) {
     const [x, z] = outline[i];
     // Top and underside share the plan. Pulling only the top vertex folded the rim into a fin.
     top.push(slab.v(x, roofCrown(x, z, phase), z, 0.96));
+    const ix = cx + (x - cx) * 0.55;
+    const iz = cz + (z - cz) * 0.55;
+    inner.push(slab.v(ix, roofCrown(ix, iz, phase) + 0.13, iz, 0.98));
     bot.push(slab.v(x, ROOF_UNDER, z, 0.40));
   }
+  const crest = slab.v(cx, roofCrown(cx, cz, phase) + 0.20, cz, 1);
   const ny = (() => {
     const a = top[tris[0]], b = top[tris[1]], c = top[tris[2]];
     const bz = slab.z(b) - slab.z(a);
@@ -323,10 +332,22 @@ function addRoof(slab: Slab, phase: number, outline: Poly, tris: number[]) {
     return bz * cx - bx * cz;
   })();
   const flip = ny < 0;
+  for (let i = 0; i < outline.length; i++) {
+    const j = (i + 1) % outline.length;
+    if (flip) {
+      slab.tri(top[i], inner[j], top[j]);
+      slab.tri(top[i], inner[i], inner[j]);
+      slab.tri(inner[i], crest, inner[j]);
+    } else {
+      slab.tri(top[i], top[j], inner[j]);
+      slab.tri(top[i], inner[j], inner[i]);
+      slab.tri(inner[i], inner[j], crest);
+    }
+  }
   for (let t = 0; t < tris.length; t += 3) {
     const a = tris[t], b = tris[t + 1], c = tris[t + 2];
-    if (flip) { slab.tri(top[a], top[c], top[b]); slab.tri(bot[a], bot[b], bot[c]); }
-    else { slab.tri(top[a], top[b], top[c]); slab.tri(bot[a], bot[c], bot[b]); }
+    if (flip) slab.tri(bot[a], bot[b], bot[c]);
+    else slab.tri(bot[a], bot[c], bot[b]);
   }
   const inside: [number, number, number] = [-0.6, 2.6, 0.8];
   for (let i = 0; i < outline.length; i++) {
@@ -706,6 +727,8 @@ export function placeShelter(input: {
   obstacles: ShelterCircle[];
   /** World seed. The slab's breaks come from this and the home index, not from a hand-placed coordinate. */
   seed: number;
+  /** The den's saved knobs (the atlas's "save to this den"); else its birth ones. */
+  shell?: ShellParams;
 }): { plan: ShelterPlan | null; skip: string | null } {
   const fault = shelterFormFault();
   if (fault) return { plan: null, skip: `form: ${fault}` };
@@ -760,7 +783,8 @@ export function placeShelter(input: {
     const mouth: Spot = { x: mx, z: mz, facing: yaw };
     const facing = yaw + (mirror ? FACING_BIAS : -FACING_BIAS);
     const bed: Spot = { x: bedX, z: bedZ, facing };
-    const localCircles = circlesOf(LOCAL_SOLIDS);
+    // The old walls' circles (all inside the boulder's rock) and a ring round the boulder's foot.
+    const localCircles = [...circlesOf(LOCAL_SOLIDS), ...shellFootCircles(input.seed * 17 + dwelling.home, input.shell)];
     const walls: ShelterCircle[] = localCircles.map((c) => {
       const [x, z] = toWorld(bedX, bedZ, yaw, c.lx, c.lz, mirror);
       return { x, z, r: c.r };
@@ -818,6 +842,7 @@ export function placeShelter(input: {
       cutView: { from: eye(-0.2, 5.6, 2.3), to: look(0.1, 0.4, 1.15) },
       triangles,
       formSeed: input.seed * 17 + dwelling.home,
+      shell: input.shell,
     };
   };
 
@@ -832,7 +857,8 @@ export function placeShelter(input: {
     }
   }
   if (!best) return { plan: null, skip };
-  const audit = shelterMeshAudit(best.plan.formSeed);
+  // The drawn form is the one-rock den (rockShell.ts); its own audit: no rock in the air the body uses.
+  const audit = shellAudit(best.plan.formSeed, false, input.shell);
   if (audit.fault) return { plan: null, skip: audit.fault };
   best.plan.triangles = audit.triangles;
   best.plan.exterior = audit.exterior;

@@ -1,9 +1,10 @@
 import {
   Box3, Color, DataTexture, FloatType, Frustum, Group, InstancedBufferAttribute, InstancedBufferGeometry, LinearFilter, Matrix4, Mesh, NearestFilter,
-  PlaneGeometry, RGBAFormat, ShaderMaterial, UnsignedByteType, Vector3, Vector4, type Camera, type Texture,
+  PlaneGeometry, RGBAFormat, ShaderMaterial, UnsignedByteType, Vector2, Vector3, Vector4, type Camera, type Texture,
 } from 'three';
 import { PORCELAIN, WEAR_DEBUG, ZONE_DEBUG } from '../palette';
 import { PORCELAIN_GLSL, porcelainUniforms } from '../shaders/porcelain';
+import { JADE_REVEAL_GLSL } from '../shaders/jadeReveal';
 import type { WorldUniforms } from '../shaders/uniforms';
 import type { HeightGrid } from './heightGrid';
 import { RIM_JOIN } from './rimJoin';
@@ -74,6 +75,8 @@ void main() {
 
 const fragmentShader = /* glsl */ `
 ${PORCELAIN_GLSL}
+uniform float uTime;
+${JADE_REVEAL_GLSL}
 uniform sampler2D uHeight;
 uniform sampler2D uLight;
 uniform sampler2D uFolds; // R mountain, G fold 6/18 m, B fine, A cross-slope wide hollow
@@ -108,6 +111,7 @@ uniform float uSurfaceOn; // 1 when uSurface is bound
 uniform vec3 uWetStone, uLitter, uTerraceSeat, uCliffFace, uRockFace;
 uniform sampler2D uCover;
 uniform vec4 uCoverRect; // cover density map: x0, z0, size; on (1) or not
+uniform vec4 uGrazing; // one dynamic grazing patch: x, z, radius, biomass
 uniform vec3 uCoverTint;
 uniform vec3 uCoverSoil;
 uniform float uCoverDebug; // 1 = grass density heatmap from the same uCover soft-density data
@@ -298,6 +302,10 @@ void main() {
     vec2 bend = 3.0 * vec2(gnoise(vWorld.xz * 0.045 + 7.0), gnoise(vWorld.xz * 0.045 - 3.0));
     vec2 cuv = (vWorld.xz + bend - uCoverRect.xy) / uCoverRect.z;
     float cover = texture(uCover, cuv).r;
+    if (uGrazing.z > 0.0) {
+      float bite = 1.0 - smoothstep(uGrazing.z * 0.55, uGrazing.z, distance(vWorld.xz, uGrazing.xy));
+      cover *= 1.0 - bite * (1.0 - uGrazing.w);
+    }
     float trample = wear.r; // walk channel alone
     // Only on the wet shore (the owner: elsewhere the stone stays white under its few blades).
     float grass = cover * (1.0 - smoothstep(0.08, 0.55, trample)) * (1.0 - bare) * shoreW;
@@ -396,6 +404,13 @@ void main() {
   float far = smoothstep(WATER_NEAR, WATER_FAR, length(cameraPosition - vWorld));
   float wetPaint = smoothstep(0.08, 0.55, light.b);
   color = mix(color, uWater * mix(0.8, 1.0, light.g), wetPaint * far);
+  // Two-site study: on the downstream bend, the real water mask selects the
+  // shore where slow exposure can reveal a few broken veins beneath stone.
+  float bankContact = (uBankOn > 0.5 && uZoneRect.w > 0.5)
+    ? texture(uBank, (vWorld.xz - uZoneRect.xy) / uZoneRect.z).r : 0.0;
+  float flowingBank = smoothstep(0.12, 0.48, bankContact) * (1.0 - smoothstep(0.12, 0.48, light.b));
+  float exposed = jadeVein(vWorld.xz, uJadeBend, 10.0) * flowingBank;
+  color = mix(color, vec3(0.36, 0.61, 0.53), exposed * 0.55);
   // Albedo multiply: the porcelain light stays, the stone only shifts toward a light grey-olive.
   // No smoothstep, no 0.7 floor, no extra darken. Wide hollow and gate are not in tintW.
   if (uFoldMix > 0.0 && uFoldView < 0.5) {
@@ -421,6 +436,10 @@ export function createTerrainMaterial(uniforms: WorldUniforms, wireframe = false
   return new ShaderMaterial({
     uniforms: {
       ...porcelainUniforms(uniforms),
+      uTime: uniforms.uTime,
+      uJadePool: { value: new Vector2() },
+      uJadeBend: { value: new Vector2() },
+      uJadeReveal: { value: 0 },
       uSkyTop: uniforms.uSkyTop, uSkyMid: uniforms.uSkyMid, uSkyHorizon: uniforms.uSkyHorizon,
       uHeight: { value: null },
       uLight: { value: null },
@@ -461,6 +480,7 @@ export function createTerrainMaterial(uniforms: WorldUniforms, wireframe = false
       uRockFace: { value: new Color(PORCELAIN.rockFace) },
       uCover: { value: null as Texture | null },
       uCoverRect: { value: new Vector4(0, 0, 1, 0) },
+      uGrazing: { value: new Vector4(0, 0, 0, 1) },
       uCoverTint: { value: new Color(PORCELAIN.cover) },
       uCoverSoil: { value: new Color(PORCELAIN.coverSoil) },
       uCoverDebug: { value: 0 },

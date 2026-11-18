@@ -1,24 +1,20 @@
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
 import { experiments, externalEntries, type ExperimentMeta } from '../experiments/registry';
+import { WORLD_ID } from './World';
 
 const BASE = import.meta.env.BASE_URL;
 const CLAY_STUDIO = 'https://pwb-class04-clay.web.app';
 
-/** The atlas as a research notebook: one world study on top, then every class technique in course order. */
+/** The atlas: every class technique in course order, then the earlier world studies (Penglai). The island itself is the World page. */
 export default function Atlas() {
   const { t } = useLanguage();
-  const studies = experiments.filter((e) => e.meta.kind === 'world-study');
+  const studies = experiments.filter((e) => e.meta.kind === 'world-study' && e.meta.id !== WORLD_ID);
   return (
     <section className="atlas">
       <div className="atlas-inner">
         <h1>{t('atlas.title')}</h1>
         <p className="atlas-intro">{t('atlas.intro')}</p>
-
-        <h2>{t('atlas.worldStudies')}</h2>
-        {studies.map(({ meta }) => (
-          <AtlasCard key={meta.id} meta={meta} wide />
-        ))}
 
         <h2>{t('atlas.techniques')}</h2>
         <div className="atlas-grid">
@@ -26,6 +22,15 @@ export default function Atlas() {
             <AtlasCard key={e.id} meta={e} />
           ))}
         </div>
+
+        {studies.length > 0 && <>
+          <h2>{t('atlas.worldStudies')}</h2>
+          <div className="atlas-grid">
+            {studies.map(({ meta }) => (
+              <AtlasCard key={meta.id} meta={meta} />
+            ))}
+          </div>
+        </>}
 
         <p className="atlas-footer">
           {t('atlas.footer')} <a href={CLAY_STUDIO} target="_blank" rel="noreferrer">Clay Studio ↗</a>

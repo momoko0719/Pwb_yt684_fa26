@@ -1,11 +1,8 @@
-import { useLanguage } from '../i18n/LanguageContext';
+import ExperimentPage from './ExperimentPage';
+
+/** The World page is White Jade Island itself (it used to live at #/atlas/wonderland-terrain). */
+export const WORLD_ID = 'wonderland-terrain';
 
 export default function World() {
-  const { t } = useLanguage();
-  return (
-    <section className="page">
-      <h1>{t('world.title')}</h1>
-      <p className="dim">{t('world.placeholder')}</p>
-    </section>
-  );
+  return <ExperimentPage id={WORLD_ID} />;
 }

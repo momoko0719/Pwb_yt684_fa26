@@ -22,6 +22,15 @@ Demo seed for Wonderland: **684** (Island → seed). Layout lives under **高级
 Advanced generation** (collapsed). Variation default is **1** (seeded); set variation to **0**
 only to match the agreed blockout proportions exactly.
 
+## Page chrome (2026-11-07)
+
+The island opens without the parameter panel. A short camera list sits on the left (overview,
+mountains, water, life, jade). Those are cameras, not the clock. The gear at the top right is
+settings: time scale, and "all parameters" for the full panel. "Simple view" or the backtick key
+closes the panel. Creature debug stays off during the walkthrough unless you are showing the
+joints or the contact. Turn groups on from the gear. The record is
+`creature-debug-round-2026-11-07.md`.
+
 ## Suggested flow (Wonderland)
 
 1. **Overview** — default camera (~600 m). Show the ring of peaks, terrace stair, falls, fan of
@@ -112,3 +121,15 @@ Locate for live instance. No-preview cards hide rotate / resample / person.
 It rests at a fixed home (A/B/C), walks a dry path to a shore stand, drinks with muzzle on real
 water, then returns to within ~0.7 m of the same home and lies down again. Jade builds where feet
 and body actually touch. Homes do not jump when a path fails.
+
+## Equilinox precedent (2026-11-14)
+
+Credit **Equilinox / ThinMatrix** with a slide showing an official species selection screenshot
+beside our living creature card. The transferable mechanic is: select a living organism → inspect
+its habitat and needs → adjust a trait → see the resulting form or ecological consequence.
+Sources: https://www.equilinox.com/about/ ;
+https://www.indiedb.com/games/equilinox/news/ui-improvements1 ;
+https://store.steampowered.com/app/853550/Equilinox/ .
+Do not claim our current atlas sliders modify the island beast: body-depth editing is preview-only.
+The two water-reveals-jade sites are a visual pilot, not a complete editable ecology loop.
+See `equilinox-precedent-and-jade-pass-2026-11-14.md` for source observations, captures, and gaps.

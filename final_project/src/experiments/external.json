@@ -35,8 +35,8 @@
       "zh": "密度场能装下高度图装不下的东西：山洞、拱门、悬崖下的空洞。"
     },
     "guixu": {
-      "en": "The next step for Guixu's terrain: islands with caves, arches and grotto-heavens hidden inside the mountains.",
-      "zh": "归墟地形的下一步：有山洞、拱门、山里藏着洞天的浮岛。"
+      "en": "A next step for the island's terrain: caves, arches and grotto-heavens hidden inside the mountains.",
+      "zh": "岛屿地形的下一步：山洞、拱门、山里藏着的洞天。"
     },
     "image": "atlas-img/class04-grotto-heaven.jpg",
     "url": "atlas/class04/index.html"
@@ -50,7 +50,7 @@
     "techniques": ["Fresnel", "thin-film iridescence", "backlight", "vertex waves"],
     "date": "2026-09-23",
     "status": "done",
-    "summary": { "en": "Three Guixu materials, one shader each.", "zh": "归墟的三种材质，每种一段 shader。" },
+    "summary": { "en": "Three materials for the islands, one shader each.", "zh": "岛上的三种材质，每种一段 shader。" },
     "learned": {
       "en": "Most of a material is one 0..1 mask computed from the surface and the view: Fresnel, viewing angle, wave height.",
       "zh": "材质的关键往往只是一个 0 到 1 的遮罩，由表面和视线算出来：Fresnel、视角、浪高。"

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Color, Group, InstancedMesh, Matrix4, Quaternion, Vector3, type BufferGeometry, type ShaderMaterial } from 'three';
 import { PORCELAIN } from '../../core/palette';
 import { createPineMaterial } from '../../core/shaders/pine';
 import type { WorldUniforms } from '../../core/shaders/uniforms';
 import { SHRUB_LOD, SHRUB_VARIANTS, type Shrub, type ShrubTone } from './shrubs';
 import { makeShrubLods, shrubLeafMetrics } from './shrubLSystem';
+import { setWorldPointer } from './worldPointer';
 
 const UP = new Vector3(0, 1, 0);
 const REBUCKET = 0.2;
@@ -30,7 +31,7 @@ function applyTone(mat: ShaderMaterial, tone: ShrubTone) {
  * Instanced shrubs: L-system branch mesh (pine turtle/tube/aTone pattern) with distance LOD.
  * One material recipe (createPineMaterial + rimLight); colours set per tone bucket.
  */
-export function ShrubPatches({ plants, uniforms }: { plants: Shrub[]; uniforms: WorldUniforms }) {
+export function ShrubPatches({ plants, uniforms, onPick }: { plants: Shrub[]; uniforms: WorldUniforms; onPick?: () => void }) {
   const shapes = useMemo(() => Array.from({ length: SHRUB_VARIANTS }, (_, v) => makeShrubLods(v)), []);
   useEffect(() => () => {
     for (const s of shapes) { s.near.dispose(); s.mid.dispose(); s.far.dispose(); }
@@ -65,21 +66,21 @@ export function ShrubPatches({ plants, uniforms }: { plants: Shrub[]; uniforms: 
   const group = useMemo(() => {
     const root = new Group();
     const n = Math.max(plants.length, 1);
-    const make = (g: BufferGeometry, mat: ShaderMaterial) => {
+    const make = (g: BufferGeometry, mat: ShaderMaterial, pickable = false) => {
       const mesh = new InstancedMesh(g, mat, n);
       mesh.frustumCulled = false;
       mesh.count = 0;
-      mesh.raycast = () => {};
+      if (!pickable) mesh.raycast = () => {};
       mesh.userData.orbitIgnore = true;
       return mesh;
     };
     // Buckets: [lod 0|1|2][variant][tone]
-    const near = shapes.map((s) => materials.map((mat) => make(s.near, mat)));
-    const mid = shapes.map((s) => materials.map((mat) => make(s.mid, mat)));
-    const far = shapes.map((s) => materials.map((mat) => make(s.far, mat)));
+    const near = shapes.map((s) => materials.map((mat) => make(s.near, mat, Boolean(onPick))));
+    const mid = shapes.map((s) => materials.map((mat) => make(s.mid, mat, Boolean(onPick))));
+    const far = shapes.map((s) => materials.map((mat) => make(s.far, mat, Boolean(onPick))));
     for (const band of [near, mid, far]) for (const byTone of band) root.add(...byTone);
     return { root, near, mid, far };
-  }, [plants.length, shapes, materials]);
+  }, [plants.length, shapes, materials, Boolean(onPick)]);
 
   useEffect(() => () => {
     for (const band of [group.near, group.mid, group.far]) {
@@ -123,11 +124,15 @@ export function ShrubPatches({ plants, uniforms }: { plants: Shrub[]; uniforms: 
       meshes.forEach((byTone, v) => byTone.forEach((mesh, t) => {
         mesh.count = counts[b][v][t];
         mesh.instanceMatrix.needsUpdate = true;
+        if (onPick) mesh.boundingSphere = null;
       }));
     }
   });
 
-  return <primitive object={group.root} />;
+  return <primitive object={group.root}
+    onPointerOver={onPick ? (e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); setWorldPointer('resource'); } : undefined}
+    onPointerOut={onPick ? () => setWorldPointer(null) : undefined}
+    onClick={onPick ? (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onPick(); } : undefined} />;
 }
 
 export function makeShrubPreviewGeometry(variant = 0, tone: ShrubTone = 0): {

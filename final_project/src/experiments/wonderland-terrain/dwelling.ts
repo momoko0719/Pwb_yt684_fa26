@@ -1,6 +1,7 @@
 import { createNoise2D, type Noise2D } from '../../core/noise';
 import { createRng, type Rng } from '../../core/rng';
 import { sampleGrid, type HeightGrid } from '../../core/terrain/heightGrid';
+import { birthAxes, resolveMorph, type MorphAxes } from './creatureMorph';
 import type { Water } from './water';
 import type { Zones } from './zones';
 
@@ -75,7 +76,8 @@ export interface Sites {
   region: { x0: number; z0: number; size: number };
 }
 
-export type Activity = 'rest' | 'walk' | 'drink';
+export type Activity = 'rest' | 'walk' | 'drink' | 'eat';
+export interface GrazingPatch { x: number; z: number; radius: number; biomass: number; version: number; stand: Spot }
 export type Point = [number, number, number];
 export interface Pose {
   /** The body's middle on the ground: x, ground height, z. */
@@ -95,6 +97,7 @@ export interface Pose {
   lying: number;
   /** 0 head up to 1 head down at the water. */
   drinking: number;
+  eating: number;
   /** Its hips and its feet (world), front left, front right, hind left, hind right; and its muzzle. */
   hips: Point[];
   feet: Point[];
@@ -107,21 +110,62 @@ export interface Pose {
  * The body, metres, facing +x (left is +z): the blockout's creature, 1.6 m long and 1.4 m high.
  * The figure (creature.tsx) is drawn from these numbers.
  */
+/**
+ * The neck and head as sculpted (creatureMorph.ts: the island's creature, seed 11), in the body's
+ * metres: the neck's root (along, above the torso's middle), its length and angle standing, the
+ * face's length and slope. The sim's numbers come from here, so what it reaches is what is drawn.
+ * (They were set apart: the sim's shoulder 0.33 m below the sculpt's and its neck 0.27 m longer, and
+ * the drawing stretched the neck to make up the difference.)
+ */
+/**
+ * A creature's head and neck, from its form (creatureMorph.ts axes): where the neck leaves the body,
+ * the head's base along it, the face ahead of that and its slope. The torso and hips are the same for
+ * every creature (scaled to a 0.92 m stand), so feet, lying and the den fit all; the head and neck
+ * follow the form, so the muzzle the sim drinks with is the one drawn.
+ */
+export interface HeadNeck {
+  shoulder: [number, number];
+  head: { at: number; front: number; level: number; offset: number };
+  neckUp: number;
+  neckLying: number;
+}
+export function headNeckOf(axes: MorphAxes): HeadNeck {
+  const r = resolveMorph({ worldSeed: 684, creatureSeed: 11, axes });
+  const k = 0.92 / r.morph.torso.stand, root = r.figure.neck[0].at, head = r.figure.head[0].at, mouth = r.figure.head[r.figure.head.length - 1].at;
+  const at = Math.hypot(head.x - root.x, head.y - root.y) * k, up = Math.atan2(head.y - root.y, head.x - root.x);
+  const front = Math.hypot(mouth.x - head.x, mouth.y - head.y) * k, face = Math.atan2(mouth.y - head.y, mouth.x - head.x);
+  // The face's slope as the neck bows: as sculpted standing; steep (−1.25) with the neck bowed to −1
+  // to drink, as a grazing animal's (at −1.45 the chin tucked back).
+  const slope = (face + 1.25) / (up + 1);
+  return {
+    shoulder: [root.x * k, (root.y - r.morph.torso.stand) * k],
+    head: { at, front, level: 1 - slope, offset: face - slope * up },
+    neckUp: up,
+    // Lying, a little more upright, the head held up (a resting deer's; lower, it stretched forward like a goose's).
+    neckLying: up + 0.2,
+  };
+}
+/** The sculpt every creature had before forms varied (seed 11's birth form): BODY's head and neck. */
+const SCULPT_FORM = headNeckOf(birthAxes(11));
+
 export const BODY = {
   torso: { stand: 0.92, lie: 0.36, along: 0.62, up: 0.32, across: 0.27 }, // its middle's height standing, lying; its half-sizes
   hips: [[0.42, 0.17], [0.42, -0.17], [-0.42, 0.17], [-0.42, -0.17]] as [number, number][], // along, across
   hipDrop: 0.08, // hips below the torso's middle
-  shoulder: [0.5, 0.13] as [number, number], // the neck's root: along, above the torso's middle
-  head: { at: 0.85, front: 0.2, level: 0.55 }, // the head's middle along the neck; its front ahead of that; how much it is turned back toward level
-  neckUp: 0.75, // radians, the neck's angle standing
-  neckLying: 0.25,
-  // Drinking (as a deer does): the torso lowered and tipped forward, the forefeet set out ahead
-  // (the legs keep their length, the stance widens), the hind feet a little back.
+  // The default head and neck (each creature's own: Dwelling.form, from headNeckOf).
+  shoulder: SCULPT_FORM.shoulder, // the neck's root: along, above the torso's middle
+  // The head's base along the neck; the face ahead of that; the face's angle = neck × (1 − level) + offset.
+  head: SCULPT_FORM.head,
+  neckUp: SCULPT_FORM.neckUp, // radians, the neck's angle standing
+  neckLying: SCULPT_FORM.neckLying,
+  // A grazing horse keeps its trunk and forelegs nearly upright; the cervical
+  // chain supplies most of the reach. Deep torso lowering made the foreknees
+  // buckle into a pair of false shoulder humps.
   drinkLower: 0.2, // metres
   drinkTip: 0.2, // radians
-  drinkSplay: [0.3, -0.1] as [number, number], // metres the fore, hind feet move along, at full drink
-  foldAlong: 0.55, // lying, the feet folded in under the body (fractions of the hips' offsets)
-  foldAcross: 0.7,
+  drinkSplay: [0.3, -0.1] as [number, number], // metres; the shore solver requires this reach
+  foldAlong: 1.10, // folded feet stay under their own shoulders and haunches
+  foldAcross: 1.55, // open the lying stance enough to read each limb beside the belly
 };
 export const CREATURE = {
   speed: 1.1, // m/s walking
@@ -147,6 +191,26 @@ const WEAR = {
   rest: { along: REST_MARK.along, across: REST_MARK.across, rate: 0.006 },
 };
 const TIMES = { rest: [50, 90], drink: [15, 26] }; // seconds, each between the two
+/** Simulated need units, 0 depleted to 1 full. Thresholds determine the next destination. */
+/** Seconds from a need passing its mark to getting up from rest. */
+const WAKE_S = 1.5;
+/**
+ * Choosing where to go, as The Sims' utility AI: each place advertises the need it meets; a creature
+ * scores it by how urgent that need is less its distance (weighed by how much of a homebody it is),
+ * and takes the best, or one within `tie` of it at random. `follow`: a creature at rest gets up to go
+ * with a companion who sets out for water or grass when its own need is within this of its mark
+ * (more for a bold one).
+ */
+const CHOICE = { distance: 0.004, tie: 0.04, follow: 0.12 };
+
+export const NEEDS = {
+  initial: { hunger: 0.69, thirst: 0.62, energy: 0.75 },
+  drain: { hunger: 0.0017, thirst: 0.002, energyWalk: 0.0013 },
+  recover: { food: 0.028, water: 0.045, rest: 0.008 },
+  seek: { hunger: 0.52, thirst: 0.5, energy: 0.35 },
+  grazing: { minBiomass: 0.15, consume: 0.05, floor: 0.08, regrowSeconds: 160 },
+} as const;
+export interface CreatureNeeds { hunger: number; thirst: number; energy: number }
 /**
  * Homes: near/far from the drink stand; shore stands where toWater is in [shoreLo, shoreHi].
  * `wade` is not a permission to enter water: all planted feet must stay dry (depth ≤ 0). The old
@@ -196,7 +260,7 @@ export function walkable(world: DwellWorld, x: number, z: number): boolean {
  * (from the ground under its front and hind hips; forward to drink), its torso's height, its
  * shoulder (where the neck starts).
  */
-function bodyOn(groundAt: (x: number, z: number) => number, x: number, z: number, heading: number, lying: number, drinking: number) {
+function bodyOn(groundAt: (x: number, z: number) => number, x: number, z: number, heading: number, lying: number, drinking: number, shoulderAt: [number, number] = BODY.shoulder) {
   const c = Math.cos(heading), s = Math.sin(heading), along = BODY.hips[0][0];
   const y = groundAt(x, z);
   const ground = Math.atan2(groundAt(x + c * along, z + s * along) - groundAt(x - c * along, z - s * along), 2 * along);
@@ -210,12 +274,12 @@ function bodyOn(groundAt: (x: number, z: number) => number, x: number, z: number
   // Its lean across (from the ground under its left and right hips): the hips follow it.
   const across = BODY.hips[0][1];
   const roll = Math.atan2(groundAt(x - s * across, z + c * across) - groundAt(x + s * across, z - c * across), 2 * across) * (1 - lying);
-  return { y, pitch, roll, torso, of, shoulder: of(...BODY.shoulder) };
+  return { y, pitch, roll, torso, of, shoulder: of(...shoulderAt) };
 }
 
 /** The muzzle from the shoulder, the neck at angle `neck` from level: [ahead, up] (the head turned back toward level as drawn). */
-export function muzzleFrom(neck: number): [number, number] {
-  const { at, front, level } = BODY.head, head = neck * (1 - level);
+export function muzzleFrom(neck: number, form: HeadNeck = BODY): [number, number] {
+  const { at, front, level, offset } = form.head, head = neck * (1 - level) + offset;
   return [at * Math.cos(neck) + front * Math.cos(head), at * Math.sin(neck) + front * Math.sin(head)];
 }
 
@@ -545,7 +609,42 @@ function resampled(points: [number, number][], step: number): [number, number][]
   return out;
 }
 
+/** Seeded per creature (docs/plan-2026-11-18-school-herd.md): the same rules, a different day. */
+export interface Traits {
+  /** 0 a homebody (distance weighs heavily) to 1 a wanderer. */
+  roam: number;
+  /** 0 shy (follows only when the need is close to its mark) to 1 bold (follows readily). */
+  bold: number;
+}
+
+/** A second or third creature on the same island: its own id, home and rhythm, the shared ground. */
+export interface DwellingOptions {
+  /** 0 for the first (the default: everything as it was), 1, 2 … for the others. */
+  id?: number;
+  /** The sites already found for the first (the same island: no need to search again). */
+  sites?: Sites;
+  /** The first's contact map: every creature's steps turn the same stone to jade. */
+  map?: ContactMap;
+  /** Which of the sites' homes is its own. */
+  home?: number;
+  /** Whether this one regrows the grazing it shares (only one should). Default true. */
+  regrow?: boolean;
+  /** Its form (head and neck from it); default the one sculpt. */
+  axes?: MorphAxes;
+}
+
 export interface Dwelling {
+  /** 0 the first creature, 1 the second … */
+  id: number;
+  traits: Traits;
+  /** The others on the island (for following and for sharing the drinking stands). */
+  companions: Dwelling[];
+  /** Its head and neck (from its form). */
+  form: HeadNeck;
+  /** Standing aside on its way for a companion to pass (the other then walks round it). */
+  yielding: boolean;
+  /** A new form (the atlas's "save to this creature"): its head and neck from now on, no restart. */
+  setForm: (axes: MorphAxes) => void;
   sites: Sites;
   map: ContactMap;
   pose: Pose;
@@ -554,6 +653,7 @@ export interface Dwelling {
   /** Seconds simulated, and rest–drink–return cycles completed. */
   time: number;
   cycles: number;
+  needs: CreatureNeeds;
   /** The way it is walking now (for the debug view). */
   way: [number, number][] | null;
   /** Where it drinks this time (for the checks: its muzzle meets this stand's water). */
@@ -578,39 +678,79 @@ export interface Dwelling {
    */
   restPlace: RestPlace | null;
   setRestPlace: (p: RestPlace | null) => void;
+  grazing: GrazingPatch | null;
+  setGrazing: (p: GrazingPatch | null) => void;
   /** Walk to the lie or to the drink. The same leave a day uses; it does not wait out the stay. */
   headFor: (where: 'rest' | 'drink') => void;
   step: (dt: number) => void;
   reset: () => void;
+  /**
+   * What the step is already doing, copied out for the debug layer. Not an input:
+   * changing it does not move the creature.
+   */
+  intent: Intent;
+}
+
+/** The current trip, in the same numbers `step` uses. Metres and metres per simulated second. */
+export interface Intent {
+  /** While walking, where the route is going. While staying, drink or rest. */
+  kind: 'drink' | 'rest' | 'eat';
+  x: number;
+  z: number;
+  /** Body movement over the last substep. Zero when it is standing still. */
+  vx: number;
+  vz: number;
 }
 
 /** A creature at home, the ground untouched; null if no shore or home could be found. */
-export function createDwelling(world: DwellWorld): Dwelling | null {
-  const sites = findSites(world);
+export function createDwelling(world: DwellWorld, opts: DwellingOptions = {}): Dwelling | null {
+  const sites = opts.sites ?? findSites(world);
   if (!sites) return null;
-  const map = createContactMap(world, sites.region);
+  const id = opts.id ?? 0;
+  const ownsMap = !opts.map;
+  const map = opts.map ?? createContactMap(world, sites.region);
+  const rngSeed = world.seed + 911 + id * 7919;
+  const traitRng = createRng(world.seed * 13 + id * 101 + 5);
+  const traits: Traits = { roam: traitRng(), bold: traitRng() };
   const groundAt = (x: number, z: number) => sampleGrid(world.grid, x, z);
-  let rng: Rng = createRng(world.seed + 911);
+  let rng: Rng = createRng(rngSeed);
+  // Set while resting when a companion sets out and it means to go too.
+  let follow: 'drink' | 'eat' | null = null;
+  // Giving way on a walk: re-planned round a companion standing in it (once a trip); seconds waited for one walking.
+  let detoured = false, waited = 0;
+  // The patch it is eating from this time: its own, or a companion's it went with.
+  let meal: GrazingPatch | null = null;
   // The current leg: where it goes, its way and arc lengths, how far along; how long it stays.
-  let way: [number, number][] = [], lengths: number[] = [], along = 0, stay = 0, trip = 0, next: 'drink' | 'rest' = 'drink';
+  let way: [number, number][] = [], lengths: number[] = [], along = 0, stay = 0, trip = 0, next: 'drink' | 'rest' | 'eat' = 'drink';
   let goal: Spot = sites.homes[0], spot: Spot = sites.homes[0], set = false;
   let restPlace: RestPlace | null = null;
   // The feet: where each stands (or is in the air: from, to, how far through its swing).
   const feet = BODY.hips.map(() => ({ at: [0, 0, 0] as Point, from: [0, 0, 0] as Point, to: [0, 0, 0] as Point, t: 1 }));
   let lastPair = 1, vx = 0, vz = 0;
+  const intent: Intent = { kind: 'rest', x: 0, z: 0, vx: 0, vz: 0 };
+  const publishIntent = (movingTo: 'drink' | 'rest' | 'eat' | null, at: Spot) => {
+    intent.kind = movingTo ?? (d.pose.activity === 'drink' ? 'drink' : d.pose.activity === 'eat' ? 'eat' : 'rest');
+    intent.x = at.x;
+    intent.z = at.z;
+    intent.vx = vx;
+    intent.vz = vz;
+  };
   const d: Dwelling = {
-    sites, map, home: 0, time: 0, cycles: 0, way: null, stand: null, groundAt,
+    id, traits, companions: [], form: opts.axes ? headNeckOf(opts.axes) : BODY, yielding: false, setForm: () => {}, sites, map, home: Math.min(opts.home ?? 0, sites.homes.length - 1), time: 0, cycles: 0, needs: { ...NEEDS.initial }, way: null, stand: null, groundAt,
     open: (x, z) => world.terrace(x, z) > 8 && sampleGrid(world.grid, x, z, 3) < -5,
     dry: (x, z) => walkable(world, x, z),
     setObstacles: (o) => { world.obstacles = o; },
     wayBetween: (from, to) => route(world, map, sites.region, from, to, createNoise2D(world.seed * 31 + 1)),
     restPlace: null,
     setRestPlace: (p) => { restPlace = p; d.restPlace = p; },
+    grazing: null,
+    setGrazing: (p) => { d.grazing = p; },
     headFor: () => {},
     pose: {
-      x: 0, y: 0, z: 0, heading: 0, pitch: 0, torso: BODY.torso.lie, neck: BODY.neckLying, activity: 'rest', lying: 1, drinking: 0,
+      x: 0, y: 0, z: 0, heading: 0, pitch: 0, torso: BODY.torso.lie, neck: BODY.neckLying, activity: 'rest', lying: 1, drinking: 0, eating: 0,
       hips: BODY.hips.map(() => [0, 0, 0] as Point), feet: BODY.hips.map(() => [0, 0, 0] as Point), muzzle: [0, 0, 0], planted: [true, true, true, true],
     },
+    intent,
     step: () => {},
     reset: () => {},
   };
@@ -622,19 +762,51 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
     const x = p.x + c * fa - s * fc + vx * lead, z = p.z + s * fa + c * fc + vz * lead;
     return [x, groundAt(x, z), z];
   };
+  // Where it stands at a stand, and how far it bows, so its own muzzle meets the stand's water point:
+  // the stand as found (for the sculpt's head) if it has that head; else, the same solve the stand
+  // was found by, with its own head: a little nearer or further back along the same line. Kept only
+  // if its feet stay dry there; otherwise the stand as found.
+  const bows = new Map<Stand, { at: Spot; neck: number }>();
+  const standFor = (st: Stand) => {
+    if (d.form === BODY) return { at: st as Spot, neck: st.neck };
+    let got = bows.get(st);
+    if (!got) {
+      const [wx, wy, wz] = st.water, c = Math.cos(st.facing), s = Math.sin(st.facing);
+      let reach = Math.hypot(wx - st.x, wz - st.z), neck = st.neck, sx = st.x, sz = st.z;
+      for (let it = 0; it < 4; it++) {
+        sx = wx - c * reach; sz = wz - s * reach;
+        const body = bodyOn(groundAt, sx, sz, st.facing, 0, 1, d.form.shoulder);
+        const drop = wy - body.shoulder[1];
+        let lo = -1.5, hi = d.form.neckUp;
+        for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (muzzleFrom(m, d.form)[1] > drop) hi = m; else lo = m; }
+        neck = (lo + hi) / 2;
+        reach = Math.hypot(body.shoulder[0] - sx, body.shoulder[2] - sz) + muzzleFrom(neck, d.form)[0];
+      }
+      const dryFeet = BODY.hips.every(([ha, hc], k) => {
+        const a = ha + BODY.drinkSplay[k < 2 ? 0 : 1], fx = sx + c * a - s * hc, fz = sz + s * a + c * hc;
+        return waterDepth(world, fx, fz) <= 0 && walkable({ ...world, water: { ...world.water, field: null } }, fx, fz);
+      });
+      got = dryFeet && walkable(world, sx, sz) ? { at: { x: sx, z: sz, facing: st.facing }, neck } : { at: st as Spot, neck: st.neck };
+      bows.set(st, got);
+    }
+    return got;
+  };
+  const neckAt = (st: Stand) => standFor(st).neck;
+  d.setForm = (axes) => { d.form = headNeckOf(axes); bows.clear(); };
   // The body from its place, heading, lying, drinking: torso, tip, hips, neck, muzzle.
   const shape = () => {
     const p = d.pose, c = Math.cos(p.heading), s = Math.sin(p.heading);
-    const b = bodyOn(groundAt, p.x, p.z, p.heading, p.lying, p.drinking);
+    const f = d.form;
+    const b = bodyOn(groundAt, p.x, p.z, p.heading, p.lying, p.drinking, f.shoulder);
     p.y = b.y; p.pitch = b.pitch; p.torso = b.torso;
     BODY.hips.forEach(([ha, hc], k) => {
       const [x, y, z] = b.of(ha, -BODY.hipDrop);
       p.hips[k] = [x - s * hc, y + hc * Math.sin(b.roll), z + c * hc];
     });
     // The neck: up standing, low lying; bowed to the water's angle drinking.
-    const drinkNeck = d.stand?.neck ?? -0.6;
-    p.neck = (BODY.neckUp + (drinkNeck - BODY.neckUp) * p.drinking) * (1 - p.lying) + BODY.neckLying * p.lying;
-    const [ahead, up] = muzzleFrom(p.neck);
+    const drinkNeck = d.stand ? neckAt(d.stand) : -0.6;
+    p.neck = (f.neckUp + (drinkNeck - f.neckUp) * p.drinking + (-0.92 - f.neckUp) * p.eating) * (1 - p.lying) + f.neckLying * p.lying;
+    const [ahead, up] = muzzleFrom(p.neck, f);
     p.muzzle = [b.shoulder[0] + c * ahead, b.shoulder[1] + up, b.shoulder[2] + s * ahead];
   };
   // The gait: feet in the air move on (landing: a mark where they land, walking); a pair whose
@@ -683,18 +855,45 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
   const begin = (activity: Activity, at: Spot) => {
     d.pose.activity = activity;
     spot = at;
-    stay = activity === 'rest' ? TIMES.rest[0] + rng() * (TIMES.rest[1] - TIMES.rest[0]) : TIMES.drink[0] + rng() * (TIMES.drink[1] - TIMES.drink[0]);
+    stay = activity === 'rest' ? TIMES.rest[0] + rng() * (TIMES.rest[1] - TIMES.rest[0]) : activity === 'eat' ? 18 : TIMES.drink[0] + rng() * (TIMES.drink[1] - TIMES.drink[0]);
     set = false;
   };
   const joinWays = (a: [number, number][] | null, b: [number, number][] | null) => (
     a && b ? [...a.slice(0, -1), ...b] : null
   );
-  const leave = (to: 'drink' | 'rest') => {
+  // The stands a companion holds (drinking there or walking to it): one creature to a stand.
+  const freeStands = () => {
+    const taken = d.companions.filter((o) => o.stand && (o.pose.activity === 'drink' || (o.pose.activity === 'walk' && o.intent.kind === 'drink'))).map((o) => o.stand!);
+    return sites.stands.filter((st) => taken.every((t) => Math.hypot(t.x - st.x, t.z - st.z) > 1.6));
+  };
+  // A place at a companion's patch: across it from the companion's stand (or a little round), facing in.
+  const beside = (patch: GrazingPatch): Spot | null => {
+    const r = Math.hypot(patch.stand.x - patch.x, patch.stand.z - patch.z), a0 = Math.atan2(patch.stand.z - patch.z, patch.stand.x - patch.x);
+    for (const off of [Math.PI, 2.2, -2.2]) {
+      const a = a0 + off, x = patch.x + Math.cos(a) * r, z = patch.z + Math.sin(a) * r;
+      if (walkable(world, x, z)) return { x, z, facing: a + Math.PI };
+    }
+    return null;
+  };
+  const leave = (to: 'drink' | 'rest' | 'eat') => {
+    const joining = follow;
+    follow = null;
+    detoured = false; waited = 0;
+    if (to === 'eat' && (!d.grazing || d.grazing.biomass < NEEDS.grazing.minBiomass)) to = 'rest';
     next = to;
     if (to === 'drink') {
-      d.stand = sites.stands[Math.floor(rng() * sites.stands.length)] ?? sites.drink;
-      goal = d.stand;
-    } else goal = restPlace ? restPlace.bed : nearHome(sites.homes[d.home], 0.7);
+      const free = freeStands();
+      const choice = free.length ? free : sites.stands;
+      d.stand = choice[Math.floor(rng() * choice.length)] ?? sites.drink;
+      goal = standFor(d.stand).at;
+    } else if (to === 'eat') {
+      // Going with a companion: to its patch, across from it; else to its own.
+      const host = joining === 'eat' ? d.companions.find((o) => o.pose.activity === 'walk' && o.intent.kind === 'eat' && o.grazing) : undefined;
+      const place = host?.grazing ? beside(host.grazing) : null;
+      meal = place ? host!.grazing : d.grazing;
+      goal = place ?? d.grazing!.stand;
+    }
+    else goal = restPlace ? restPlace.bed : nearHome(sites.homes[d.home], 0.7);
     const p = d.pose;
     const jitter = createNoise2D(world.seed * 31 + ++trip);
     const here: [number, number] = [p.x, p.z], there: [number, number] = [goal.x, goal.z];
@@ -711,6 +910,7 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
     if (!found) {
       // No way there (never a straight line through water): it stays where it is a while longer.
       begin(p.activity === 'walk' ? 'rest' : p.activity, spot);
+      publishIntent(null, spot);
       return;
     }
     way = found;
@@ -719,6 +919,7 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
     along = 0;
     p.activity = 'walk';
     d.way = way;
+    publishIntent(to, goal);
   };
   const pointAt = (s: number): [number, number] => {
     let k = 1;
@@ -730,33 +931,70 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
   const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
   const turnToward = (from: number, to: number, most: number) => from + Math.max(-most, Math.min(most, wrap(to - from)));
   d.reset = () => {
-    rng = createRng(world.seed + 911);
-    map.walk.fill(0); map.drink.fill(0); map.rest.fill(0); map.version++;
-    d.time = 0; d.cycles = 0; trip = 0; d.way = null; d.stand = null;
+    rng = createRng(rngSeed);
+    follow = null;
+    // The shared map is cleared by its owner (the first creature) only.
+    if (ownsMap) { map.walk.fill(0); map.drink.fill(0); map.rest.fill(0); map.version++; }
+    d.time = 0; d.cycles = 0; d.needs = { ...NEEDS.initial }; trip = 0; d.way = null; d.stand = null;
     const lie = restPlace?.bed ?? sites.homes[d.home];
     const p = d.pose;
-    p.x = lie.x; p.z = lie.z; p.heading = lie.facing; p.lying = 1; p.drinking = 0;
+    p.x = lie.x; p.z = lie.z; p.heading = lie.facing; p.lying = 1; p.drinking = 0; p.eating = 0;
+    if (d.grazing) { d.grazing.biomass = 1; d.grazing.version++; }
     vx = vz = 0;
     feet.forEach((f, k) => { f.at = placeFor(k, 0); f.t = 1; });
     begin('rest', lie);
     set = true;
+    publishIntent(null, lie);
     pose();
   };
   const tick = (dt: number) => {
     const p = d.pose;
     d.time += dt;
+    if (opts.regrow !== false && d.grazing && d.grazing.biomass < 1) {
+      const before = d.grazing.biomass;
+      d.grazing.biomass = 1 - (1 - before) * Math.exp(-dt / NEEDS.grazing.regrowSeconds);
+      if (Math.abs(d.grazing.biomass - before) > 1e-6) d.grazing.version++;
+    }
     const px = p.x, pz = p.z;
+    const n = d.needs;
+    n.hunger = Math.max(0, n.hunger - dt * NEEDS.drain.hunger);
+    n.thirst = Math.max(0, n.thirst - dt * NEEDS.drain.thirst);
+    if (p.activity === 'walk') n.energy = Math.max(0, n.energy - dt * NEEDS.drain.energyWalk);
     let moving = false;
     if (p.activity === 'walk') {
-      if (p.lying > 0 || p.drinking > 0) {
+      if (p.lying > 0 || p.drinking > 0 || p.eating > 0) {
         // Rise (or lift the head) first.
         p.lying = Math.max(p.lying - dt / 1.5, 0);
         p.drinking = Math.max(p.drinking - dt / 1.0, 0);
+        p.eating = Math.max(p.eating - dt / 1.0, 0);
       } else {
+        // Giving way: a companion within 1.3 m of the next 2.5 m of its way. Standing (grazing,
+        // drinking, lying): plan once round it. Walking too: the later one (higher id) waits, up to 3 s.
+        let blocked = false;
+        for (const o of d.companions) {
+          const inWay = [0.6, 1.3, 2.0, 2.5].some((k) => { const q = pointAt(Math.min(along + k, lengths[lengths.length - 1])); return Math.hypot(q[0] - o.pose.x, q[1] - o.pose.z) < 1.3; });
+          if (!inWay || Math.hypot(goal.x - o.pose.x, goal.z - o.pose.z) < 1.0) continue;
+          const still = o.pose.activity !== 'walk' || o.yielding;
+          if (still && !detoured) {
+            detoured = true;
+            const saved = world.obstacles;
+            world.obstacles = [...(saved ?? []), { x: o.pose.x, z: o.pose.z, r: 0.9 }];
+            const around = route(world, map, sites.region, [p.x, p.z], [goal.x, goal.z], createNoise2D(world.seed * 31 + trip));
+            world.obstacles = saved;
+            if (around) {
+              way = around; d.way = way; lengths = [0]; along = 0;
+              for (let k = 1; k < way.length; k++) lengths.push(lengths[k - 1] + Math.hypot(way[k][0] - way[k - 1][0], way[k][1] - way[k - 1][1]));
+            }
+          } else if (!still && d.id > o.id && waited < 3) blocked = true;
+        }
+        if (blocked) waited += dt; else waited = 0;
+        d.yielding = blocked;
         const total = lengths[lengths.length - 1];
         const ahead = pointAt(Math.min(along + 1.2, total));
         const want = Math.atan2(ahead[1] - p.z, ahead[0] - p.x), off = wrap(want - p.heading);
-        if (Math.abs(off) > 0.5 && total - along > 0.6) {
+        if (blocked) {
+          // Waiting for the other to pass: it stands where it is.
+        } else if (Math.abs(off) > 0.5 && total - along > 0.6) {
           // Too far off its way: it turns on the spot.
           p.heading += Math.sign(off) * Math.min(Math.abs(off), CREATURE.turn * dt);
         } else {
@@ -769,6 +1007,7 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
         }
         if (along >= total) {
           if (next === 'drink') begin('drink', goal);
+          else if (next === 'eat') begin('eat', goal);
           else { begin('rest', goal); d.cycles++; }
           d.way = null;
         }
@@ -783,20 +1022,65 @@ export function createDwelling(world: DwellWorld): Dwelling | null {
       } else if (p.activity === 'drink') {
         p.drinking = Math.min(p.drinking + dt / 1.2, 1);
         if (p.drinking >= 1) {
+          n.thirst = Math.min(1, n.thirst + dt * NEEDS.recover.water);
           for (const f of feet) if (f.t >= 1) deposit(map, map.drink, f.at[0], f.at[2], WEAR.drink.radius, WEAR.drink.radius, p.heading, WEAR.drink.rate * dt);
           const [a, c, r] = WEAR.drink.under;
           deposit(map, map.drink, p.x, p.z, a, c, p.heading, r * dt);
         }
+      } else if (p.activity === 'eat') {
+        p.eating = Math.min(p.eating + dt / 1.5, 1);
+        const patch = meal ?? d.grazing;
+        if (p.eating > 0.9 && patch && Math.hypot(p.muzzle[0] - patch.x, p.muzzle[2] - patch.z) < patch.radius && p.muzzle[1] - groundAt(p.muzzle[0], p.muzzle[2]) < 0.5) {
+          patch.biomass = Math.max(NEEDS.grazing.floor, patch.biomass - dt * NEEDS.grazing.consume);
+          patch.version++;
+          n.hunger = Math.min(1, n.hunger + dt * NEEDS.recover.food);
+        }
       } else {
         p.lying = Math.min(p.lying + dt / 2, 1);
+        if (p.lying >= 1) n.energy = Math.min(1, n.energy + dt * NEEDS.recover.rest);
         if (p.lying >= 1) deposit(map, map.rest, p.x, p.z, WEAR.rest.along, WEAR.rest.across, p.heading, WEAR.rest.rate * dt);
+        // As a Sim does: when food or water falls past the mark it acts on, it gets up now rather
+        // than finishing its rest, so the card's mark is where it moves (not some time after).
+        const canEat = !!d.grazing && d.grazing.biomass >= NEEDS.grazing.minBiomass;
+        if (set && ((n.thirst < NEEDS.seek.thirst && freeStands().length > 0) || (canEat && n.hunger < NEEDS.seek.hunger))) stay = Math.min(stay, WAKE_S);
+        // A companion sets out for water or grass: if its own need is near enough its mark, it goes too.
+        if (set && !follow && n.energy >= NEEDS.seek.energy) for (const o of d.companions) {
+          if (o.pose.activity !== 'walk' || o.intent.kind === 'rest') continue;
+          const kind = o.intent.kind;
+          if (kind === 'eat' && !canEat) continue;
+          if (kind === 'drink' && freeStands().length === 0) continue;
+          const need = kind === 'drink' ? n.thirst : n.hunger, mark = kind === 'drink' ? NEEDS.seek.thirst : NEEDS.seek.hunger;
+          if (need < mark + CHOICE.follow * (0.5 + d.traits.bold)) { follow = kind; stay = Math.min(stay, WAKE_S); break; }
+        }
       }
       if (set) {
         stay -= dt;
-        if (stay <= 0) leave(p.activity === 'drink' ? 'rest' : 'drink');
+        if (stay <= 0) {
+          const canEat = !!d.grazing && d.grazing.biomass >= NEEDS.grazing.minBiomass;
+          // Water is an option only while a stand is free: otherwise it waits its turn.
+          const drinkUrgency = freeStands().length ? Math.max(0, NEEDS.seek.thirst - n.thirst) / NEEDS.seek.thirst : 0;
+          const eatUrgency = canEat ? Math.max(0, NEEDS.seek.hunger - n.hunger) / NEEDS.seek.hunger : 0;
+          // Each place's score: the need's urgency less its distance, weighed by how much of a
+          // homebody it is; the best, or one within `tie` of it at random.
+          const far = (x: number, z: number) => Math.hypot(x - p.x, z - p.z) * CHOICE.distance * (1.4 - d.traits.roam);
+          const options: ['drink' | 'eat', number][] = [];
+          if (drinkUrgency > 0) options.push(['drink', drinkUrgency - far(sites.drink.x, sites.drink.z)]);
+          if (eatUrgency > 0 && d.grazing) options.push(['eat', eatUrgency - far(d.grazing.x, d.grazing.z)]);
+          let wish: 'drink' | 'eat' | null = null;
+          if (options.length) {
+            const best = Math.max(...options.map((o) => o[1]));
+            const near = options.filter((o) => o[1] >= best - CHOICE.tie);
+            wish = near[Math.floor(rng() * near.length)][0];
+          }
+          const chosen = n.energy < NEEDS.seek.energy && p.activity !== 'rest' ? 'rest'
+            : wish ?? (follow && p.activity === 'rest' ? follow : 'rest');
+          if (chosen === 'rest' && p.activity === 'rest') begin('rest', spot);
+          else leave(chosen);
+        }
       }
     }
     vx = (p.x - px) / dt; vz = (p.z - pz) / dt;
+    publishIntent(p.activity === 'walk' ? next : null, p.activity === 'walk' ? goal : spot);
     shape();
     stepFeet(dt, moving);
     pose();

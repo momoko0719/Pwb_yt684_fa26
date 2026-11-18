@@ -79,7 +79,7 @@ const ease = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-export function growShrubs(zones: Zones, grid: HeightGrid, folds: RockFolds, seed: number, trees: { x: number; z: number }[], away: { x0: number; z0: number; size: number }[] = []): ShrubField {
+export function growShrubs(zones: Zones, grid: HeightGrid, folds: RockFolds, seed: number, trees: { x: number; z: number }[], away: { x0: number; z0: number; size: number }[] = [], amount = 1): ShrubField {
   const t0 = performance.now();
   const { x0, z0, cell, nx, nz, zone, moisture, toWater } = zones;
   const cellOf = (x: number, z: number) => {
@@ -156,7 +156,7 @@ export function growShrubs(zones: Zones, grid: HeightGrid, folds: RockFolds, see
       if (d >= 1) continue;
       const keep = 0.9 * (1 - d * d) * ease(-0.35, 0.1, gaps(x / 5, z / 5));
       const roll = rng(), size = rng(), wide = rng(), yaw = rng(), shade = rng(), variant = rng();
-      if (roll > keep) continue;
+      if (amount <= 0 || roll > keep * amount) continue;
       const slot = `${Math.round(x / step)},${Math.round(z / step)}`;
       if (taken.has(slot) || !ground(x, z) || nearTrunk(x, z)) continue;
       taken.add(slot);

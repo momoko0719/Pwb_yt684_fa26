@@ -58,11 +58,25 @@ export const WONDERLAND_RESOURCES: ResourceDef[] = [
     nameKey: 'creature',
     islands: ['wonderland'],
     config: { height: [1.1, 1.4], width: [0.6, 0.9], depth: [1.2, 1.8] },
-    ruleEn: 'One dwelling creature; homes A/B/C by seed.',
-    ruleZh: '一只栖居生灵；家园 A/B/C 由种子决定。',
+    ruleEn: 'One creature. The seed picks a dry habitat and a shore stand it can walk to. It rests, walks and drinks. Planted feet, the body and the lie write a contact map; enough contact turns the stone toward jade.',
+    ruleZh: '一只。种子在干地上选栖息地，并选一处走得到的岸边饮水点。它休息、走路、饮水。落下的脚、身体和卧位写入接触图；接触够了，石头偏向玉。',
     preview: null,
     noteEn: 'No stand-alone mesh preview — use Locate on the island. Mesh lives in creature.tsx.',
     noteZh: '暂无独立预览（不用代理锥体）— 请用「定位」。形体在 creature.tsx。',
+  },
+  {
+    id: 'wonderland-stream-fish', category: 'creatures', nameKey: 'streamFish', islands: ['wonderland'],
+    config: { depth: [0.45, 0.75] },
+    ruleEn: 'Seeded jade stream fish: body length, depth, tail fork, jade patches and swimming speed vary. Pool depth and flow decide where they live and how they hold position.',
+    ruleZh: '玉鳞溪灵：种子决定体长、体高、尾鳍分叉、玉斑和游速；真实池深与水流决定栖息位置和悬停方向。',
+    preview: null,
+  },
+  {
+    id: 'wonderland-den', category: 'terrain', nameKey: 'den', islands: ['wonderland'],
+    config: { width: [4.5, 6], depth: [4.5, 6.5], height: [3.6, 4.6] },
+    ruleEn: 'One rock with an open-fronted cave, grown in five steps (boulder, lumps, swells, cave, weathering) round the air the creature uses.',
+    ruleZh: '一整块岩石，正面敞开的洞，分五步长成（圆石、鼓包、起伏、掏洞、风化），围着兽使用的空间。',
+    preview: null,
   },
   {
     id: 'wonderland-stele',
@@ -132,6 +146,8 @@ export interface IslandResourceStats {
   /** Island-wide anchors when known; `null` = not tracked (never display as 0). */
   islandAnchors?: number | null;
   note?: string;
+  noteEn?: string;
+  noteZh?: string;
 }
 
 export type IslandResourceMap = Partial<Record<string, IslandResourceStats>>;

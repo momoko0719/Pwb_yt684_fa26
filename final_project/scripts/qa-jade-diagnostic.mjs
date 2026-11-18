@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const errors = [];
+page.on('pageerror', e => errors.push(String(e)));
+page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.text().slice(0, 3000)); });
+await page.goto('http://localhost:5181/?islandSeed=684#/atlas/wonderland-terrain');
+await page.waitForTimeout(20000);
+await page.screenshot({ path: 'docs/equilinox-pass-2026-11-14/diagnostic.png' });
+console.log(JSON.stringify({ errors, text: (await page.locator('body').innerText()).slice(0, 1000) }));
+await browser.close();

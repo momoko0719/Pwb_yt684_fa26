@@ -1,0 +1,26 @@
+import { chromium } from 'playwright';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const out = path.resolve('docs/art-direction-2026-11-09/creature-rig-stage1/user-review-fix');
+fs.mkdirSync(out, { recursive: true });
+const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const errors = [];
+page.on('pageerror', (error) => errors.push(String(error)));
+await page.goto('http://localhost:5181/?islandSeed=684#/atlas/wonderland-terrain');
+await page.locator('.exhibit-cameras').waitFor({ timeout: 90000 });
+await page.getByRole('button', { name: 'Settings' }).click();
+await page.getByRole('button', { name: 'Meet the creature' }).click();
+await page.getByRole('button', { name: 'View skeleton' }).click();
+await page.waitForTimeout(350);
+await page.screenshot({ path: path.join(out, 'atlas-skeleton.png') });
+const text = await page.locator('.resource-detail').innerText();
+const overlay = await page.locator('.resource-preview-host canvas').count();
+const liveButton = page.getByRole('button', { name: 'Show live skeleton on island' });
+await liveButton.click();
+await page.waitForTimeout(2400);
+await page.screenshot({ path: path.join(out, 'island-skeleton.png') });
+fs.writeFileSync(path.join(out, 'qa.json'), JSON.stringify({ englishDetailHasChinese: /[\u3400-\u9fff]/.test(text), previewCanvas: overlay, liveSkeletonLegend: await page.getByText('Visual joints', { exact: false }).count() > 0, errors }, null, 2));
+console.log(fs.readFileSync(path.join(out, 'qa.json'), 'utf8'));
+await browser.close();

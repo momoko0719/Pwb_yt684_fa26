@@ -45,6 +45,7 @@ varying float vShade;
 varying vec3 vWorldPos;
 uniform sampler2D uWear;
 uniform vec4 uWearRect; // x0, z0, size, on
+uniform vec4 uGrazing; // patch centre x/z, radius, remaining biomass; radius 0 disables it
 uniform float uVisibility; // 0..1 global load fade (Orbit camera–hit band)
 uniform float uFadeNear;   // camera–blade: full keep closer than this
 uniform float uFadeFar;    // camera–blade: gone by this
@@ -68,6 +69,10 @@ void main() {
   float camDist = length(cameraPosition - vWorldPos);
   float distKeep = 1.0 - smoothstep(uFadeNear, uFadeFar, camDist);
   float keep = clamp(uVisibility, 0.0, 1.0) * distKeep;
+  if (uGrazing.z > 0.0) {
+    float bite = 1.0 - smoothstep(uGrazing.z * 0.55, uGrazing.z, distance(vWorldPos.xz, uGrazing.xy));
+    keep *= 1.0 - bite * (1.0 - uGrazing.w);
+  }
   if (keep < 0.02) discard;
   float dither = fract(sin(dot(vWorldPos.xz, vec2(12.9898, 78.233)) + vShade * 19.0) * 43758.5453);
   if (dither > keep) discard;
@@ -113,6 +118,7 @@ export function createGrassMaterial(uniforms: WorldUniforms): ShaderMaterial {
       uBladeHeight: { value: 0.7 },
       uWear: { value: null },
       uWearRect: { value: new Vector4(0, 0, 1, 0) },
+      uGrazing: { value: new Vector4(0, 0, 0, 1) },
       uVisibility: { value: 1 },
       uFadeNear: { value: 36 },
       uFadeFar: { value: 56 },

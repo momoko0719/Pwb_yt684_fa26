@@ -1,0 +1,12 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await page.goto('http://localhost:5181/?islandSeed=684#/atlas/wonderland-terrain');
+await page.locator('.exhibit-cameras').waitFor({ timeout: 60000 });
+await page.getByRole('button', { name: 'Settings' }).click();
+await page.locator('.exhibit-debug-section > summary').click();
+await page.locator('.exhibit-sub summary').click();
+await page.screenshot({ path: 'docs/current-pass-settings.png' });
+const text = await page.locator('.exhibit-drawer').innerText();
+console.log(JSON.stringify({ hasDrinkMark: text.includes('Drinking stand and mouth') || text.includes('饮水站和嘴的位置'), hasFeet: text.includes('Feet'), hasAnatomy: text.includes('Structure') || text.includes('Anatomy') }));
+await browser.close();

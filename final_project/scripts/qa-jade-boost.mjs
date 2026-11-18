@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await page.goto('http://localhost:5181/?islandSeed=684#/atlas/wonderland-terrain');
+await page.locator('.exhibit-cameras').waitFor({ timeout: 60000 });
+await page.getByRole('button', { name: 'Water' }).click();
+await page.waitForTimeout(15000);
+await page.evaluate(() => { window.__jadeShaders.built.uniforms.uJadeReveal.value = 8; window.__jadeShaders.material.uniforms.uJadeReveal.value = 8; });
+await page.waitForTimeout(500);
+await page.screenshot({ path: 'docs/equilinox-pass-2026-11-14/jade-boost.png' });
+await browser.close();

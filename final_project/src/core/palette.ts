@@ -339,9 +339,14 @@ export const PORCELAIN = {
    * The shelter's own stone. Warm grey-brown: darker than the white ground, lighter than pine bark.
    * Lit faces shift toward the warm, shade toward the cool. Neither is a second island palette.
    */
-  shelterSlab: '#AAA294',
-  shelterWarm: '#B6AD9B',
-  shelterCool: '#9C988E',
+  shelterSlab: '#D9D7CF',
+  shelterWarm: '#E5DED3',
+  shelterCool: '#C8D0CB',
+  /** Streamling (FishSchool.tsx): a white body, seeded jade patches like a koi's, pale fins, a dark eye. */
+  fishBody: '#F2F0E6',
+  fishMark: '#6FA394',
+  fishFin: '#DCE8E2',
+  fishEye: '#2E3330',
 };
 
 /** The dwelling's debug view: where it walks, drinks, rests (the contact map's three channels). */
@@ -384,14 +389,15 @@ export const UI = {
   accent: PIGMENT.cinnabar,
 };
 
-/** The atlas pages: paper ground and ink text, matching the class exercise apps (a research notebook). */
+/** The atlas pages: the island's paper and ink (as JADE_UI), lighter lines than before. */
 export const ATLAS_UI = {
-  paper: '#efe8d8',
-  card: '#f7f2e6',
-  ink: '#1b1a18',
-  inkDim: '#7a746a',
-  rule: '#c9c0ac',
-  seal: '#b33a2a',
+  // The island's paper and ink (JADE_UI), so the Atlas sits with the other pages.
+  paper: '#F6F3EC',
+  card: '#FBFAF6',
+  ink: '#2E3330',
+  inkDim: '#6E7A74',
+  rule: '#C9D2CD',
+  seal: '#B8452F',
 };
 
 /**
@@ -409,4 +415,30 @@ export const SILK_UI = {
   seal: '#b8452f',
 };
 
-export const palette = { world: getPalette, ui: UI, atlas: ATLAS_UI, silk: SILK_UI };
+/**
+ * White Jade's own interface (docs/white-jade-product-plan-2026-11-04.md, colour direction 1,
+ * 羊脂·月白): warm white paper over the view, a jade accent, a cool ink grey for text, cinnabar only
+ * for the seal. The site's header and pages take it too; Penglai's own panels keep UI and SILK_UI.
+ */
+export const JADE_UI = {
+  paper: '#F6F3EC',
+  mist: '#DDE6E1',
+  jade: '#8FB3AA',
+  jadeDeep: '#5F877D',
+  ink: '#2E3330',
+  inkDim: '#6E7A74',
+  line: '#C9D2CD',
+  seal: '#B8452F',
+  /** A need's colour step (LifeCard.tsx), as The Sims': comfortable, near its mark, below it, far below. */
+  needGood: '#5F877D',
+  needOk: '#A89A5C',
+  needLow: '#C07A45',
+  needCritical: '#B8452F',
+  /** The island map (IslandNavigator.tsx): the sea of cloud around it, the low ground, the peaks, the shade on their far sides. */
+  mapSea: '#E4EBE7',
+  mapLow: '#E9E4D6',
+  mapHigh: '#FCFBF7',
+  mapShade: '#7F918A',
+};
+
+export const palette = { world: getPalette, ui: UI, atlas: ATLAS_UI, silk: SILK_UI, jade: JADE_UI };

@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { HashRouter, NavLink, Route, Routes } from 'react-router-dom';
-import { ATLAS_UI, SILK_UI, UI } from './core/palette';
+import { HashRouter, Navigate, NavLink, Route, Routes } from 'react-router-dom';
+import { ATLAS_UI, JADE_UI, SILK_UI, UI } from './core/palette';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { LANGUAGES } from './i18n/strings';
 import Home from './pages/Home';
@@ -17,6 +17,9 @@ for (const [name, color] of Object.entries(UI)) {
 for (const [name, color] of Object.entries(ATLAS_UI)) {
   document.documentElement.style.setProperty(`--atlas-${name}`, color);
 }
+for (const [name, color] of Object.entries(JADE_UI)) {
+  document.documentElement.style.setProperty(`--jade-${name}`, color);
+}
 for (const [name, color] of Object.entries(SILK_UI)) {
   document.documentElement.style.setProperty(`--silk-${name}`, color);
 }
@@ -28,8 +31,8 @@ function Header() {
       <nav>
         <NavLink to="/" end className="brand">{t('site.title')}</NavLink>
         <NavLink to="/ideas">{t('nav.ideas')}</NavLink>
-        <NavLink to="/atlas">{t('nav.atlas')}</NavLink>
         <NavLink to="/world">{t('nav.world')}</NavLink>
+        <NavLink to="/atlas">{t('nav.atlas')}</NavLink>
       </nav>
       <div className="language-toggle">
         {LANGUAGES.map((lang) => (
@@ -52,6 +55,8 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/" element={<Home />} />
             <Route path="/ideas" element={<Ideas />} />
             <Route path="/atlas" element={<Atlas />} />
+            {/* The island moved to World; old links still arrive. */}
+            <Route path="/atlas/wonderland-terrain" element={<Navigate to="/world" replace />} />
             <Route path="/atlas/:id" element={<ExperimentPage />} />
             <Route path="/world" element={<World />} />
           </Routes>

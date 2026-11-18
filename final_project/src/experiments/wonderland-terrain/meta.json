@@ -29,5 +29,6 @@
     "en": "Wonderland beside Penglai: where living somewhere leaves a mark.",
     "zh": "与蓬莱对照的 Wonderland：栖居在一处，就会在那里留下痕迹。"
   },
-  "image": "atlas-img/white-jade-island.png"
+  "image": "atlas-img/white-jade-island.png",
+  "exhibit": true
 }

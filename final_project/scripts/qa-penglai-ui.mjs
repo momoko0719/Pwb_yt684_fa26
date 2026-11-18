@@ -1,0 +1,14 @@
+import { chromium } from 'playwright';
+import path from 'node:path';
+import fs from 'node:fs';
+const out = path.resolve(process.argv[2] ?? 'docs/ui-qa-2026-11-08/final/penglai.png');
+fs.mkdirSync(path.dirname(out), { recursive: true });
+const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const errors = [];
+page.on('pageerror', error => errors.push(error.message));
+await page.goto('http://localhost:5181/#/atlas/island-v1', { waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(5000);
+await page.screenshot({ path: out });
+console.log({ errors, canvas: await page.locator('canvas').count() });
+await browser.close();

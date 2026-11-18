@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { button, useControls } from 'leva';
-import { BufferAttribute, BufferGeometry, DataTexture, LinearFilter, NearestFilter, RGBAFormat, RedFormat, UnsignedByteType, Vector3 } from 'three';
+import { button, levaStore, useControls } from 'leva';
+import { BufferAttribute, BufferGeometry, DataTexture, LinearFilter, NearestFilter, RGBAFormat, RedFormat, UnsignedByteType, Vector3, Vector4 } from 'three';
 import { BLOCKOUT, ZONE_DEBUG } from '../../core/palette';
 import type { BasinMesh } from '../../core/terrain/basinMesh';
 import { createBuiltMaterial } from '../../core/terrain/builtMaterial';
@@ -17,12 +17,15 @@ import { sampleGrid, type HeightGrid } from '../../core/terrain/heightGrid';
 import { rimWall } from '../../core/terrain/rimWall';
 import { createPorcelainMaterial } from '../../core/shaders/porcelain';
 import type { WorldUniforms } from '../../core/shaders/uniforms';
+import { createRng } from '../../core/rng';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { useStudio } from '../../pages/studio';
 import type { StringKey } from '../../i18n/strings';
 import { REBUILD_DELAY, useSettled } from '../island-v1/controls';
 import { buildCover, COVER_DEFAULTS, softCoverDensityBytes } from './cover';
 import { COVER_SCALE, CoverGrass, type CoverLiveStats } from './CoverGrass';
 import { FRAME_DEFAULTS } from './frame';
+import { chapterViews, ChapterCamera, CameraRail, SettingsDrawer, IslandLoading, boxFromRim, type Chapter, type DebugToggles, type SettingSection, type SettingControl } from './Exhibit';
 import { groundRules, type GroundParams } from './ground';
 import { ISLAND, SEED } from './layout';
 import { RANGE } from './range';
@@ -33,6 +36,7 @@ import { ROCK_FOLD_MIX, type RockFolds } from './rockFolds';
 import { growShrubs, type ShrubField } from './shrubs';
 import { ShrubPatches } from './ShrubPatches';
 import { ResourceAtlas } from './ResourceAtlas';
+import { MorphSheet } from './CreatureMorphPreview';
 import type { IslandResourceMap } from './resourceCatalog';
 import OrbitFocus from './OrbitFocus';
 import OrbitNavDiag, { EMPTY_NAV_DIAG, type NavDiagSnapshot } from './OrbitNavDiag';
@@ -52,10 +56,26 @@ import Vegetation from '../island-v1/Vegetation';
 import type { Plant } from '../../core/generators/forest';
 import { growWoods, siteKeepOuts, WOODS_LOD } from './woods';
 import { ZONE_NAMES, type Zones } from './zones';
-import { DwellingView, type DwellingStats } from './creature';
+import { CompanionView, DwellingView, type Antlers, type CreatureReadout, type DwellingStats } from './creature';
+import { dwellerForm, dwellerNames } from './dwellerNames';
+import { birthShell, type ShellParams } from './rockShell';
+import { birthAxes, resolveMorph, type MorphAxes } from './creatureMorph';
 import { BODY, createDwelling, type Dwelling } from './dwelling';
 import { FlowParticles } from './particles';
+import { setWorldPointer } from './worldPointer';
+import { jadeRevealSites } from './jadeReveal';
 import { WATER_DEFAULTS, type Water, type WaterParams } from './water';
+import { createStreamFish, type StreamFishData } from './streamFish';
+import { StreamFish } from './FishSchool';
+import { CreatureStatusDock, FishStatusDock } from './CreatureStatusDock';
+import { IslandNavigator } from './IslandNavigator';
+
+// Reproducible developer entry point: ?islandSeed=5676#/atlas/wonderland-terrain.
+const seedParam = new URLSearchParams(window.location.search).get('islandSeed');
+const requestedSeed = Number(seedParam);
+const INITIAL_SEED = seedParam !== null && Number.isInteger(requestedSeed) && requestedSeed >= 0 && requestedSeed <= 9999 ? requestedSeed : SEED;
+const NAV_PROBE = new URLSearchParams(window.location.search).has('navProbe');
+const JADE_PROBE = import.meta.env.DEV && new URLSearchParams(window.location.search).has('jadeProbe');
 
 /**
  * Wonderland's ground drawn as a height map (core/terrain): the meadow and the range of peaks, from
@@ -68,8 +88,10 @@ export default function Scene() {
   const { language, t } = useLanguage();
   const text = (key: string) => ({ label: t(`leva.${key}` as StringKey), hint: t(`hint.${key}` as StringKey) });
   const [atlasOpen, setAtlasOpen] = useState(false);
+  const [atlasFocus, setAtlasFocus] = useState<string | null>(null);
+  const [atlasPicked, setAtlasPicked] = useState(false);
   const atlasCam = useRef<{ pos: Vector3; target: Vector3 } | null>(null);
-  const locateRef = useRef<((p: { x: number; y: number; z: number }) => void) | null>(null);
+  const locateRef = useRef<((p: { x: number; y: number; z: number; distance?: number }) => void) | null>(null);
   const view = useControls('View', {
     stats: { value: false, ...text('blockStats') },
     lod: { value: LOD_DEFAULTS.range, min: 45, max: 240, step: 5, ...text('lodRange') },
@@ -85,7 +107,7 @@ export default function Scene() {
       ...text('envView'),
     },
     scale: { value: false, ...text('scaleView') },
-    shrubs: { value: true, ...text('shrubs') },
+    shrubAmount: { value: 1, min: 0, max: 1, step: 0.05, ...text('shrubAmount') },
     walk: { value: false, ...text('walk') },
     walkSpeed: {
       value: WONDER_WALK_SPEED,
@@ -98,7 +120,7 @@ export default function Scene() {
   }, [language]);
   // Separate folder so the button does not widen View's inferred value types.
   useControls('View', {
-    [t('leva.resources')]: button(() => setAtlasOpen(true)),
+    [t('leva.resources')]: button(() => { setAtlasFocus(null); setAtlasPicked(false); setAtlasOpen(true); }),
   }, [language]);
   const showZones = view.envView === 'zones';
   const coverDebug = view.envView === 'density';
@@ -122,7 +144,7 @@ export default function Scene() {
   const focusAnimRef = useRef(false);
   const floorFlagsRef = useRef({ cam: false, target: false });
   const island = useControls('Island', {
-    seed: { value: SEED, min: 0, max: 9999, step: 1, ...text('islandSeed') },
+    seed: { value: INITIAL_SEED, min: 0, max: 9999, step: 1, ...text('islandSeed') },
   }, [language]);
   const layout = useControls(t('leva.advancedFolder'), {
     turn: { value: Math.round((FRAME_DEFAULTS.spread * 180) / Math.PI), min: 0, max: 40, step: 1, ...text('layoutTurn') },
@@ -167,9 +189,15 @@ export default function Scene() {
   });
   const dwell = useControls('Dwelling', {
     run: { value: true, ...text('dwellRun') },
-    speed: { value: 10, options: { '1×': 1, '10×': 10, '30×': 30, '100×': 100 }, ...text('dwellSpeed') },
+    speed: { value: 1, options: { '1×': 1, '10×': 10, '30×': 30, '100×': 100 }, ...text('dwellSpeed') },
     home: { value: 0, options: { [`${t('dwell.home')} A`]: 0, [`${t('dwell.home')} B`]: 1, [`${t('dwell.home')} C`]: 2 }, ...text('dwellHome') },
     show: { value: false, ...text('dwellShow') },
+    dbgSkeleton: { value: false, label: t('exhibit.dbg.skeleton') },
+    dbgFeet: { value: false, label: t('exhibit.dbg.feet') },
+    dbgState: { value: false, label: t('exhibit.dbg.state') },
+    dbgRoute: { value: false, label: t('exhibit.dbg.route') },
+    dbgDrink: { value: false, label: t('exhibit.dbg.drink') },
+    dbgRest: { value: false, label: t('exhibit.dbg.rest') },
   }, [language]);
   useControls('Dwelling', () => ({
     [t('leva.dwellReset')]: button(() => dwellCalls.current.reset()),
@@ -177,6 +205,22 @@ export default function Scene() {
     [t('leva.dwellLook')]: button(() => dwellCalls.current.look()),
   }), [language, t]);
   const [dwellStats, setDwellStats] = useState<DwellingStats | null>(null);
+  const [readout, setReadout] = useState<CreatureReadout | null>(null);
+  // The exhibit (Exhibit.tsx): its chapter (and a count of choices, so choosing the same one flies
+  // there again), its drawer, the landscape-only view.
+  const { exhibit } = useStudio();
+  const [chapter, setChapter] = useState<Chapter>('arrival');
+  const [chapterGo, setChapterGo] = useState(0);
+  const [drawer, setDrawer] = useState(false);
+  const [followLife, setFollowLife] = useState(false);
+  // Follows `followLife`, but can be closed at once by a map or atlas jump (ChapterCamera reads it each frame).
+  const followGate = useRef(false);
+  followGate.current = followLife;
+  const [statusOpen, setStatusOpen] = useState(false);
+  const lifeOrbitInteracting = useRef(false);
+  const creatureRef = useRef<{ pose: { x: number; y: number; z: number } } | null>(null);
+  const chooseChapter = (c: Chapter) => { setWorldPointer(null); setChapter(c); setChapterGo((g) => g + 1); setFollowLife(c === 'life'); if (c === 'life') setStatusOpen(true); };
+  useEffect(() => { if (view.walk) setFollowLife(false); }, [view.walk]);
   const [coverLive, setCoverLive] = useState<CoverLiveStats | null>(null);
   const [scaleRows, setScaleRows] = useState<ScaleRow[]>([]);
   const [scaleShow, setScaleShow] = useState(DEFAULT_SCALE_SHOW);
@@ -203,17 +247,47 @@ export default function Scene() {
   const asked = useRef({ ground: 0, light: 0 });
   const [ground, setGround] = useState<{ grid: HeightGrid; rim: Float32Array; terrace: BasinMesh[]; tops: number[]; pools: PoolNode[]; outlets: OutletNode[]; water: Water; zones: Zones; folds: RockFolds; underside: UndersideMesh; ms: number } | null>(null);
   const [light, setLight] = useState<{ light: Uint8Array; size: number; ms: number } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [shown, setShown] = useState(false);
+  const [loadProgress, setLoadProgress] = useState({ percent: 0, step: 'ground' });
+  const [showComplete, setShowComplete] = useState(false);
   useEffect(() => {
-    const w = new Worker(new URL('./terrain.worker.ts', import.meta.url), { type: 'module' });
+    if (!shown) return;
+    setShowComplete(true);
+    const timer = window.setTimeout(() => setShowComplete(false), 350);
+    return () => window.clearTimeout(timer);
+  }, [shown]);
+  const attachWorker = (w: Worker) => {
+    w.onerror = () => setLoadError('worker');
     w.onmessage = (e: MessageEvent<FromTerrain>) => {
       const m = e.data;
-      if (m.type === 'ground' && m.id === asked.current.ground) setGround({ grid: m.grid, rim: m.rim, terrace: m.terrace, tops: m.tops, pools: m.pools, outlets: m.outlets, water: m.water, zones: m.zones, folds: m.folds, underside: m.underside, ms: m.ms });
-      if (m.type === 'light' && m.id === asked.current.light) setLight({ light: m.light, size: m.size, ms: m.ms });
+      if (m.type === 'progress') {
+        if (m.step === 'light' ? m.id === asked.current.light : m.id === asked.current.ground)
+          setLoadProgress((previous) => ({ percent: Math.max(previous.percent, m.percent), step: m.step }));
+        return;
+      }
+      if (m.type === 'ground' && m.id === asked.current.ground) {
+        setGround({ grid: m.grid, rim: m.rim, terrace: m.terrace, tops: m.tops, pools: m.pools, outlets: m.outlets, water: m.water, zones: m.zones, folds: m.folds, underside: m.underside, ms: m.ms });
+        setLoadProgress({ percent: 86, step: 'light' });
+      }
+      if (m.type === 'light' && m.id === asked.current.light) {
+        setLight({ light: m.light, size: m.size, ms: m.ms });
+        setLoadProgress({ percent: 97, step: 'frame' });
+      }
     };
     worker.current = w;
+  };
+  useEffect(() => {
+    const w = new Worker(new URL('./terrain.worker.ts', import.meta.url), { type: 'module' });
+    attachWorker(w);
     return () => { w.terminate(); worker.current = null; };
   }, []);
   useEffect(() => {
+    setGround(null);
+    setShown(false);
+    setShowComplete(false);
+    setLoadProgress({ percent: 0, step: 'ground' });
+    setLoadError(null);
     const id = ++asked.current.ground;
     worker.current?.postMessage({ type: 'ground', id, params, terrace, water, underside } satisfies ToTerrain);
   }, [params, terrace, water, underside]);
@@ -239,7 +313,35 @@ export default function Scene() {
   }, [ground, hour]);
 
   // The dwelling, on the island as built (its sites found by rule); started afresh with the island.
-  const dwelling = useMemo<Dwelling | null>(() => (ground ? createDwelling({ grid: ground.grid, water: ground.water, terrace: groundRules(params).plate(0), seed: params.seed, zones: ground.zones }) : null), [ground, params]);
+  // One world for every creature: they share its obstacles (each other's dens) and its contact map.
+  const dwellWorld = useMemo(() => (ground ? { grid: ground.grid, water: ground.water, terrace: groundRules(params).plate(0), seed: params.seed, zones: ground.zones } : null), [ground, params]);
+  const dwelling = useMemo<Dwelling | null>(() => (dwellWorld ? createDwelling(dwellWorld) : null), [dwellWorld]);
+  // The second creature (docs/plan-2026-11-18-school-herd.md): its own home, den and grazing.
+  const dwelling2 = useMemo<Dwelling | null>(() => (
+    dwellWorld && dwelling && dwelling.sites.homes.length > 1 ? createDwelling(dwellWorld, { id: 1, sites: dwelling.sites, map: dwelling.map, home: 1 }) : null
+  ), [dwellWorld, dwelling]);
+  const [lifeIndex, setLifeIndex] = useState(0);
+  // What the visitor saved in the atlas for this island (kept in the browser, per island seed):
+  // a creature's form, a den's knobs. Absent: the seed's own.
+  const [saved, setSaved] = useState<SavedIsland>(() => loadSaved(params.seed));
+  useEffect(() => { setSaved(loadSaved(params.seed)); }, [params.seed]);
+  const keep = (next: SavedIsland) => { setSaved(next); storeSaved(params.seed, next); };
+  // Who each one is (dwellerNames.ts): a seeded name from the jade list, and its whole form
+  // (build, belly, height, antlers): the saved one, or the one it was born with.
+  const who = useMemo(() => {
+    const names = dwellerNames(params.seed, 2);
+    return [0, 1].map((i) => {
+      const birth = dwellerForm(params.seed, i);
+      return { nameIndex: names[i], birth, antlers: saved.forms[i] ?? birth };
+    });
+  }, [params.seed, saved.forms]);
+  // The sim's head and neck follow the form (a saved form changes it at once, no restart).
+  useEffect(() => { dwelling?.setForm(who[0].antlers as MorphAxes); dwelling2?.setForm(who[1].antlers as MorphAxes); }, [dwelling, dwelling2, who]);
+  const [dwellStats2, setDwellStats2] = useState<DwellingStats | null>(null);
+  const fish = useMemo(() => ground ? createStreamFish(params.seed, ground.water, ground.grid) : [], [ground, params.seed]);
+  const [selectedFish, setSelectedFish] = useState<StreamFishData | null>(null);
+  const [fishCard, setFishCard] = useState(false);
+  useEffect(() => { setSelectedFish(null); setFishCard(false); }, [fish]);
   useEffect(() => {
     if (!dwelling) return;
     dwelling.home = Math.min(dwell.home, dwelling.sites.homes.length - 1);
@@ -249,7 +351,8 @@ export default function Scene() {
   const woods = useMemo(() => (ground ? growWoods(ground.zones, ground.grid, params.seed, dwelling ? siteKeepOuts(dwelling.sites) : []) : null), [ground, params, dwelling]);
   const trees = useMemo<Plant[]>(() => (woods ? [...woods.trees, ...woods.lone] : []), [woods]);
   // Low shrubs in patches (shrubs.ts), off the creature's dwelling ground (not its obstacles yet).
-  const shrubs = useMemo(() => (ground ? growShrubs(ground.zones, ground.grid, ground.folds, params.seed, trees, dwelling ? [dwelling.sites.region] : []) : null), [ground, params, trees, dwelling]);
+  const shrubShown = useSettled(String(view.shrubAmount), 280);
+  const shrubs = useMemo(() => (ground && Number(shrubShown) > 0 ? growShrubs(ground.zones, ground.grid, ground.folds, params.seed, trees, dwelling ? [dwelling.sites.region] : [], Number(shrubShown)) : null), [ground, params, trees, dwelling, shrubShown]);
   const cover = useMemo(() => (ground ? buildCover(ground.zones, ground.grid, params.seed, coverAmount) : null), [ground, params, coverAmount]);
   // Corner pines, then shore stones, then one shelter for the current home.
   // Switching A/B/C rebuilds the shelter. It does not append, and it does not move the home anchor.
@@ -265,19 +368,61 @@ export default function Scene() {
       shrubs: (shrubs?.plants ?? []).map((p) => ({ x: p.x, z: p.z, r: p.height * p.width * 0.5 })),
       pose: { x: dwelling.pose.x, z: dwelling.pose.z },
     });
-    const shelter = placeShelter({ dwelling, obstacles: layout.obstacles, seed: params.seed });
+    const shelter = placeShelter({ dwelling, obstacles: layout.obstacles, seed: params.seed, shell: saved.dens[0] });
     if (shelter.plan) {
       dwelling.setRestPlace({ bed: shelter.plan.bed, mouth: shelter.plan.mouth });
       dwelling.setObstacles(shelter.plan.obstacles);
     } else dwelling.setRestPlace(null);
+    let shelter2: ReturnType<typeof placeShelter> | null = null;
+    if (dwelling2) {
+      // Its home: the first of the others where a den fits (else the first of them, without a den).
+      const homes = [1, 0, 2].filter((h) => h !== dwelling.home && h < dwelling.sites.homes.length);
+      for (const h of homes) {
+        dwelling2.home = h;
+        shelter2 = placeShelter({ dwelling: dwelling2, obstacles: shelter.plan?.obstacles ?? layout.obstacles, seed: params.seed, shell: saved.dens[1] });
+        if (shelter2.plan) break;
+      }
+      if (!shelter2?.plan) dwelling2.home = homes[0] ?? 1;
+      shelter2 ??= { plan: null, skip: 'no home' };
+      if (shelter2.plan) {
+        dwelling2.setRestPlace({ bed: shelter2.plan.bed, mouth: shelter2.plan.mouth });
+        dwelling2.setObstacles(shelter2.plan.obstacles);
+      } else dwelling2.setRestPlace(null);
+      dwelling.companions = [dwelling2];
+      dwelling2.companions = [dwelling];
+    }
     // First time this dwelling exists: lie in the bed. Changing home does not teleport.
     if (shelterBoot.current !== dwelling) {
       shelterBoot.current = dwelling;
       dwelling.reset();
+      dwelling2?.reset();
     }
-    return { layout, shelter };
-  }, [dwelling, dwell.home, trees, shrubs, ground, params.seed]);
+    return { layout, shelter, shelter2 };
+  }, [dwelling, dwelling2, dwell.home, trees, shrubs, ground, params.seed, saved.dens]);
+  useEffect(() => {
+    if (!dwelling || !cover || !habitat) return;
+    const graze = (dw: Dwelling) => {
+    const home = dw.sites.homes[dw.home];
+    let best: { x: number; z: number; facing: number; gx: number; gz: number; score: number } | null = null;
+    for (let i = 0; i < 64; i++) {
+      const angle = i * 2.399963229728653 + params.seed * 0.013;
+      const range = 4 + (i % 9) * 1.7;
+      const x = home.x + Math.cos(angle) * range, z = home.z + Math.sin(angle) * range;
+      const facing = angle + Math.PI;
+      const gx = x + Math.cos(facing) * 0.95, gz = z + Math.sin(facing) * 0.95;
+      if (!dw.dry(x, z) || !dw.dry(gx, gz)) continue;
+      const score = cover.suitAt(gx, gz) * cover.patchAt(gx, gz) - range * 0.004;
+      if (score > 0.18 && (!best || score > best.score)) best = { x, z, facing, gx, gz, score };
+    }
+    dw.setGrazing(best ? { x: best.gx, z: best.gz, radius: 2.6, biomass: 1, version: 0, stand: { x: best.x, z: best.z, facing: best.facing } } : null);
+    };
+    graze(dwelling);
+    if (dwelling2) graze(dwelling2);
+  }, [dwelling, dwelling2, cover, habitat, params.seed]);
   const corner = habitat?.layout.corner ?? null;
+  // Each chapter's view, by rule from the island as built.
+  const views = useMemo(() => (ground && above ? chapterViews(groundRules(params).frame, ground.water.plunge, corner, above) : null), [ground, above, params, corner]);
+  const islandBox = useMemo(() => (ground ? boxFromRim(ground.rim, ground.underside.positions, ground.grid, -BASE_DEPTH, ground.water.falls.map((fall) => fall.positions)) : null), [ground]);
 
   const scaleKnown = useMemo(() => {
     const heights = trees.map((p) => p.height);
@@ -316,6 +461,13 @@ export default function Scene() {
       size: new Vector3(rangeAcross, params.range.top, rangeDepth),
     };
     const poolAcross = terraceGroup ? terraceGroup.across * 0.35 : undefined;
+    // The lives and dens (docs/plan-2026-11-18-school-herd.md): measured from what is built.
+    const crowns = who.map((w) => resolveMorph({ worldSeed: 684, creatureSeed: 11, axes: { ...birthAxes(11), ...w.antlers } }).morph.crownHeight).slice(0, dwelling2 ? 2 : 1);
+    const spanOf = (v: number[]): [number, number] | undefined => (v.length ? [Math.min(...v), Math.max(...v)] : undefined);
+    const dwellers = dwelling ? spanOf(crowns) : undefined;
+    const streamlings = spanOf(fish.map((f) => f.length));
+    const dens = spanOf([habitat?.shelter.plan?.exterior.height, habitat?.shelter2?.plan?.exterior.height].filter((h): h is number => h != null));
+    const shrubHeights = spanOf((shrubs?.plants ?? []).map((p) => p.height));
     return {
       peakHeight: params.range.top,
       forest,
@@ -323,10 +475,11 @@ export default function Scene() {
       flower: COVER_SCALE.flower,
       steleHeight: STELE.height,
       poolAcross,
+      dwellers, streamlings, dens, shrubs: shrubHeights,
       terraceGroup,
       rangeMassif,
     };
-  }, [trees, params.range.top, params.range.reach, ground]);
+  }, [trees, params.range.top, params.range.reach, ground, who, dwelling, dwelling2, fish, habitat, shrubs]);
   const scaleAnchors = useMemo(() => {
     if (!corner || !ground) return [] as Vector3[];
     const { x, z } = corner.stone;
@@ -342,6 +495,7 @@ export default function Scene() {
   const [drawn, setDrawn] = useState({ patches: 0, triangles: 0 });
 
   const islandResources = useMemo<IslandResourceMap>(() => {
+    if (!ground) return {};
     const map: IslandResourceMap = {};
     if (shrubs && shrubs.plants.length) {
       const hs = shrubs.plants.map((p) => p.height);
@@ -393,13 +547,20 @@ export default function Scene() {
       const bodyL = BODY.torso.along * 2 + BODY.head.front;
       const bodyW = BODY.torso.across * 2;
       const home = dwelling.sites.homes[Math.min(dwell.home, dwelling.sites.homes.length - 1)];
-      map['wonderland-creature'] = {
-        count: 1,
+        {
+        const den = habitat?.shelter.plan;
+        map['wonderland-den'] = den
+          ? { count: 1, islandSize: { width: [den.exterior.across, den.exterior.across], depth: [den.exterior.along, den.exterior.along], height: [den.exterior.height, den.exterior.height] }, locate: { x: den.bed.x, y: den.originY + 1.5, z: den.bed.z } }
+          : { count: 0, islandSize: {}, locate: null };
+      }
+    map['wonderland-creature'] = {
+        count: dwelling2 ? 2 : 1,
         islandSize: { height: [standH, standH], width: [bodyW, bodyW], depth: [bodyL, bodyL] },
         locate: home
           ? { x: home.x, y: sampleGrid(ground.grid, home.x, home.z) + standH * 0.5, z: home.z }
           : { x: corner.stone.x, y: sy + 1, z: corner.stone.z },
-        note: '本岛仅 1 只；尺寸为形体实测（站立），非配置区间。',
+        noteEn: dwelling2 ? 'Two creatures on this island (A and B): the same rules, each with its own home and den. Dimensions measure the standing body.' : 'One creature on this island. Island dimensions measure its standing body, rather than a configured range.',
+        noteZh: dwelling2 ? '本岛 2 只（甲、乙），同一套规则，各有家与岩窝；尺寸为形体实测（站立）。' : '本岛仅 1 只；尺寸为形体实测（站立），非配置区间。',
       };
       // Stele hidden in live scene this pass — atlas asset kept; no locate.
       map['wonderland-stele'] = {
@@ -409,8 +570,11 @@ export default function Scene() {
       };
     } else {
       map['wonderland-creature'] = { count: 0, islandSize: {}, locate: null };
+      map['wonderland-den'] = { count: 0, islandSize: {}, locate: null };
       map['wonderland-stele'] = { count: 0, islandSize: {}, locate: null };
     }
+    const locatedFish = selectedFish ?? fish[0];
+    map['wonderland-stream-fish'] = { count: fish.length, islandSize: fish.length ? { depth: [Math.min(...fish.map((f) => f.length)), Math.max(...fish.map((f) => f.length))] } : {}, locate: locatedFish ? { x: locatedFish.now.x, y: locatedFish.y, z: locatedFish.now.z } : null };
     map.person = { count: 0, islandSize: { height: [SIZES.person.height, SIZES.person.height] }, locate: null };
     map['wonderland-island'] = {
       count: 1,
@@ -432,26 +596,134 @@ export default function Scene() {
       locate: p0 ? { x: p0.centre[0], y: p0.level + 2, z: p0.centre[1] } : null,
     };
     return map;
-  }, [shrubs, trees, coverLive, dwelling, dwell.home, corner, ground, params.range.top, scaleKnown.poolAcross]);
+  }, [shrubs, trees, coverLive, dwelling, dwelling2, dwell.home, corner, ground, params.range.top, scaleKnown.poolAcross, fish, selectedFish]);
 
+  // On to the next creature: its card, and the camera pans to it (Life follows it).
+  const nextCreature = () => {
+    setLifeIndex((i) => (i + 1) % (dwelling2 ? 2 : 1));
+    if (chapter !== 'life') chooseChapter('life');
+    else { followGate.current = true; setFollowLife(true); }
+  };
+  const pickCreature = useCallback((i = 0) => {
+    setLifeIndex(i);
+    setFishCard(false);
+    setStatusOpen(true);
+  }, []);
+  const pickResource = useCallback((id: string) => {
+    setWorldPointer(null);
+    setAtlasFocus(id);
+    setAtlasPicked(true);
+    setAtlasOpen(true);
+  }, []);
+  const setCreatureDebug = (key: keyof DebugToggles, on: boolean) => {
+    const path: Record<keyof DebugToggles, string> = {
+      skeleton: 'Dwelling.dbgSkeleton',
+      feet: 'Dwelling.dbgFeet',
+      state: 'Dwelling.dbgState',
+      route: 'Dwelling.dbgRoute',
+      contact: 'Dwelling.show',
+      drink: 'Dwelling.dbgDrink',
+      rest: 'Dwelling.dbgRest',
+    };
+    levaStore.setValueAtPath(path[key], on, true);
+  };
+  const showCreatureDebug = () => {
+    (['feet', 'state', 'route', 'contact', 'drink', 'rest'] as const).forEach((key) => setCreatureDebug(key, false));
+    setCreatureDebug('skeleton', true);
+    setAtlasOpen(false);
+    locateRef.current?.({ x: Number.NaN, y: Number.NaN, z: Number.NaN });
+    chooseChapter('life');
+  };
   const closeAtlas = useCallback(() => {
     setAtlasOpen(false);
     // Restore orbit camera saved when the atlas opened.
     locateRef.current?.({ x: Number.NaN, y: Number.NaN, z: Number.NaN });
   }, []);
 
+  const change = (path: string, value: boolean | number | string) => levaStore.setValueAtPath(path, value, true);
+  const row = (label: string, path: string, value: boolean | number | string, extras: Partial<SettingControl> = {}): SettingControl => ({ label, value, onChange: (v) => change(path, v), ...extras });
+  const slider = (label: string, path: string, value: number, min: number, max: number, step: number): SettingControl => row(label, path, value, { kind: 'range', min, max, step });
+  const settingsSections: SettingSection[] = [
+    { id: 'explore', title: t('exhibit.explore'), controls: [
+      row(t('leva.scaleView'), 'View.scale', view.scale),
+      row(t('leva.walk'), 'View.walk', view.walk),
+      ...(view.walk ? [slider(t('leva.walkSpeed'), 'View.walkSpeed', view.walkSpeed, 1, 6, 0.1)] : []),
+    ] },
+    { id: 'mountain', title: t('exhibit.groupMountain'), controls: [
+      slider(t('leva.layoutTurn'), `${t('leva.advancedFolder')}.turn`, layout.turn, 0, 40, 1),
+      slider(t('leva.layoutVariation'), `${t('leva.advancedFolder')}.variation`, layout.variation, 0, 1, 0.05),
+      row(t('leva.rockFolds'), `${t('leva.advancedFolder')}.folds`, rock.folds),
+      slider(t('leva.rockFoldMix'), `${t('leva.advancedFolder')}.foldMix`, rock.foldMix, 0, 1, 0.01),
+      slider(t('leva.rangeTop'), 'Range.top', range.top, 40, 160, 1),
+      slider(t('leva.rangeFoot'), 'Range.foot', range.foot, 10, 80, 1),
+      slider(t('leva.rangeReach'), 'Range.reach', range.reach, 60, 150, 1),
+      slider(t('leva.rangeSpacing'), 'Range.spacing', range.spacing, 7, 20, 0.5),
+      slider(t('leva.rangeSpurs'), 'Range.spurs', range.spurs, 0, 4, 1),
+      slider(t('leva.rangeGully'), 'Range.gully', range.gully, 0, 12, 0.5),
+    ] },
+    { id: 'water', title: t('exhibit.groupWater'), controls: [
+      slider(t('leva.terraceRim'), 'Terrace.rim', pools.rim, 1, 8, 0.5),
+      slider(t('leva.waterFlow'), 'Water.flow', flow.flow, 0.2, 20, 0.1),
+      slider(t('leva.waterStreams'), 'Water.streams', flow.streams, 0, 5, 1),
+      slider(t('leva.waterFan'), 'Water.fan', flow.fan, 0.2, 1.5, 0.05),
+      slider(t('leva.waterMeander'), 'Water.meander', flow.meander, 0, 14, 0.5),
+    ] },
+    { id: 'keel', title: t('exhibit.groupKeel'), controls: [
+      slider(t('leva.underDepth'), 'Underside.depth', under.depth, 30, 200, 5),
+      slider(t('leva.underRocks'), 'Underside.rocks', under.rocks, 1, 6, 1),
+    ] },
+    { id: 'plants', title: t('exhibit.groupPlants'), controls: [
+      slider(t('leva.shrubAmount'), 'View.shrubAmount', view.shrubAmount, 0, 1, 0.05),
+      slider(t('leva.grassAmount'), 'View.grass', view.grass, 0, 1, 0.05),
+      row(t('leva.envView'), 'View.envView', view.envView, { kind: 'select', options: [
+        { label: t('leva.envNormal'), value: 'normal' }, { label: t('leva.envZones'), value: 'zones' }, { label: t('leva.envDensity'), value: 'density' },
+      ] }),
+    ] },
+    { id: 'quality', title: t('exhibit.groupQuality'), controls: [
+      slider(t('leva.lodRange'), 'View.lod', view.lod, 45, 240, 5),
+      row(t('leva.blockStats'), 'View.stats', view.stats),
+    ] },
+    { id: 'dev', title: t('exhibit.groupDev'), controls: [
+      row(t('leva.islandSeed'), 'Island.seed', island.seed, { min: 0, max: 9999 }),
+      row(t('leva.rockFoldDebug'), `${t('leva.advancedFolder')}.foldView`, rock.foldView, { kind: 'select', options: [
+        { label: 'Off', value: 'off' }, { label: 'Mountain', value: 'mountain' }, { label: 'Folds', value: 'folds' }, { label: 'Hollow', value: 'wide' }, { label: 'Region', value: 'gate' }, { label: 'Final', value: 'final' },
+      ] }),
+      row(t('leva.lodWire'), 'Debug.wire', debug.wire),
+      row(t('leva.waterParticles'), 'Debug.particles', debug.particles),
+    ] },
+  ];
+
+  // The camera follows the creature whose card is open.
+  creatureRef.current = lifeIndex === 1 && dwelling2 ? dwelling2 : dwelling;
+  const retryLoad = () => {
+    setLoadError(null);
+    setLoadProgress({ percent: 0, step: 'ground' });
+    setShowComplete(false);
+    setGround(null);
+    setShown(false);
+    worker.current?.terminate();
+    const w = new Worker(new URL('./terrain.worker.ts', import.meta.url), { type: 'module' });
+    attachWorker(w);
+    const id = ++asked.current.ground;
+    w.postMessage({ type: 'ground', id, params, terrace, water, underside } satisfies ToTerrain);
+  };
+
   return (
     <>
       {/* flat: no tone mapping, as Penglai: every material, built-in or our own, writes its colour in sRGB (without it the built-in ones went through ACES and ours did not). */}
       <Canvas className={WONDER_WALK_CANVAS} flat gl={{ localClippingEnabled: true }} dpr={TERRAIN_DPR} camera={{ position: [-430, 300, 380], fov: 40, near: 0.5, far: 5000 }}>
+        <RevealFirstFrame ready={!!ground && !!above} onReady={() => setShown(true)} />
         <AtlasCameraBridge open={atlasOpen} saved={atlasCam} locateRef={locateRef} />
         {/* For the creature's figure (the built parts light themselves). */}
         <hemisphereLight args={[BLOCKOUT.skyLight, BLOCKOUT.groundLight, 1.6]} />
         <directionalLight position={[-300, 400, 200]} intensity={1.6} />
-        <World hour={hour} clouds={-BASE_DEPTH - underside.depth - 50}>
+        <World hour={hour} seed={params.seed} clouds={-BASE_DEPTH - underside.depth - 50} islandBox={islandBox} arrival={views?.arrival ?? null}>
           {(uniforms) => ground && above && (
-            <Ground uniforms={uniforms} grid={ground.grid} rim={ground.rim} terrace={ground.terrace} water={ground.water} underside={ground.underside} above={above} light={light} lod={view.lod} wire={debug.wire} marker={debug.particles} onDrawn={setDrawn} trees={trees} zones={ground.zones} folds={ground.folds} rock={rock} shrubs={view.shrubs ? shrubs : null} showZones={showZones} cover={cover} coverDebug={coverDebug} coverAmount={coverAmount} seed={params.seed} onCoverStats={onCoverStats} walking={view.walk} coverBuildMsRef={coverBuildMsRef} floorFlagsRef={floorFlagsRef}
-              dwelling={dwelling && habitat && { sim: dwelling, corner, stones: habitat.layout, shelter: habitat.shelter.plan, cut: false, seed: params.seed, run: dwell.run, speed: dwell.speed, show: dwell.show, calls: dwellCalls.current, onStats: setDwellStats }} />
+            <Ground uniforms={uniforms} grid={ground.grid} rim={ground.rim} terrace={ground.terrace} poolNodes={ground.pools} outlets={ground.outlets} water={ground.water} underside={ground.underside} above={above} light={light} lod={view.lod} wire={debug.wire} marker={debug.particles} onDrawn={setDrawn} trees={trees} zones={ground.zones} folds={ground.folds} rock={rock} shrubs={shrubs} showZones={showZones} cover={cover} coverDebug={coverDebug} coverAmount={coverAmount} seed={params.seed} onCoverStats={onCoverStats} walking={view.walk} coverBuildMsRef={coverBuildMsRef} floorFlagsRef={floorFlagsRef} lifeGoal={creatureRef} prewarmLife={chapter === 'life' && followLife} coverFlightRef={focusAnimRef}
+              onPickResource={exhibit ? pickResource : undefined}
+              fish={fish}
+              onPickFish={exhibit ? (f) => { setSelectedFish(f); setStatusOpen(false); setFishCard(true); } : undefined}
+              dwelling={dwelling && habitat && { sim: dwelling, corner, stones: habitat.layout, shelter: habitat.shelter.plan, cut: false, seed: params.seed, run: dwell.run, speed: dwell.speed, show: dwell.show, debug: { skeleton: dwell.dbgSkeleton, feet: dwell.dbgFeet, state: dwell.dbgState, route: dwell.dbgRoute, drink: dwell.dbgDrink, rest: dwell.dbgRest }, selecting: exhibit, onSelect: () => pickCreature(0), antlers: who[0].antlers, calls: dwellCalls.current, onStats: setDwellStats, onReadout: setReadout, companion: dwelling2 ? { sim: dwelling2, shelter: habitat.shelter2?.plan ?? null, onSelect: () => pickCreature(1), onStats: setDwellStats2, antlers: who[1].antlers } : null }} />
           )}
         </World>
         {view.scale && !view.walk && (
@@ -476,6 +748,8 @@ export default function Scene() {
             zoomSpeed={1.15}
             panSpeed={1.1}
             rotateSpeed={0.85}
+            onStart={() => { lifeOrbitInteracting.current = true; }}
+            onEnd={() => { lifeOrbitInteracting.current = false; }}
           />
         )}
         {!view.walk && above && <OrbitFocus enabled above={above} animRef={focusAnimRef} />}
@@ -506,13 +780,66 @@ export default function Scene() {
           />
         )}
         <OrbitRestoreCapture restore={orbitRestore} active={!view.walk} />
+        {exhibit && !view.walk && <ChapterCamera views={views} chapter={chapter} go={chapterGo} animRef={focusAnimRef} box={islandBox} creature={creatureRef} followLife={followLife} orbitInteracting={lifeOrbitInteracting} followGate={followGate} />}
       </Canvas>
+      {exhibit && !view.walk && (
+        <>
+          {shown && !loadError && <CameraRail chapter={chapter} onChapter={chooseChapter} />}
+          {(!shown || showComplete || loadError) && <IslandLoading phase={ground ? 'frame' : 'ground'} percent={shown ? 100 : loadProgress.percent} step={loadProgress.step} failed={!!loadError} onRetry={retryLoad} />}
+        </>
+      )}
+      {exhibit && shown && !loadError && (
+        <SettingsDrawer
+          open={drawer}
+          onOpen={setDrawer}
+          run={dwell.run}
+          onRun={(on) => levaStore.setValueAtPath('Dwelling.run', on, true)}
+          speed={dwell.speed}
+          onSpeed={(v) => levaStore.setValueAtPath('Dwelling.speed', v, true)}
+          onAnother={() => levaStore.setValueAtPath('Island.seed', Math.floor(createRng(params.seed + 1)() * 9999), true)}
+          onReset={() => { dwellCalls.current.reset(); dwelling2?.reset(); }}
+          sections={settingsSections}
+          onResources={() => { setDrawer(false); setAtlasFocus(null); setAtlasPicked(false); setAtlasOpen(true); }}
+          onCreature={() => { setDrawer(false); setAtlasFocus('wonderland-creature'); setAtlasPicked(true); setAtlasOpen(true); }}
+          debug={{
+            skeleton: dwell.dbgSkeleton, feet: dwell.dbgFeet, state: dwell.dbgState, route: dwell.dbgRoute,
+            contact: dwell.show, drink: dwell.dbgDrink, rest: dwell.dbgRest,
+          }}
+          onDebug={setCreatureDebug}
+          hour={hour}
+          onHour={(value) => levaStore.setValueAtPath('Light.hour', value, true)}
+          activity={dwellStats ? t(`dwell.${dwellStats.activity}` as StringKey) : null}
+          trips={dwellStats ? dwellStats.cycles : null}
+        />
+      )}
+      {exhibit && shown && !loadError && !view.walk && !atlasOpen && statusOpen && dwellStats && <CreatureStatusDock stats={lifeIndex === 1 && dwellStats2 ? dwellStats2 : dwellStats} who={(() => { const dw = lifeIndex === 1 && dwelling2 ? dwelling2 : dwelling; const w = who[lifeIndex === 1 && dwelling2 ? 1 : 0]; return dw ? { name: t(`dweller.name.${w.nameIndex}` as StringKey), gloss: t(`dweller.gloss.${w.nameIndex}` as StringKey), traits: dw.traits, antlers: w.antlers } : undefined; })()} onNext={dwelling2 ? nextCreature : undefined} onClose={() => setStatusOpen(false)} onForm={() => { setAtlasFocus('wonderland-creature'); setAtlasPicked(true); setAtlasOpen(true); }} />}
+      {exhibit && shown && !loadError && !view.walk && !atlasOpen && fishCard && selectedFish && !statusOpen && <FishStatusDock fish={selectedFish} onClose={() => setFishCard(false)} onForm={() => pickResource('wonderland-stream-fish')} />}
+      {exhibit && shown && !loadError && !view.walk && !atlasOpen && ground && above && <IslandNavigator grid={ground.grid} mask={ground.water.mask} rim={ground.rim} fish={fish} plunge={ground.water.plunge} creatures={[dwelling?.pose, dwelling2?.pose].filter((p): p is NonNullable<typeof p> => !!p)} creatureName={(i) => t(`dweller.name.${who[i].nameIndex}` as StringKey)} onCreature={(i) => { setFishCard(false); setLifeIndex(i); followGate.current = true; setFollowLife(true); setStatusOpen(true); }} onGo={(x, z) => { const y = above(x, z); if (Number.isFinite(y)) { followGate.current = false; setFollowLife(false); locateRef.current?.({ x, y: y + 2, z, distance: 28 }); } }} onFish={(f) => { setSelectedFish(f); setStatusOpen(false); setFishCard(true); followGate.current = false; setFollowLife(false); locateRef.current?.({ x: f.now.x, y: f.y, z: f.now.z, distance: 3.5 }); }} />}
       <ResourceAtlas
         open={atlasOpen}
         onClose={closeAtlas}
         island={islandResources}
-        onLocate={(p) => locateRef.current?.(p)}
+        onLocate={(p) => { followGate.current = false; setFollowLife(false); locateRef.current?.(p); }}
+        worldSeed={params.seed}
+        focusId={atlasFocus}
+        picked={atlasPicked}
+        activity={dwellStats ? t(`dwell.${dwellStats.activity}` as StringKey) : null}
+        day={dwellStats ? dwellStats.cycles : null}
+        creatureStats={dwellStats}
+        fish={selectedFish ?? fish[0] ?? null}
+        fishSchool={fish}
+        denSeed={habitat?.shelter.plan?.formSeed ?? null}
+        lifeIndex={lifeIndex}
+        dwellers={dwelling ? who.slice(0, dwelling2 ? 2 : 1).map((w) => ({ name: t(`dweller.name.${w.nameIndex}` as StringKey), axes: w.antlers as MorphAxes, birth: w.birth })) : undefined}
+        onSaveForm={(i, axes) => keep({ ...saved, forms: { ...saved.forms, [i]: axes } })}
+        dens={habitat ? [habitat.shelter.plan, habitat.shelter2?.plan ?? null].flatMap((pl, i) => (pl ? [{ name: t('den.of').replace('{n}', t(`dweller.name.${who[i].nameIndex}` as StringKey)), seed: pl.formSeed, params: pl.shell ?? birthShell(pl.formSeed), birth: birthShell(pl.formSeed) }] : [])) : undefined}
+        onSaveDen={(i, p) => keep({ ...saved, dens: { ...saved.dens, [i]: p } })}
+        onShowDebug={showCreatureDebug}
       />
+      <MorphSheet />
+      {exhibit && readout && (dwell.dbgSkeleton || dwell.dbgFeet || dwell.dbgState || dwell.dbgRoute || dwell.show || dwell.dbgDrink || dwell.dbgRest) && (
+        <CreatureLegend t={t} readout={readout} flags={{ skeleton: dwell.dbgSkeleton, feet: dwell.dbgFeet, state: dwell.dbgState, route: dwell.dbgRoute, contact: dwell.show, drink: dwell.dbgDrink, rest: dwell.dbgRest }} />
+      )}
       {view.walk && (
         <p className="walk-hint">
           {walkLocked
@@ -634,7 +961,7 @@ const NONE: Plant[] = [];
 function AtlasCameraBridge({ open, saved, locateRef }: {
   open: boolean;
   saved: React.MutableRefObject<{ pos: Vector3; target: Vector3 } | null>;
-  locateRef: React.MutableRefObject<((p: { x: number; y: number; z: number }) => void) | null>;
+  locateRef: React.MutableRefObject<((p: { x: number; y: number; z: number; distance?: number }) => void) | null>;
 }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as { target: Vector3; update?: () => void } | null;
@@ -655,7 +982,9 @@ function AtlasCameraBridge({ open, saved, locateRef }: {
         return;
       }
       controls.target.set(p.x, p.y, p.z);
-      const dir = new Vector3().subVectors(camera.position, controls.target).setLength(Math.max(8, camera.position.distanceTo(controls.target) * 0.35));
+      const dir = p.distance != null
+        ? new Vector3(1, p.distance <= 10 ? .45 : .8, 1).normalize().multiplyScalar(p.distance)
+        : new Vector3().subVectors(camera.position, controls.target).setLength(p.distance ?? Math.max(8, camera.position.distanceTo(controls.target) * 0.35));
       camera.position.copy(controls.target).add(dir.lengthSq() > 1 ? dir : new Vector3(6, 4, 8));
       controls.update?.();
     };
@@ -686,11 +1015,13 @@ function OrbitRestoreCapture({ restore, active }: { restore: React.MutableRefObj
 }
 
 /** The ground: its patches (CDLOD), the island's side, the terrace's pools; the camera kept above it. */
-function Ground({ uniforms, grid, rim, terrace, water: flowing, underside, above, light, lod, wire, marker, onDrawn, dwelling, trees, zones, showZones, cover, coverDebug, coverAmount, seed, onCoverStats, walking = false, coverBuildMsRef, floorFlagsRef , folds, rock, shrubs}: {
+function Ground({ uniforms, grid, rim, terrace, poolNodes, outlets, water: flowing, underside, above, light, lod, wire, marker, onDrawn, dwelling, trees, zones, showZones, cover, coverDebug, coverAmount, seed, onCoverStats, walking = false, coverBuildMsRef, floorFlagsRef, lifeGoal, prewarmLife, coverFlightRef, folds, rock, shrubs, onPickResource, fish, onPickFish}: {
   uniforms: WorldUniforms;
   grid: HeightGrid;
   rim: Float32Array;
   terrace: BasinMesh[];
+  poolNodes: PoolNode[];
+  outlets: OutletNode[];
   water: Water;
   underside: UndersideMesh;
   above: (x: number, z: number) => number;
@@ -700,6 +1031,9 @@ function Ground({ uniforms, grid, rim, terrace, water: flowing, underside, above
   /** Red bands riding down the falls with the water (the debug view: they must run down). */
   marker: boolean;
   onDrawn: (d: { patches: number; triangles: number }) => void;
+  onPickResource?: (id: string) => void;
+  fish: StreamFishData[];
+  onPickFish?: (fish: StreamFishData) => void;
   /** The woods' trees (groves and lone pines), drawn with Penglai's instanced levels of detail. */
   trees: Plant[];
   /** The island's zones, and whether to colour the ground by them (debug). */
@@ -719,12 +1053,31 @@ function Ground({ uniforms, grid, rim, terrace, water: flowing, underside, above
   walking?: boolean;
   coverBuildMsRef?: { current: number };
   floorFlagsRef?: { current: { cam: boolean; target: boolean } };
+  lifeGoal?: { current: { pose: { x: number; z: number } } | null };
+  prewarmLife?: boolean;
+  coverFlightRef?: { current: boolean };
   /** The creature and the jade it leaves (creature.tsx), and the panel's handles on it. */
-  dwelling: { sim: Dwelling; corner: Corner | null; stones: HabitatLayout | null; shelter: ShelterPlan | null; cut: boolean; seed: number; run: boolean; speed: number; show: boolean; calls: { reset: () => void; look: () => void }; onStats: (s: DwellingStats) => void } | null;
+  dwelling: { sim: Dwelling; corner: Corner | null; stones: HabitatLayout | null; shelter: ShelterPlan | null; cut: boolean; seed: number; run: boolean; speed: number; show: boolean; debug: { skeleton: boolean; feet: boolean; state: boolean; route: boolean; drink: boolean; rest: boolean }; selecting: boolean; onSelect: () => void; calls: { reset: () => void; look: () => void }; onStats: (s: DwellingStats) => void; onReadout: (r: CreatureReadout) => void; antlers: Antlers; companion: { sim: Dwelling; shelter: ShelterPlan | null; onSelect: () => void; onStats: (s: DwellingStats) => void; antlers: Antlers } | null } | null;
 }) {
   const material = useMemo(() => createTerrainMaterial(uniforms), [uniforms]);
   const side = useMemo(() => createPorcelainMaterial(uniforms), [uniforms]);
   const built = useMemo(() => createBuiltMaterial(uniforms), [uniforms]);
+  const jadeSites = useMemo(() => jadeRevealSites(poolNodes, outlets, flowing), [poolNodes, outlets, flowing]);
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      (window as unknown as { __jadeSites?: typeof jadeSites }).__jadeSites = jadeSites;
+      (window as unknown as { __jadeShaders?: { material: typeof material; built: typeof built } }).__jadeShaders = { material, built };
+    }
+    for (const shader of [material, built]) {
+      shader.uniforms.uJadeReveal.value = jadeSites ? 1 : 0;
+      if (jadeSites) {
+        shader.uniforms.uJadePool.value = { x: jadeSites.pool[0], y: jadeSites.pool[1] };
+        shader.uniforms.uJadeBend.value = { x: jadeSites.bend[0], y: jadeSites.bend[1] };
+        if (shader.uniforms.uJadePoolY) shader.uniforms.uJadePoolY.value = jadeSites.poolY;
+        if (shader.uniforms.uJadeTangent) shader.uniforms.uJadeTangent.value = { x: jadeSites.tangent[0], y: jadeSites.tangent[1] };
+      }
+    }
+  }, [material, built, jadeSites]);
   // The pools' water (its depth per vertex, over the plates' floors), and the water below the
   // terrace (its depth per pixel, over the ground's height map).
   const water = useMemo(() => createFlowWaterMaterial(uniforms), [uniforms]);
@@ -925,6 +1278,8 @@ function Ground({ uniforms, grid, rim, terrace, water: flowing, underside, above
 
   const told = useRef(0);
   useFrame(({ camera, controls, clock }) => {
+    const pasture = dwelling?.sim.grazing;
+    (material.uniforms.uGrazing.value as Vector4).set(pasture?.x ?? 0, pasture?.z ?? 0, pasture?.radius ?? 0, pasture?.biomass ?? 1);
     // Orbit only: lift when truly below ground. Clearance shrinks as cam↔target closes so
     // zoomToCursor near shores/slopes is not constantly yanked (still never digs into stone).
     if (!walking) {
@@ -935,7 +1290,12 @@ function Ground({ uniforms, grid, rim, terrace, water: flowing, underside, above
       const gy = above(camera.position.x, camera.position.z);
       let camClamped = false;
       if (Number.isFinite(gy) && camera.position.y < gy + camClear) {
-        camera.position.y = gy + camClear;
+        const lift = gy + camClear - camera.position.y;
+        camera.position.y += lift;
+        // Keep the OrbitControls pivot at the same relative height. Lifting only
+        // the camera changes its spherical angle, so the next wheel update tilts
+        // it back into the slope and creates a visible up/down correction loop.
+        if (target) target.y += lift;
         camClamped = true;
       }
       let tgtClamped = false;
@@ -951,6 +1311,11 @@ function Ground({ uniforms, grid, rim, terrace, water: flowing, underside, above
         }
       }
       if (floorFlagsRef) floorFlagsRef.current = { cam: camClamped, target: tgtClamped };
+      if (NAV_PROBE && target) {
+        const probe = window as unknown as { __navProbe?: { at: number; cam: number[]; target: number[]; camClamped: boolean; tgtClamped: boolean }[] };
+        const samples = probe.__navProbe ??= [];
+        if (samples.length < 900) samples.push({ at: performance.now(), cam: camera.position.toArray(), target: target.toArray(), camClamped, tgtClamped });
+      }
     }
     camera.updateMatrixWorld();
     const patches = terrain.update(camera);
@@ -964,30 +1329,78 @@ function Ground({ uniforms, grid, rim, terrace, water: flowing, underside, above
   return (
     <>
       <primitive object={terrain.group} />
+      {JADE_PROBE && jadeSites && <>
+        <mesh position={[jadeSites.pool[0], (poolNodes[0]?.level ?? 0) + 4, jadeSites.pool[1]]}><sphereGeometry args={[3, 10, 8]} /><meshBasicMaterial color="#ff00ff" depthTest={false} /></mesh>
+        <mesh position={[jadeSites.bend[0], sampleGrid(grid, jadeSites.bend[0], jadeSites.bend[1]) + 4, jadeSites.bend[1]]}><sphereGeometry args={[3, 10, 8]} /><meshBasicMaterial color="#ff00ff" depthTest={false} /></mesh>
+      </>}
       {/* Rim + underside: skip Orbit pick (they sit far below / aside and glued the pivot). */}
       <mesh geometry={wall} material={side} raycast={noOrbitHit} userData={{ orbitIgnore: true }} />
       {pools.map(({ block, sheet }, k) => (
         <group key={k}>
-          <mesh geometry={block} material={built} />
+          <mesh geometry={block} material={built}
+            onPointerOver={onPickResource ? (e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); setWorldPointer('resource'); } : undefined}
+            onPointerOut={onPickResource ? () => setWorldPointer(null) : undefined}
+            onClick={onPickResource ? (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onPickResource('wonderland-pool'); } : undefined} />
           <mesh geometry={sheet} material={water} renderOrder={1} raycast={noOrbitHit} userData={{ orbitIgnore: true }} />
         </group>
       ))}
       <mesh geometry={streams.under} material={side} raycast={noOrbitHit} userData={{ orbitIgnore: true }} />
       {streams.sheets.map((g, k) => <mesh key={`w${k}`} geometry={g} material={runoff} renderOrder={1} raycast={noOrbitHit} userData={{ orbitIgnore: true }} />)}
       {streams.falls.map((g, k) => <mesh key={`s${k}`} geometry={g} material={falling} renderOrder={3} raycast={noOrbitHit} userData={{ orbitIgnore: true }} />)}
-      {shrubs && <ShrubPatches plants={shrubs.plants} uniforms={uniforms} />}
-      <Vegetation trees={trees} shrubs={NONE} boulders={NONE} seed={seed} pineMaterial={pines} uniforms={uniforms} lod={WOODS_LOD} />
-      {cover && <CoverGrass cover={cover} grid={grid} uniforms={uniforms} seed={seed} map={dwelling?.sim.map ?? null} amount={coverAmount} walking={walking} onStats={onCoverStats} buildMsRef={coverBuildMsRef} />}
+      <StreamFish fish={fish} onPick={onPickFish} run={dwelling?.run ?? true} speed={dwelling?.speed ?? 1} />
+      {shrubs && <ShrubPatches plants={shrubs.plants} uniforms={uniforms} onPick={onPickResource ? () => onPickResource('wonderland-shrub') : undefined} />}
+      <Vegetation trees={trees} shrubs={NONE} boulders={NONE} seed={seed} pineMaterial={pines} uniforms={uniforms} lod={WOODS_LOD} onPickTree={onPickResource ? () => onPickResource('wonderland-pine') : undefined} onHoverTree={onPickResource ? (hover) => setWorldPointer(hover ? 'resource' : null) : undefined} />
+      {cover && <CoverGrass cover={cover} grid={grid} uniforms={uniforms} seed={seed} map={dwelling?.sim.map ?? null} grazing={dwelling?.sim.grazing} amount={coverAmount} walking={walking} onStats={onCoverStats} buildMsRef={coverBuildMsRef} lifeGoal={lifeGoal} prewarmLife={prewarmLife} flightRef={coverFlightRef} />}
       {dwelling?.corner && <CornerBlocks corner={dwelling.corner} uniforms={uniforms} groundAt={dwelling.sim.groundAt} seed={dwelling.seed} />}
       {dwelling?.stones && <HabitatStones layout={dwelling.stones} uniforms={uniforms} dwelling={dwelling.sim} />}
-      {dwelling?.shelter && <RockShelter plan={dwelling.shelter} cut={dwelling.cut} uniforms={uniforms} />}
-      {dwelling && <DwellingView dwelling={dwelling.sim} ground={material} run={dwelling.run} speed={dwelling.speed} show={dwelling.show} calls={dwelling.calls} onStats={dwelling.onStats} />}
+      {dwelling?.shelter && <RockShelter plan={dwelling.shelter} cut={dwelling.cut} uniforms={uniforms} onPick={onPickResource ? () => onPickResource('wonderland-den') : undefined} />}
+      {dwelling && <DwellingView dwelling={dwelling.sim} ground={material} run={dwelling.run} speed={dwelling.speed} show={dwelling.show} debug={dwelling.debug} selecting={dwelling.selecting} onSelect={dwelling.onSelect} calls={dwelling.calls} onStats={dwelling.onStats} onReadout={dwelling.onReadout}  antlers={dwelling.antlers} />}
+      {dwelling?.companion?.shelter && <RockShelter plan={dwelling.companion.shelter} cut={false} uniforms={uniforms} onPick={onPickResource ? () => onPickResource('wonderland-den') : undefined} />}
+      {dwelling?.companion && <CompanionView dwelling={dwelling.companion.sim} run={dwelling.run} speed={dwelling.speed} selecting={dwelling.selecting} onSelect={dwelling.companion.onSelect} onStats={dwelling.companion.onStats} antlers={dwelling.companion.antlers} debug={dwelling.debug} />}
     </>
+  );
+}
+
+function CreatureLegend({ t, readout, flags }: {
+  t: (k: StringKey) => string;
+  readout: CreatureReadout;
+  flags: DebugToggles;
+}) {
+  const deg = Math.round((readout.heading * 180) / Math.PI);
+  const moving = Math.hypot(readout.vx, readout.vz);
+  return (
+    <aside className="exhibit-legend" aria-label={t('exhibit.legendTitle')}>
+      <div>{t('exhibit.legendTitle')}</div>
+      {flags.state && (
+        <div>
+          {t(`dwell.${readout.activity}` as StringKey)} · {t(readout.goalKind === 'drink' ? 'exhibit.dbg.drink' : readout.goalKind === 'eat' ? 'dwell.eat' : 'exhibit.dbg.rest')}
+          {' '}({readout.goalX.toFixed(1)}, {readout.goalZ.toFixed(1)}) m
+          <br />
+          {deg}° · {moving.toFixed(2)} m/s
+        </div>
+      )}
+      {flags.skeleton && <div><i style={{ background: '#C47B2B' }} />{t('exhibit.legendJoints')}</div>}
+      {flags.feet && <div><i style={{ background: '#1F6B4A' }} />{t('exhibit.legendDown')} · <i style={{ background: '#B8452F' }} />{t('exhibit.legendUp')} · {readout.planted.map((p) => t(p ? 'exhibit.legendDown' : 'exhibit.legendUp')).join(' · ')}</div>}
+      {flags.route && <div><i style={{ background: '#2C6CB0' }} />{t('exhibit.dbg.route')}</div>}
+      {flags.contact && <div><i style={{ background: '#8C3030' }} />{t('exhibit.legendContact')}</div>}
+      {flags.drink && <div><i style={{ background: '#E0A85A' }} />{t('exhibit.legendMuzzle')}</div>}
+      {flags.rest && <div><i style={{ background: '#5F877D' }} />{t('exhibit.legendHome')}</div>}
+    </aside>
   );
 }
 
 /** Default overview (matches the Canvas camera). */
 const OVERVIEW: Corner['view'] = { from: [-430, 300, 380], to: [0, 20, 0] };
+
+function RevealFirstFrame({ ready, onReady }: { ready: boolean; onReady: () => void }) {
+  const frames = useRef(0);
+  useEffect(() => { frames.current = 0; }, [ready]);
+  useFrame(() => {
+    if (!ready) return;
+    if (++frames.current === 2) onReady();
+  });
+  return null;
+}
 
 function CornerCamera({ corner, drink, calls }: {
   corner: Corner;
@@ -1015,4 +1428,20 @@ function CornerCamera({ corner, drink, calls }: {
     calls.lookClose = go(corner.closeView);
   }, [calls, corner, drink, camera, controls]);
   return null;
+}
+
+/** What the visitor saved for one island (form per creature id, den knobs per den id). */
+interface SavedIsland { forms: Record<number, MorphAxes>; dens: Record<number, ShellParams> }
+const savedKey = (seed: number) => `white-jade.saved.${seed}`;
+/** Read from the browser; empty when absent, unreadable or blocked (the page works without it). */
+function loadSaved(seed: number): SavedIsland {
+  try {
+    const raw = localStorage.getItem(savedKey(seed));
+    const v = raw ? JSON.parse(raw) : null;
+    if (v && typeof v === 'object') return { forms: v.forms ?? {}, dens: v.dens ?? {} };
+  } catch { /* storage blocked or bad data: the seed's own forms */ }
+  return { forms: {}, dens: {} };
+}
+function storeSaved(seed: number, v: SavedIsland) {
+  try { localStorage.setItem(savedKey(seed), JSON.stringify(v)); } catch { /* storage blocked: kept for this visit only */ }
 }

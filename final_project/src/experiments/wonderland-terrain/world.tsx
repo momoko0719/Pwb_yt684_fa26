@@ -10,6 +10,8 @@ import { useLanguage } from '../../i18n/LanguageContext';
 import type { StringKey } from '../../i18n/strings';
 import { sunArc } from '../../leva/sunArc';
 import { createCloudSeaMaterial } from '../island-v1/cloudSea';
+import { AtmosphereClouds } from './AtmosphereClouds';
+import type { IslandBox, View } from './Exhibit';
 
 /**
  * Wonderland's world around the island: sky, sea of cloud, the hour's light, and the frame meter.
@@ -39,14 +41,14 @@ export function useHour(): number {
  * `clouds` is the height of the sea of cloud, metres: below the island's lowest point, so the
  * island floats clear of it.
  */
-export function World({ hour, clouds: cloudHeight = -70, children }: { hour: number; clouds?: number; children: (uniforms: WorldUniforms) => React.ReactNode }) {
+export function World({ hour, seed, clouds: cloudHeight = -70, islandBox, arrival, children }: { hour: number; seed: number; clouds?: number; islandBox: IslandBox | null; arrival: View | null; children: (uniforms: WorldUniforms) => React.ReactNode }) {
   const uniforms = useMemo(createWorldUniforms, []);
   const sky = useMemo(() => createSkyMaterial(uniforms), [uniforms]);
-  const clouds = useMemo(() => createCloudSeaMaterial(uniforms), [uniforms]);
+  const clouds = useMemo(() => createCloudSeaMaterial(uniforms, true), [uniforms]);
   useEffect(() => {
     applyPalette(uniforms, getPalette('qinglv', hour));
     setSunDirection(uniforms, SUN_AZIMUTH, Math.max(sunElevation(hour), 5));
-    clouds.uniforms.uCloudScale.value = 4;
+    clouds.uniforms.uCloudScale.value = 8;
   }, [uniforms, clouds, hour]);
   const skyRef = useRef<Mesh>(null);
   const cloudRef = useRef<Mesh>(null);
@@ -63,6 +65,7 @@ export function World({ hour, clouds: cloudHeight = -70, children }: { hour: num
         <sphereGeometry args={[FAR * 0.8, 32, 16]} />
       </mesh>
       {children(uniforms)}
+      <AtmosphereClouds seed={seed} hour={hour} cloudHeight={cloudHeight} box={islandBox} approach={arrival} />
       <mesh ref={cloudRef} material={clouds} rotation-x={-Math.PI / 2} frustumCulled={false} raycast={noHit}>
         <planeGeometry args={[FAR * 1.6, FAR * 1.6]} />
       </mesh>
