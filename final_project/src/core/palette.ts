@@ -389,6 +389,9 @@ export const LAYER = {
   foldFull: '#FFFFFF',
   /** Bands riding down the falls in the flow view (fallMaterial.ts). */
   fallBand: '#D91A1A',
+  /** A creature's feet while it walks (creature.tsx): planted on the ground, or swinging. */
+  footPlanted: '#1F6B4A',
+  footSwing: '#B8452F',
 };
 
 /** The dwelling's debug view: where it walks, drinks, rests (the contact map's three channels). */

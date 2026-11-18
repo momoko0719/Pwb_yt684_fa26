@@ -630,8 +630,9 @@ export default function Scene() {
   // On to the next creature: its card, and the camera pans to it (Life follows it).
   const nextCreature = () => {
     setLifeIndex((i) => (i + 1) % (dwelling2 ? 2 : 1));
-    if (chapter !== 'life') chooseChapter('life');
-    else { followGate.current = true; setFollowLife(true); }
+    // Always through the chapter: it flies the camera to the one now shown (from any view, or from the other creature).
+    followGate.current = true;
+    chooseChapter('life');
   };
   const pickCreature = useCallback((i = 0) => {
     setLifeIndex(i);
@@ -751,7 +752,7 @@ export default function Scene() {
               onPickResource={exhibit ? pickResource : undefined}
               fish={fish}
               onPickFish={exhibit ? (f) => { setSelectedFish(f); setStatusOpen(false); setFishCard(true); } : undefined}
-              dwelling={dwelling && habitat && { sim: dwelling, corner, stones: habitat.layout, shelter: habitat.shelter.plan, cut: false, seed: params.seed, run: dwell.run, speed: dwell.speed, show: dwell.show || layers.surface === 'jade', debug: { skeleton: dwell.dbgSkeleton, feet: dwell.dbgFeet, state: dwell.dbgState || layers.goals, route: dwell.dbgRoute || layers.traces, drink: dwell.dbgDrink || layers.goals, rest: dwell.dbgRest || layers.goals }, selecting: exhibit, onSelect: () => pickCreature(0), antlers: who[0].antlers, calls: dwellCalls.current, onStats: setDwellStats, onReadout: setReadout, companion: dwelling2 ? { sim: dwelling2, shelter: habitat.shelter2?.plan ?? null, onSelect: () => pickCreature(1), onStats: setDwellStats2, antlers: who[1].antlers } : null }} />
+              dwelling={dwelling && habitat && { sim: dwelling, corner, stones: habitat.layout, shelter: habitat.shelter.plan, cut: false, seed: params.seed, run: dwell.run, speed: dwell.speed, show: dwell.show || layers.prints, debug: { skeleton: dwell.dbgSkeleton, feet: dwell.dbgFeet || layers.feet, state: dwell.dbgState || layers.goals, route: dwell.dbgRoute || layers.traces, drink: dwell.dbgDrink || layers.goals, rest: dwell.dbgRest || layers.goals }, selecting: exhibit, onSelect: () => pickCreature(0), antlers: who[0].antlers, calls: dwellCalls.current, onStats: setDwellStats, onReadout: setReadout, companion: dwelling2 ? { sim: dwelling2, shelter: habitat.shelter2?.plan ?? null, onSelect: () => pickCreature(1), onStats: setDwellStats2, antlers: who[1].antlers } : null }} />
           )}
         </World>
         {showScale && !view.walk && (
@@ -854,7 +855,7 @@ export default function Scene() {
       )}
       {exhibit && shown && !loadError && !view.walk && !atlasOpen && statusOpen && dwellStats && <CreatureStatusDock stats={lifeIndex === 1 && dwellStats2 ? dwellStats2 : dwellStats} who={(() => { const dw = lifeIndex === 1 && dwelling2 ? dwelling2 : dwelling; const w = who[lifeIndex === 1 && dwelling2 ? 1 : 0]; return dw ? { name: t(`dweller.name.${w.nameIndex}` as StringKey), gloss: t(`dweller.gloss.${w.nameIndex}` as StringKey), traits: dw.traits, antlers: w.antlers } : undefined; })()} onNext={dwelling2 ? nextCreature : undefined} onClose={() => setStatusOpen(false)} onForm={() => { setAtlasFocus('wonderland-creature'); setAtlasPicked(true); setAtlasOpen(true); }} />}
       {exhibit && shown && !loadError && !view.walk && !atlasOpen && fishCard && selectedFish && !statusOpen && <FishStatusDock fish={selectedFish} onClose={() => setFishCard(false)} onForm={() => pickResource('wonderland-stream-fish')} />}
-      {exhibit && shown && !loadError && !view.walk && !atlasOpen && ground && above && <IslandNavigator grid={ground.grid} mask={ground.water.mask} rim={ground.rim} fish={fish} plunge={ground.water.plunge} creatures={[dwelling?.pose, dwelling2?.pose].filter((p): p is NonNullable<typeof p> => !!p)} creatureName={(i) => t(`dweller.name.${who[i].nameIndex}` as StringKey)} onCreature={(i) => { setFishCard(false); setLifeIndex(i); followGate.current = true; setFollowLife(true); setStatusOpen(true); }} onGo={(x, z) => { const y = above(x, z); if (Number.isFinite(y)) { followGate.current = false; setFollowLife(false); locateRef.current?.({ x, y: y + 2, z, distance: 28 }); } }} onFish={(f) => { setSelectedFish(f); setStatusOpen(false); setFishCard(true); followGate.current = false; setFollowLife(false); locateRef.current?.({ x: f.now.x, y: f.y, z: f.now.z, distance: 3.5 }); }} />}
+      {exhibit && shown && !loadError && !view.walk && !atlasOpen && ground && above && <IslandNavigator grid={ground.grid} mask={ground.water.mask} rim={ground.rim} fish={fish} plunge={ground.water.plunge} creatures={[dwelling?.pose, dwelling2?.pose].filter((p): p is NonNullable<typeof p> => !!p)} creatureName={(i) => t(`dweller.name.${who[i].nameIndex}` as StringKey)} onCreature={(i) => { setFishCard(false); setLifeIndex(i); followGate.current = true; chooseChapter('life'); }} onGo={(x, z) => { const y = above(x, z); if (Number.isFinite(y)) { followGate.current = false; setFollowLife(false); locateRef.current?.({ x, y: y + 2, z, distance: 28 }); } }} onFish={(f) => { setSelectedFish(f); setStatusOpen(false); setFishCard(true); followGate.current = false; setFollowLife(false); locateRef.current?.({ x: f.now.x, y: f.y, z: f.now.z, distance: 3.5 }); }} />}
       <ResourceAtlas
         open={atlasOpen}
         onClose={closeAtlas}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html, Line } from '@react-three/drei';
 import { AmbientLight, ConeGeometry, CylinderGeometry, DataTexture, DirectionalLight, Group, LinearFilter, Mesh, MeshStandardMaterial, PerspectiveCamera, RGBAFormat, Scene, SphereGeometry, Vector3, WebGLRenderer, type ShaderMaterial } from 'three';
-import { PORCELAIN, WEAR_DEBUG } from '../../core/palette';
+import { LAYER, PORCELAIN, WEAR_DEBUG } from '../../core/palette';
 import { setTerrainShadow, setTerrainWear } from '../../core/terrain/cdlod';
 import { BODY, REST_MARK, type CreatureNeeds, type Dwelling, type Point } from './dwelling';
 import { birthAxes, resolveMorph, type MorphAxes } from './creatureMorph';
@@ -325,8 +325,8 @@ function CreatureDebug({ dwelling, body, debug }: {
   const goalM = useRef<import('three').Mesh | null>(null);
   const waterM = useRef<import('three').Mesh | null>(null);
   const muzzleM = useRef<import('three').Mesh | null>(null);
-  const plantedMat = useMemo(() => new MeshStandardMaterial({ color: '#1F6B4A', depthTest: false, transparent: true, opacity: 0.95 }), []);
-  const swingMat = useMemo(() => new MeshStandardMaterial({ color: '#B8452F', depthTest: false, transparent: true, opacity: 0.95 }), []);
+  const plantedMat = useMemo(() => new MeshStandardMaterial({ color: LAYER.footPlanted, depthTest: false, transparent: true, opacity: 0.95 }), []);
+  const swingMat = useMemo(() => new MeshStandardMaterial({ color: LAYER.footSwing, depthTest: false, transparent: true, opacity: 0.95 }), []);
   useEffect(() => () => { plantedMat.dispose(); swingMat.dispose(); }, [plantedMat, swingMat]);
   useFrame(() => {
     const g = body.current;
@@ -406,7 +406,7 @@ function CreatureDebug({ dwelling, body, debug }: {
       {debug.feet && [0, 1, 2, 3].map((k) => (
         <mesh key={k} ref={(m) => { feetM.current[k] = m; }} renderOrder={31}>
           <sphereGeometry args={[0.07, 10, 8]} />
-          <meshBasicMaterial color="#1F6B4A" depthTest={false} transparent opacity={0.95} />
+          <meshBasicMaterial color={LAYER.footPlanted} depthTest={false} transparent opacity={0.95} />
         </mesh>
       ))}
       {debug.state && (

@@ -1097,7 +1097,6 @@ body[data-world-pointer='creature'] .wonderland-canvas, body[data-world-pointer=
 .layers-swatch-folds { background: linear-gradient(135deg, var(--layer-foldNone), var(--layer-foldFull)); }
 .layers-swatch-zones { background: conic-gradient(var(--zone-1) 0 25%, var(--zone-6) 0 50%, var(--zone-7) 0 75%, var(--zone-5) 0); }
 .layers-swatch-density { background: linear-gradient(135deg, var(--layer-densityNone), var(--layer-densityFull)); }
-.layers-swatch-jade { background: conic-gradient(var(--wear-walk) 0 33%, var(--wear-drink) 0 66%, var(--wear-rest) 0); }
 .layers-note { margin: 8px 0 0; font-size: .74rem; line-height: 1.5; color: var(--jade-inkDim); }
 .layers-row { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: start; padding: 5px 0; cursor: pointer; }
 .layers-row input { margin: 3px 0 0; accent-color: var(--jade-jadeDeep); }

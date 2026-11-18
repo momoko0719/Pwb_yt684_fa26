@@ -9,7 +9,7 @@ import { ZONE_NAMES } from './zones';
  * rules at work. They never change the world (that is Settings' job): each one only reveals what
  * the island already computes, from the same data its rules use, with a legend saying how to read it.
  */
-export type Surface = 'normal' | 'height' | 'slope' | 'folds' | 'zones' | 'density' | 'jade';
+export type Surface = 'normal' | 'height' | 'slope' | 'folds' | 'zones' | 'density';
 export interface Layers {
   /** What the ground itself shows (one at a time: each recolours it). */
   surface: Surface;
@@ -17,18 +17,22 @@ export interface Layers {
   waterGraph: boolean;
   sites: boolean;
   traces: boolean;
+  /** Footprints so far: the contact map (walked, drunk, rested), the stone turning to jade. */
+  prints: boolean;
+  /** Its four feet while it walks: planted, or swinging. */
+  feet: boolean;
   goals: boolean;
   relations: boolean;
   school: boolean;
   scale: boolean;
 }
-export const NO_LAYERS: Layers = { surface: 'normal', flow: false, waterGraph: false, sites: false, traces: false, goals: false, relations: false, school: false, scale: false };
+export const NO_LAYERS: Layers = { surface: 'normal', flow: false, waterGraph: false, sites: false, traces: false, prints: false, feet: false, goals: false, relations: false, school: false, scale: false };
 type Overlay = Exclude<keyof Layers, 'surface'>;
 
-const SURFACES: Surface[] = ['normal', 'height', 'slope', 'folds', 'zones', 'density', 'jade'];
+const SURFACES: Surface[] = ['normal', 'height', 'slope', 'folds', 'zones', 'density'];
 const GROUPS: { id: string; items: Overlay[] }[] = [
   { id: 'water', items: ['flow', 'waterGraph'] },
-  { id: 'life', items: ['sites', 'traces', 'goals', 'relations', 'school'] },
+  { id: 'life', items: ['sites', 'traces', 'prints', 'feet', 'goals', 'relations', 'school'] },
   { id: 'scale', items: ['scale'] },
 ];
 
@@ -85,13 +89,14 @@ export function LayersLegend({ layers, heights }: { layers: Layers; heights: [nu
     case 'folds': blocks.push({ id: 'f', title: t('layers.s.folds'), rows: <>{bar([LAYER.foldNone, LAYER.foldFull], t('layers.lg.none'), t('layers.lg.strong'))}</> }); break;
     case 'zones': blocks.push({ id: 'z', title: t('layers.s.zones'), rows: <>{ZONE_NAMES.slice(1).map((n, i) => sw(ZONE_DEBUG[i + 1], t(`zones.${n}` as StringKey)))}</> }); break;
     case 'density': blocks.push({ id: 'd', title: t('layers.s.density'), rows: <>{bar([LAYER.densityNone, LAYER.densityFull], t('layers.lg.none'), t('layers.lg.dense'))}{sw(LAYER.trampled, t('layers.lg.trampled'))}</> }); break;
-    case 'jade': blocks.push({ id: 'j', title: t('layers.s.jade'), rows: <>{sw(WEAR_DEBUG.walk, t('layers.lg.walk'))}{sw(WEAR_DEBUG.drink, t('layers.lg.drink'))}{sw(WEAR_DEBUG.rest, t('layers.lg.rest'))}</> }); break;
     default: break;
   }
   if (layers.flow) blocks.push({ id: 'fl', title: t('layers.o.flow'), rows: <><div className="layers-legend-row">{t('layers.lg.particles')}</div>{sw(LAYER.fallBand, t('layers.lg.fallBands'))}</> });
   if (layers.waterGraph) blocks.push({ id: 'wg', title: t('layers.o.waterGraph'), rows: <>{sw(LAYER.waterMain, t('layers.lg.pool'), 'ring')}{sw(LAYER.waterMain, t('layers.lg.main'), 'line')}{sw(LAYER.water, t('layers.lg.branch'), 'line')}</> });
-  if (layers.sites) blocks.push({ id: 'si', title: t('layers.o.sites'), rows: <>{sw(LAYER.home, t('layers.lg.home'), 'ring')}{sw(LAYER.den, t('layers.lg.den'), 'ring')}{sw(LAYER.stand, t('layers.lg.stand'), 'ring')}{sw(LAYER.graze, t('layers.lg.graze'))}</> });
+  if (layers.sites) blocks.push({ id: 'si', title: t('layers.o.sites'), rows: <>{sw(LAYER.den, t('layers.lg.den'), 'ring')}{sw(LAYER.stand, t('layers.lg.stand'), 'ring')}{sw(LAYER.graze, t('layers.lg.graze'))}</> });
   if (layers.traces) blocks.push({ id: 'tr', title: t('layers.o.traces'), rows: <>{sw(LAYER.route, t('layers.lg.route'), 'line')}</> });
+  if (layers.prints) blocks.push({ id: 'pr', title: t('layers.o.prints'), rows: <>{sw(WEAR_DEBUG.walk, t('layers.lg.walk'))}{sw(WEAR_DEBUG.drink, t('layers.lg.drink'))}{sw(WEAR_DEBUG.rest, t('layers.lg.rest'))}<div className="layers-legend-row">{t('layers.lg.printsMore')}</div></> });
+  if (layers.feet) blocks.push({ id: 'ft', title: t('layers.o.feet'), rows: <>{sw(LAYER.footPlanted, t('layers.lg.planted'))}{sw(LAYER.footSwing, t('layers.lg.swing'))}</> });
   if (layers.goals) blocks.push({ id: 'go', title: t('layers.o.goals'), rows: <>{sw(LAYER.heading, t('layers.lg.heading'), 'line')}{sw(LAYER.move, t('layers.lg.move'), 'line')}{sw(LAYER.goal, t('layers.lg.goal'))}{sw(LAYER.stand, t('layers.lg.drinkLine'), 'line')}{sw(LAYER.rest, t('layers.lg.bed'), 'ring')}</> });
   if (layers.relations) blocks.push({ id: 're', title: t('layers.o.relations'), rows: <>{sw(LAYER.follow, t('layers.lg.together'), 'dash')}{sw(LAYER.yieldTo, t('layer.yield'))}</> });
   if (layers.school) blocks.push({ id: 'sc', title: t('layers.o.school'), rows: <>{sw(LAYER.fishRepel, t('ideas.fish.repel'), 'dash')}{sw(LAYER.fishAlign, t('ideas.fish.align'), 'dash')}{sw(LAYER.fishAttract, t('ideas.fish.attract'), 'dash')}{sw(LAYER.fishGoal, t('layers.lg.fishGoal'), 'line')}</> });

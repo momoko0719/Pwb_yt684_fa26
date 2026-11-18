@@ -21,7 +21,7 @@ const ring = (x: number, y: number, z: number, r: number, n = 40): [number, numb
   Array.from({ length: n + 1 }, (_, i) => { const a = (i / n) * Math.PI * 2; return [x + Math.cos(a) * r, y, z + Math.sin(a) * r]; });
 
 function Tag({ at, children, tone = 'ink' }: { at: [number, number, number]; children: React.ReactNode; tone?: 'ink' | 'water' | 'warm' }) {
-  return <Html position={at} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}><span className={`layer-tag layer-tag-${tone}`}>{children}</span></Html>;
+  return <Html position={at} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}><span className={`layer-tag layer-tag-${tone}`}>{children}</span></Html>;
 }
 
 /**
@@ -60,9 +60,9 @@ export function WaterGraphLayer({ pools, outlets, water }: { pools: PoolNode[]; 
 }
 
 /**
- * Where each creature lives (dwelling.ts): the home sites found by rule (A, B, C), the one it took
- * and its den's bed, the drinking stands the two share in turn, and the grass each grazes, its
- * fill showing how much grass is left (eaten down, it grows back).
+ * Where each creature lives (dwelling.ts): its one home, the den (where it lies), the drinking
+ * stands the two share in turn, and the grass each grazes, its fill showing how much grass is
+ * left (eaten down, it grows back).
  */
 export function SitesLayer({ grid, dwellings, names }: { grid: HeightGrid; dwellings: Dwelling[]; names: string[] }) {
   const { t } = useLanguage();
@@ -85,15 +85,6 @@ export function SitesLayer({ grid, dwellings, names }: { grid: HeightGrid; dwell
   if (!first) return null;
   const s = first.sites;
   return <group renderOrder={40}>
-    {s.homes.map((h, k) => {
-      const y = Y(grid, h.x, h.z);
-      const owner = dwellings.findIndex((d) => d.home === k);
-      return <group key={`h${k}`}>
-        <Line points={[[h.x, y, h.z], [h.x, y + 4, h.z]]} color={LAYER.home} lineWidth={2} {...ON_TOP} />
-        <Line points={ring(h.x, y + 0.15, h.z, 1.2, 24)} color={LAYER.home} lineWidth={owner >= 0 ? 2.5 : 1} dashed={owner < 0} dashSize={0.4} gapSize={0.3} {...ON_TOP} />
-        <Tag at={[h.x, y + 5, h.z]}>{t('layer.home')} {'ABC'[k] ?? k + 1}{owner >= 0 ? ` · ${names[owner] ?? ''}` : ''}</Tag>
-      </group>;
-    })}
     {dwellings.map((d, i) => d.restPlace && (() => {
       const b = d.restPlace!.bed, y = Y(grid, b.x, b.z);
       return <group key={`den${i}`}>
@@ -159,9 +150,9 @@ export function RelationLayer({ dwellings }: { dwellings: Dwelling[] }) {
   if (dwellings.length < 2) return null;
   return <group renderOrder={41}>
     <Line ref={line as never} points={[[0, 0, 0], [0, 0.01, 0]]} color={LAYER.follow} lineWidth={2} dashed dashSize={0.5} gapSize={0.35} {...ON_TOP} />
-    <group ref={tagGroup as never}><Html center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}><span ref={tag} className="layer-tag layer-tag-relation" /></Html></group>
+    <group ref={tagGroup as never}><Html center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}><span ref={tag} className="layer-tag layer-tag-relation" /></Html></group>
     {[0, 1].map((i) => <group key={i} ref={(g) => { yieldMarks.current[i] = g as never; }} visible={false}>
-      <Html center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}><span className="layer-tag layer-tag-warm">{t('layer.yield')}</span></Html>
+      <Html center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}><span className="layer-tag layer-tag-warm">{t('layer.yield')}</span></Html>
     </group>)}
   </group>;
 }
@@ -200,7 +191,7 @@ export function SchoolLayer({ fish }: { fish: StreamFishData[] }) {
       return <group key={k}>
         {[LAYER.fishRepel, LAYER.fishAlign, LAYER.fishAttract].map((c, i) => <Line key={i} ref={(l) => { r.rings[i] = l as never; }} points={blank} color={c} lineWidth={1.5} dashed dashSize={0.12} gapSize={0.08} {...ON_TOP} />)}
         <Line ref={(l) => { r.goal = l as never; }} points={blank} color={LAYER.fishGoal} lineWidth={1.5} {...ON_TOP} />
-        <group ref={(g) => { r.tag = g as never; }}><Html center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}><span ref={(el) => { r.text = el; }} className="layer-tag layer-tag-water" /></Html></group>
+        <group ref={(g) => { r.tag = g as never; }}><Html center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}><span ref={(el) => { r.text = el; }} className="layer-tag layer-tag-water" /></Html></group>
       </group>;
     })}
   </group>;
