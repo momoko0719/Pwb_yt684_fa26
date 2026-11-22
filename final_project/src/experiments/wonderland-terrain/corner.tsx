@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { Color, Group, LOD, Mesh, Quaternion, Vector3 } from 'three';
 import { PORCELAIN } from '../../core/palette';
-import { expandPine, forestPineModel, interpretPine, pineGeometry, GROWN_PINE_HEIGHT } from '../../core/generators/pine';
+import { forestPineModel, growPine, GROWN_PINE_HEIGHT, type PineKnobs } from '../../core/generators/pine';
 import { createPineMaterial } from '../../core/shaders/pine';
 import { createPorcelainMaterial } from '../../core/shaders/porcelain';
 import type { WorldUniforms } from '../../core/shaders/uniforms';
@@ -170,7 +170,8 @@ export function createIslandPineMaterial(uniforms: WorldUniforms) {
  * Same view bands as the woods (`WOODS_LOD`): grown L-system up close, then the shared mid/far
  * stand-ins. Stand-in meshes are scaled to GROWN_PINE_HEIGHT so one LOD root scale fits all levels.
  */
-export function CornerBlocks({ corner, uniforms, groundAt, seed }: { corner: Corner; uniforms: WorldUniforms; groundAt: (x: number, z: number) => number; seed: number }) {
+export function CornerBlocks({ corner, uniforms, groundAt, seed, pineKnobs }: { corner: Corner; uniforms: WorldUniforms; groundAt: (x: number, z: number) => number; seed: number; pineKnobs?: PineKnobs }) {
+  const pineKey = JSON.stringify(pineKnobs ?? null);
   const needles = useMemo(() => createIslandPineMaterial(uniforms), [uniforms]);
   const stoneMaterial = useMemo(() => createPorcelainMaterial(uniforms), [uniforms]);
   const steleMaterial = useMemo(() => {
@@ -187,10 +188,10 @@ export function CornerBlocks({ corner, uniforms, groundAt, seed }: { corner: Cor
     const grown = corner.pines.map((p) => {
       const s = seed * 10 + 3 + p.variant;
       // Lod 0 near the home (few trees); beyond WOODS_LOD[0] the stand-ins take over.
-      return pineGeometry(interpretPine(expandPine(s), s), 0, s);
+      return growPine(s, 0, pineKnobs);
     });
     return { grown, mid, far };
-  }, [corner, seed]);
+  }, [corner, seed, pineKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => {
     variants.grown.forEach((g) => g.dispose());
     variants.mid.dispose();

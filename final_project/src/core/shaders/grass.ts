@@ -11,6 +11,7 @@ const vertexShader = /* glsl */ `
 attribute vec3 aOffset;
 attribute vec4 aShape; // yaw, height scale, bend, shade
 uniform float uBladeHeight;
+uniform float uLean; // x every blade's resting lean (1: as grown)
 varying float vT;
 varying float vShade;
 varying vec3 vWorldPos;
@@ -25,7 +26,7 @@ void main() {
   // Rest lean + shared wind, both × t² so the root stays planted (no root slide).
   // Per-blade shade nudges wind phase so a clump does not lock-step.
   vec2 push = windAt(aOffset.xz + vec2(aShape.w * 1.7, aShape.z * 2.3));
-  float lean = ${LEAN[0].toFixed(3)} + ${(LEAN[1] - LEAN[0]).toFixed(3)} * aShape.z;
+  float lean = (${LEAN[0].toFixed(3)} + ${(LEAN[1] - LEAN[0]).toFixed(3)} * aShape.z) * uLean;
   vec3 bend = (facing * lean + vec3(push.x, 0.0, push.y)) * h * t * t;
   // position.x already encodes a tapered / mid-bulge width profile from the mesh.
   vec3 p = aOffset + side * position.x * ${BLADE_WIDTH.toFixed(3)} * h + bend;
@@ -116,6 +117,7 @@ export function createGrassMaterial(uniforms: WorldUniforms): ShaderMaterial {
     uniforms: {
       ...uniforms,
       uBladeHeight: { value: 0.7 },
+      uLean: { value: 1 },
       uWear: { value: null },
       uWearRect: { value: new Vector4(0, 0, 1, 0) },
       uGrazing: { value: new Vector4(0, 0, 0, 1) },

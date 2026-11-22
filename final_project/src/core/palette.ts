@@ -288,6 +288,15 @@ export const PORCELAIN = {
   /** What a metre of water lets through (white light in, this out): red goes first, so shallow water over the cream floor turns cyan. */
   waterTint: '#CBEAEA',
   /**
+   * What the water lays down (沉积), as at Huanglong's travertine pools: a cream crust where it
+   * spills and dries, curtains of it down the walls; amber where it keeps running over the stone;
+   * a faint green at the wet foot; a cream-ochre silt on the floor of the shallows.
+   */
+  travertine: '#F3EAD4',
+  travertineAmber: '#D8BC86',
+  travertineWet: '#A9BFA6',
+  silt: '#E3D3AE',
+  /**
    * Stone turned jade by dwelling (栖居成玉), restrained: where it walks, a pale celadon; where
    * it drinks, a grey-green (灰青); where it rests, a bluish white (青白).
    */
@@ -300,6 +309,14 @@ export const PORCELAIN = {
   pineBark: '#6B625A',
   pineNeedle: '#7E9184',
   pineNeedleShade: '#4C5A52',
+  /** Broadleaf trees (round 11, experiments/wonderland-terrain/broadleaf.ts): one leaf colour and its shade each. */
+  broadleafBark: '#6E6058',
+  /** Parasol tree at the meadow's edge: warm orange. */
+  parasolLeaf: '#E8A065',
+  parasolLeafShade: '#B9764A',
+  /** Weeping tree by the water: a soft macaron pink, not glaring from afar; its shade a little deeper (owner, 2026-11-20). */
+  weepingLeaf: '#E5B8C1',
+  weepingLeafShade: '#A97D89',
   /** Sparse cover (far tint + near blades): grey-green readable on white porcelain. */
   cover: '#6E7A62',
   coverShade: '#55604C',
@@ -356,6 +373,8 @@ export const PORCELAIN = {
  * plus water blue and the seal red for warnings.
  */
 export const LAYER = {
+  // The wind layer (WindStreaks.tsx): slate threads (white would vanish on the white stone).
+  windGust: '#3A6390',
   heightLow: '#EDE6D6',
   heightMid: '#9DBFB4',
   heightHigh: '#3E5A52',
@@ -389,9 +408,29 @@ export const LAYER = {
   foldFull: '#FFFFFF',
   /** Bands riding down the falls in the flow view (fallMaterial.ts). */
   fallBand: '#D91A1A',
+  /** How a cloud is made (Cumulus.tsx): the box it is marched through, the round puffs inside. */
+  cloudBox: '#2F6FD6',
+  cloudPuff: '#D6542F',
   /** A creature's feet while it walks (creature.tsx): planted on the ground, or swinging. */
   footPlanted: '#1F6B4A',
   footSwing: '#B8452F',
+};
+
+/** Far-view detail (docs/plan-2026-11-19-far-view.md): what the island gains when zoomed out. */
+export const FAR_STYLE = {
+  /** Lichen on the mountain faces, the dark of cracks and strata, the cool of deep hollows. */
+  lichen: '#A7B394',
+  crack: '#77756C',
+  hollowCool: '#9FB3B4',
+  /** Far woods as dabs of pine green (point-moss, 点苔), the meadow's warm and the bank's green, a few flower patches. */
+  pineDab: '#55665C',
+  meadowWarm: '#E6DECB',
+  shoreGreen: '#B6C4A5',
+  flowerPatch: '#DCC07A',
+  /** Birds circling the island (FarAir.tsx). */
+  bird: '#5E676C',
+  /** The far islands' shade, mixed into the horizon's colour. */
+  farIsland: '#7C8C95',
 };
 
 /** The dwelling's debug view: where it walks, drinks, rests (the contact map's three channels). */
@@ -400,6 +439,22 @@ export const WEAR_DEBUG = {
   drink: '#2E86C1',
   rest: '#E5A92B',
 };
+
+/**
+ * The zones layer as the visitor reads it: one colour per planting (zones.ts, PLANT order, outside
+ * first). The shore takes the weeping cherry's blossom, the woodland the pines' deep green, so the
+ * map and the trees on it say the same thing.
+ */
+export const PLANT_ZONE_COLOURS = [
+  '#2A2E36', // outside
+  '#3FA6B8', // water
+  '#96CDD7', // terrace
+  '#6E6864', // rock: cliff and ridge, bare
+  '#C3BCB0', // rock slope: shrubs only
+  '#E3A3B4', // shore: weeping cherries
+  '#466E50', // wood: pines, parasol trees at its edge
+  '#F5F2EB', // open stone and grass
+];
 
 /** Wonderland's zones, the debug view (zones.ts order, outside first). */
 export const ZONE_DEBUG = [
@@ -414,6 +469,37 @@ export const ZONE_DEBUG = [
   '#E6AA50', // habitat
   '#F5F2EB', // open stone
 ];
+
+/**
+ * The camera's paintings (photoFilters.ts): the pigments each one is mixed from. Ink and paper (after
+ * Mi Youren's cloudy mountains); the blue-green manner's minerals on aged silk (after Wang Ximeng's
+ * A Thousand Li of Rivers and Mountains); watercolour paper; Van Gogh's ultramarine and chrome yellow.
+ */
+/** The sim speed's track (SpeedSlider.tsx): white jade, white stone, stone turned to jade, left to right. */
+export const SPEED_TRACK = { whiteJade: '#F4EFE2', stone: '#DCDAD2', jade: '#8FB3AA', jadeDeep: '#5F877D' };
+
+export const PHOTO = {
+  inkPaper: '#EDE6D6',
+  ink: '#1E1F21',
+  silk: '#D9C79F',
+  silkDark: '#A88C5C',
+  azurite: '#2F6B8C', // 石青
+  malachite: '#4E9E86', // 石绿
+  ochre: '#B27A45', // 赭石
+  outline: '#4A3A28',
+  wcPaper: '#F4EFE4',
+  ultramarine: '#22356E',
+  chrome: '#E8C547',
+  seal: '#B23A2E',
+  // The aged handscroll: tea-coloured silk, its title in warm ink, indigo (huaqing) roller caps.
+  inkWarm: '#37322B',
+  umberSilk: '#CDB98F',
+  huaqing: '#46677A',
+  // A handscroll's rollers: dark wood, lit along the middle.
+  wood: '#7A5232',
+  woodDark: '#2E1C10',
+  dateStamp: '#F29A38',
+};
 
 /** Wind streaks (the wind field made visible): a pale silk white, like mist. */
 export const WIND_STREAK = '#f4f1e8';

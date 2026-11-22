@@ -2,7 +2,7 @@ import {
   Box3, Color, DataTexture, FloatType, Frustum, Group, InstancedBufferAttribute, InstancedBufferGeometry, LinearFilter, Matrix4, Mesh, NearestFilter,
   PlaneGeometry, RGBAFormat, ShaderMaterial, UnsignedByteType, Vector2, Vector3, Vector4, type Camera, type Texture,
 } from 'three';
-import { LAYER, PORCELAIN, WEAR_DEBUG, ZONE_DEBUG } from '../palette';
+import { FAR_STYLE, LAYER, PLANT_ZONE_COLOURS, PORCELAIN, WEAR_DEBUG } from '../palette';
 import { PORCELAIN_GLSL, porcelainUniforms } from '../shaders/porcelain';
 import { JADE_REVEAL_GLSL } from '../shaders/jadeReveal';
 import type { WorldUniforms } from '../shaders/uniforms';
@@ -79,9 +79,14 @@ uniform float uTime;
 ${JADE_REVEAL_GLSL}
 uniform sampler2D uHeight;
 uniform sampler2D uLight;
+uniform sampler2D uLightSoft; // the same, blurred some 25 m (softLight): what the far view reads
 uniform sampler2D uFolds; // R mountain, G fold 6/18 m, B fine, A cross-slope wide hollow
 uniform float uFoldMix; // strength of the olive tint (0: off)
 uniform float uFoldView; // 0 off, 1 mountain, 2 folds, 3 wide, 4 gate, 5 final weight
+uniform float uFarStyle; // far-view detail: 0 off, 1 on (the look kept, detail added from afar)
+uniform vec3 uLichen, uCrack, uHollowCool, uPineDab, uMeadowWarm, uShoreGreen, uFlowerPatch;
+uniform vec2 uFarRange; // distance where the detail begins and where it is full, metres (at the reference screen)
+uniform float uFarScale; // distance to "screen metres": the same on-screen footprint on any window and lens
 uniform float uGroundView; // the layers' ground views: 0 off, 1 height (with contours), 2 slope
 uniform vec2 uHeightRange; // lowest and highest ground, metres
 uniform float uSlopeLimit; // the steepest a creature walks (rise over run)
@@ -206,7 +211,14 @@ void main() {
   float weatherN = gnoise(vWorld.xz * 0.22 + 3.0) + 0.55 * gnoise(vWorld.xz * 0.7 - 5.0) + 0.25 * gnoise(vWorld.xz * 1.6 + 1.0);
   float weatherF = gnoise(vWorld.xz * 0.02 + 3.0) + 0.55 * gnoise(vWorld.xz * 0.06 - 5.0) + 0.25 * gnoise(vWorld.xz * 0.14 + 1.0);
   float weather = mix(weatherN, weatherF, smoothstep(40.0, 110.0, dist));
-  vec3 color = porcelain(ns, v, light.r, light.g) * (1.0 + fleck);
+  // Far off (far-view detail on), the stone is lit from the blurred light: its shadows' edges fade
+  // over tens of metres instead of cutting a hard line across a far slope.
+  vec2 baked = light.rg;
+  if (uFarStyle > 0.5) {
+    float kSoft = smoothstep(uFarRange.x, uFarRange.y, dist * uFarScale);
+    baked = mix(baked, texture(uLightSoft, uv).rg, kSoft);
+  }
+  vec3 color = porcelain(ns, v, baked.x, baked.y) * (1.0 + fleck);
   color *= (1.0 + 0.06 * weather * (1.0 - jade)) * mix(vec3(1.0), uWarmShadow / dot(uWarmShadow, vec3(0.299, 0.587, 0.114)), 0.14 * max(weather, 0.0) * (1.0 - jade));
   // Tint uses only the continuous 6 m / 18 m fold. Cross-slope hollow (A) and the gate are
   // still stored for the debug views; they do not enter tintW.
@@ -430,6 +442,59 @@ void main() {
     else if (uFoldView > 1.5) shown = dbgFold;
     color = vec3(clamp(shown, 0.0, 1.0));
   }
+  if (uFarStyle > 0.5) {
+    // Far-view detail: from uFarRange.x metres away, fully by uFarRange.y, the ground gains what
+    // makes a far view read: read from the same height map (hollows and ridges from four samples
+    // a few metres apart, slope, facing, height) and the maps the island already has.
+    float k = smoothstep(uFarRange.x, uFarRange.y, dist * uFarScale);
+    // Plain again over the last metres to the rim: the side wall meets the top there (rimWall.ts),
+    // and two different far colours would draw the join as a line round the island.
+    k *= 1.0 - smoothstep(-10.0, -1.0, vOutline);
+    float d = 9.0;
+    float hc = f.x;
+    float lap = (heightAt(vWorld.xz + vec2(d, 0.0)).x + heightAt(vWorld.xz - vec2(d, 0.0)).x
+      + heightAt(vWorld.xz + vec2(0.0, d)).x + heightAt(vWorld.xz - vec2(0.0, d)).x - 4.0 * hc) / (d * d);
+    float hollow = smoothstep(0.004, 0.04, lap), ridge = smoothstep(0.004, 0.04, -lap);
+    float rise = length(f.yz);
+    float lit = clamp(dot(n, normalize(uSunDir)), 0.0, 1.0);
+    float hRel = clamp((vWorld.y - uHeightRange.x) / max(uHeightRange.y - uHeightRange.x, 1.0), 0.0, 1.0);
+    vec3 styled = color;
+    {
+      // Detail: the same porcelain, with what makes a far view read as rich, all from maps the
+      // island already has (no geometry): (1) its baked light, the sky's openness and the sun's
+      // shadow, given their full contrast; lichen on ledges (strata and cracks were dropped: regular lines read as false);
+      // (2) the woods as dabs of pine green from the grove map; (3) the ground's zones told apart
+      // by colour (warm meadow, green bank, a few flower patches), broad warm and cool patches.
+      float macro = gnoise(vWorld.xz * 0.011) * 0.6 + gnoise(vWorld.xz * 0.043) * 0.4;
+      float steep = smoothstep(0.45, 1.1, rise);
+      vec3 base = color * (1.0 + macro * 0.06);
+      // (3) Zones by colour.
+      float gentle = 1.0 - steep;
+      float meadow = (zk == 9 || zk == 8) ? 1.0 : 0.0;
+      base = mix(base, uMeadowWarm, meadow * gentle * (0.45 + 0.35 * smoothstep(-0.2, 0.5, macro)));
+      base = mix(base, uShoreGreen, shoreW * 0.7);
+      float bloom = smoothstep(0.25, 0.55, gnoise(vWorld.xz * 0.05 + 9.0)) * smoothstep(0.1, 0.5, moist);
+      base = mix(base, uFlowerPatch, bloom * (shoreW * 0.6 + meadow * gentle * 0.25));
+      // (2) Woods as dabs.
+      float grove = uZoneRect.w > 0.5 ? texture(uGrove, zuv).r : 0.0;
+      float dab = smoothstep(-0.1, 0.45, gnoise(vWorld.xz * 0.09) + 0.3 * gnoise(vWorld.xz * 0.23));
+      base = mix(base, uPineDab, smoothstep(0.03, 0.35, grove) * (0.5 + 0.4 * dab));
+      // (1) The mountains' faces.
+      float ledge = smoothstep(0.55, 0.85, n.y) * smoothstep(0.15, 0.5, rise) * smoothstep(0.08, 0.3, hRel);
+      base = mix(base, uLichen, ledge * (0.35 + 0.25 * macro));
+      base = mix(base, uHollowCool, hollow * 0.3);
+      base = mix(base, vec3(1.0), ridge * 0.16);
+      // (1) The baked light, given its contrast: closed-in places darken, the sun's shadow cools.
+      // Read from the blurred copy (softLight, ~25 m): the shadow's edge fades over tens of metres,
+      // as it reads across a far slope, instead of a hard line where the bake flips.
+      vec2 soft = texture(uLightSoft, uv).rg;
+      base *= mix(1.0, 0.5 + 0.5 * soft.r, 0.4);
+      base = mix(base, base * uHollowCool * 1.15, smoothstep(0.0, 1.0, 1.0 - soft.g) * 0.4);
+      base *= mix(0.9, 1.08, lit);
+      styled = base;
+    }
+    color = mix(color, styled, k);
+  }
   if (uGroundView > 0.5) {
     // Lit a little by the same light, so the form still reads under the flat ramp.
     float shadeL = 0.78 + 0.22 * clamp(dot(n, normalize(uSunDir)), 0.0, 1.0);
@@ -467,6 +532,7 @@ export function createTerrainMaterial(uniforms: WorldUniforms, wireframe = false
       uSkyTop: uniforms.uSkyTop, uSkyMid: uniforms.uSkyMid, uSkyHorizon: uniforms.uSkyHorizon,
       uHeight: { value: null },
       uLight: { value: null },
+      uLightSoft: { value: null },
       uWater: { value: new Color(PORCELAIN.water) },
       uSize: { value: 2 },
       uTexel: { value: 1 },
@@ -482,7 +548,8 @@ export function createTerrainMaterial(uniforms: WorldUniforms, wireframe = false
       uZones: { value: null as Texture | null },
       uZoneRect: { value: new Vector4(0, 0, 1, 0) },
       uZoneShow: { value: 0 },
-      uZoneColours: { value: ZONE_DEBUG.map((c) => new Color(c)) },
+      // The zones layer draws the planting map (zones.ts, plantZones): PLANT ids, padded to 10.
+      uZoneColours: { value: Array.from({ length: 10 }, (_, i) => new Color(PLANT_ZONE_COLOURS[i] ?? PLANT_ZONE_COLOURS[0])) },
       uMoisture: { value: null as Texture | null },
       uGrove: { value: null as Texture | null },
       uBank: { value: null as Texture | null },
@@ -494,6 +561,16 @@ export function createTerrainMaterial(uniforms: WorldUniforms, wireframe = false
       uFoldMix: { value: 0 },
       uFoldView: { value: 0 },
       uGroundView: { value: 0 },
+      uFarStyle: { value: 0 },
+      uFarRange: { value: new Vector2(90, 320) },
+      uFarScale: { value: 1 },
+      uLichen: { value: new Color(FAR_STYLE.lichen) },
+      uCrack: { value: new Color(FAR_STYLE.crack) },
+      uHollowCool: { value: new Color(FAR_STYLE.hollowCool) },
+      uPineDab: { value: new Color(FAR_STYLE.pineDab) },
+      uMeadowWarm: { value: new Color(FAR_STYLE.meadowWarm) },
+      uShoreGreen: { value: new Color(FAR_STYLE.shoreGreen) },
+      uFlowerPatch: { value: new Color(FAR_STYLE.flowerPatch) },
       uHeightRange: { value: new Vector2(0, 100) },
       uSlopeLimit: { value: 0.6 },
       uHeightLow: { value: new Color(LAYER.heightLow) },
@@ -567,6 +644,12 @@ export function setTerrainFolds(material: ShaderMaterial, folds: Texture | null,
   u.uFolds.value = folds;
   u.uFoldMix.value = folds ? strength : 0;
   u.uFoldView.value = folds ? view : 0;
+}
+
+/** Far-view detail (docs/plan-2026-11-19-far-view.md): 0 off, 1 on; fading in from `near` to `far` metres. */
+export function setTerrainFarStyle(material: ShaderMaterial, style: number, near: number, far: number) {
+  material.uniforms.uFarStyle.value = style;
+  (material.uniforms.uFarRange.value as Vector2).set(near, far);
 }
 
 /** The layers' ground views (LayersPanel.tsx): 0 off, 1 height with contours, 2 slope against the creature's limit. */
@@ -759,4 +842,39 @@ export class TerrainLod {
     this.whole.geometry.dispose();
     this.quarter.geometry.dispose();
   }
+}
+
+/**
+ * The far-view detail fades by how big the ground looks on screen, not by metres alone
+ * (docs/plan-2026-11-19-far-view.md): a metre at 300 m covers fewer pixels in a small window or a
+ * wide lens. Scales the distance to what it would be on the reference screen (900 px tall, 40°).
+ */
+export const FAR_REFERENCE = { height: 900, fov: 40 };
+export function farScale(fovDeg: number, heightPx: number) {
+  const ref = Math.tan((FAR_REFERENCE.fov * Math.PI) / 360) / FAR_REFERENCE.height;
+  return (Math.tan((fovDeg * Math.PI) / 360) / Math.max(heightPx, 1)) / ref;
+}
+
+/**
+ * The baked light blurred about `metres` across (two box blurs each way, near a Gaussian): the far
+ * view reads it, so a shadow's edge fades over tens of metres there; close up the sharp map stays.
+ */
+export function softLight(light: Uint8Array, size: number, texel: number, metres = 25) {
+  const r = Math.max(1, Math.round(metres / texel / 2));
+  const a = new Float32Array(size * size * 2), b = new Float32Array(size * size * 2);
+  for (let i = 0; i < size * size; i++) { a[i * 2] = light[i * 4]; a[i * 2 + 1] = light[i * 4 + 1]; }
+  const pass = (src: Float32Array, dst: Float32Array, dx: number, dy: number) => {
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      let s0 = 0, s1 = 0, n = 0;
+      for (let k = -r; k <= r; k++) {
+        const xx = Math.min(size - 1, Math.max(0, x + k * dx)), yy = Math.min(size - 1, Math.max(0, y + k * dy));
+        const j = (yy * size + xx) * 2; s0 += src[j]; s1 += src[j + 1]; n++;
+      }
+      const o = (y * size + x) * 2; dst[o] = s0 / n; dst[o + 1] = s1 / n;
+    }
+  };
+  pass(a, b, 1, 0); pass(b, a, 0, 1); pass(a, b, 1, 0); pass(b, a, 0, 1);
+  const out = new Uint8Array(size * size * 4);
+  for (let i = 0; i < size * size; i++) { out[i * 4] = a[i * 2]; out[i * 4 + 1] = a[i * 2 + 1]; out[i * 4 + 2] = light[i * 4 + 2]; out[i * 4 + 3] = 255; }
+  return lightTexture(out, size);
 }

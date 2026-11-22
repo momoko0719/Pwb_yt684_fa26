@@ -1,5 +1,5 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { Edges, OrbitControls } from '@react-three/drei';
 import { JADE_UI, PORCELAIN } from '../../core/palette';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -24,6 +24,25 @@ function DenModel({ seed, params, space }: { seed: number; params: ShellParams; 
       <Edges color={JADE_UI.seal} />
     </mesh>}
   </group>;
+}
+
+function Aim({ at }: { at: [number, number, number] }) {
+  const { camera, invalidate } = useThree();
+  useLayoutEffect(() => { camera.lookAt(...at); invalidate(); }, [camera, invalidate, at]);
+  return null;
+}
+
+/** The den's card cover: the same model and light as the editor, still. */
+export function DenThumb({ seed, params }: { seed: number; params: ShellParams }) {
+  return <div className="fish-preview" aria-label="3D model">
+    <Canvas frameloop="demand" camera={{ position: [10.5, 4.6, 4.4], fov: 38 }}>
+      <Aim at={[0.4, 1.6, -0.1]} />
+      <color attach="background" args={[JADE_UI.mist]} />
+      <hemisphereLight args={[0xffffff, 0x8a9690, 1.1]} />
+      <directionalLight position={[4, 7, 3]} intensity={1.8} />
+      <DenModel seed={seed} params={params} space={false} />
+    </Canvas>
+  </div>;
 }
 
 /**

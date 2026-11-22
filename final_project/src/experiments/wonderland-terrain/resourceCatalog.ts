@@ -1,10 +1,10 @@
 import type { ResourceDef, SizeBox } from '../../core/resources/types';
 import { resourcesFor } from '../../core/resources/registry';
 import { COVER_NEAR } from './CoverGrass';
-import { ISLAND } from './layout';
 import { STELE } from './stele';
-import { SHRUB_HEIGHT, SHRUB_LOD, SHRUB_TONE_WEIGHTS, SHRUB_VARIANTS, SHRUB_WIDTH_RATIO } from './shrubs';
+import { SHRUB_HEIGHT, SHRUB_VARIANTS, SHRUB_WIDTH_RATIO } from './shrubs';
 import { SIZES } from '../../core/scale';
+import { BROADLEAF } from './broadleaf';
 
 /** Wonderland-only resource cards (generators on this island). */
 export const WONDERLAND_RESOURCES: ResourceDef[] = [
@@ -18,8 +18,8 @@ export const WONDERLAND_RESOURCES: ResourceDef[] = [
       width: [SHRUB_HEIGHT[0] * SHRUB_WIDTH_RATIO[0], SHRUB_HEIGHT[1] * SHRUB_WIDTH_RATIO[1]],
     },
     variants: SHRUB_VARIANTS,
-    ruleEn: `Patches on 18 m grid; plants 1.4 m. Tone ${SHRUB_TONE_WEIGHTS.map((w) => Math.round(w * 100)).join('/')} grey-green/ochre/vermillion. LOD ${SHRUB_LOD.join('/')} m.`,
-    ruleZh: `片区 18 m 网格；株距 1.4 m。色相目标 ${SHRUB_TONE_WEIGHTS.map((w) => Math.round(w * 100)).join('/')} 暖灰橄榄／赭黄／暗铁红（实际片区比因种子而异）。LOD ${SHRUB_LOD.join('/')} m。`,
+    ruleEn: 'Grown by an L-system: four to six stems rise from one root, fork low, and end in tufts of fine leaves, so the bush is wider than tall. It grows in patches on slopes and under trees, grey-green, ochre or iron red.',
+    ruleZh: '由 L-system 长成：一个根上冒出四到六根茎，低处就分叉，枝梢簇着细叶，所以灌丛比它高的还宽。成片长在坡上和林下，有灰绿、赭黄、铁红三种颜色。',
     preview: 'shrub',
   },
   {
@@ -28,8 +28,8 @@ export const WONDERLAND_RESOURCES: ResourceDef[] = [
     nameKey: 'grass',
     islands: ['wonderland'],
     config: { height: [COVER_NEAR.bladeH * 0.7, COVER_NEAR.bladeH * 1.2] },
-    ruleEn: `Near clumps ≤${COVER_NEAR.radius} m; ${COVER_NEAR.blades[0]}–${COVER_NEAR.blades[1]} blades, shared root + outward fan.`,
-    ruleZh: `近景 ≤${COVER_NEAR.radius} m；每丛 ${COVER_NEAR.blades[0]}–${COVER_NEAR.blades[1]} 叶，共根外展。`,
+    ruleEn: `Not an L-system: each clump is ${COVER_NEAR.blades[0]}–${COVER_NEAR.blades[1]} blades fanning out from one root, each a little taller, shorter or more bent at random. Clumps are laid only near you and fade with distance.`,
+    ruleZh: `不是 L-system：每丛是从一个根点向外散开的 ${COVER_NEAR.blades[0]}–${COVER_NEAR.blades[1]} 片叶，高矮、弯度随机。草丛只铺在你附近，走远就淡去。`,
     preview: 'grass',
   },
   {
@@ -38,8 +38,8 @@ export const WONDERLAND_RESOURCES: ResourceDef[] = [
     nameKey: 'flower',
     islands: ['wonderland'],
     config: { height: [COVER_NEAR.stemH * 0.8, COVER_NEAR.stemH + COVER_NEAR.head] },
-    ruleEn: 'Cover niche anchors; a few heads per clump in the focus disc.',
-    ruleZh: '地被生境锚点；近景盘内每簇数个花头。',
+    ruleEn: 'Not an L-system: a stem with one small head, a few to a clump. They open in the meadow where the ground suits flowers.',
+    ruleZh: '不是 L-system：一根茎顶一朵小花，几朵一簇。开在草地里适合开花的地方。',
     preview: 'flower',
   },
   {
@@ -48,9 +48,29 @@ export const WONDERLAND_RESOURCES: ResourceDef[] = [
     nameKey: 'pine',
     islands: ['wonderland'],
     config: { height: [...SIZES.forest.height] as [number, number] },
-    ruleEn: 'Woodland groves + lone pines (woods.ts); Penglai pine LOD.',
-    ruleZh: '林地树丛与孤松（woods.ts）；复用蓬莱松 LOD。',
+    ruleEn: 'Grown by an L-system: the trunk climbs step by step, and every step puts out a whorl of nearly level limbs. In the last generations the top stops climbing and spreads flat. Pines stand in groves, and a few alone on the slopes.',
+    ruleZh: '由 L-system 长成：树干一节一节往上长，每节伸出一圈几乎平展的枝。最后几代树顶不再长高，摊成平顶。成片长在林地，也有几棵孤松站在坡上。',
     preview: 'pine',
+  },
+  {
+    id: 'wonderland-parasol',
+    category: 'vegetation',
+    nameKey: 'parasol',
+    islands: ['wonderland'],
+    config: { height: [...BROADLEAF.parasol.height] as [number, number], width: [8, 11] },
+    ruleEn: 'Grown by an L-system: a short trunk forks into three or four limbs leaning out, and the twigs turn up toward the light. The leaf clumps at their tips meet in one flat-topped parasol. It grows where woodland meets meadow.',
+    ruleZh: '由 L-system 长成：一根短干分成三四根粗枝斜着伸出去，细枝朝着光往上翘。枝梢的叶团连成一把平顶的伞。长在林子和草地交界的地方。',
+    preview: 'parasol',
+  },
+  {
+    id: 'wonderland-weeping',
+    category: 'vegetation',
+    nameKey: 'weeping',
+    islands: ['wonderland'],
+    config: { height: [...BROADLEAF.weeping.height] as [number, number], width: [11, 14] },
+    ruleEn: 'Grown by an L-system: a thick trunk splits in two or three, and the limbs arch out and down. Thin whips hang from every branch, the top too, so the blossom falls like a curtain. It grows only by water.',
+    ruleZh: '由 L-system 长成：粗壮的树干分成两三根，粗枝拱出去再弯下来。每根枝上都挂着细细的垂枝，连冠顶也弯，花像一道帘子垂下。只长在水边。',
+    preview: 'weeping',
   },
   {
     id: 'wonderland-creature',
@@ -72,7 +92,7 @@ export const WONDERLAND_RESOURCES: ResourceDef[] = [
     preview: null,
   },
   {
-    id: 'wonderland-den', category: 'terrain', nameKey: 'den', islands: ['wonderland'],
+    id: 'wonderland-den', category: 'creatures', nameKey: 'den', islands: ['wonderland'],
     config: { width: [4.5, 6], depth: [4.5, 6.5], height: [3.6, 4.6] },
     ruleEn: 'One rock with an open-fronted cave, grown in five steps (boulder, lumps, swells, cave, weathering) round the air the creature uses.',
     ruleZh: '一整块岩石，正面敞开的洞，分五步长成（圆石、鼓包、起伏、掏洞、风化），围着兽使用的空间。',
@@ -91,42 +111,6 @@ export const WONDERLAND_RESOURCES: ResourceDef[] = [
     ruleEn: 'Watching-stone stele at the corner overlook.',
     ruleZh: '观景角守望石碑。',
     preview: 'stele',
-  },
-  {
-    id: 'wonderland-island',
-    category: 'terrain',
-    nameKey: 'island',
-    islands: ['wonderland'],
-    config: { width: [ISLAND.across * 0.95, ISLAND.across * 1.05], depth: [ISLAND.deep * 0.95, ISLAND.deep * 1.05] },
-    ruleEn: 'Whole island footprint (layout.ts).',
-    ruleZh: '整岛平面（layout.ts）。',
-    preview: null,
-    noteEn: 'Locate only — no proxy mesh.',
-    noteZh: '仅定位 — 无代理模型。',
-  },
-  {
-    id: 'wonderland-peak',
-    category: 'terrain',
-    nameKey: 'peak',
-    islands: ['wonderland'],
-    config: { height: [100, 150] },
-    ruleEn: 'Main range peak height (Advanced → Tallest peaks).',
-    ruleZh: '主脉峰高（高级生成 → 最高峰）。',
-    preview: null,
-    noteEn: 'Locate only — no proxy mesh.',
-    noteZh: '仅定位 — 无代理模型。',
-  },
-  {
-    id: 'wonderland-pool',
-    category: 'terrain',
-    nameKey: 'pool',
-    islands: ['wonderland'],
-    config: { width: [8, 40] },
-    ruleEn: 'Terrace basin pools (across).',
-    ruleZh: '梯池水池（横向跨度）。',
-    preview: null,
-    noteEn: 'Locate only — no proxy mesh.',
-    noteZh: '仅定位 — 无代理模型。',
   },
 ];
 

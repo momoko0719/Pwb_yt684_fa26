@@ -4,8 +4,8 @@ import { Color, Group, InstancedMesh, Matrix4, Quaternion, Vector3, type BufferG
 import { PORCELAIN } from '../../core/palette';
 import { createPineMaterial } from '../../core/shaders/pine';
 import type { WorldUniforms } from '../../core/shaders/uniforms';
-import { SHRUB_LOD, SHRUB_VARIANTS, type Shrub, type ShrubTone } from './shrubs';
-import { makeShrubLods, shrubLeafMetrics } from './shrubLSystem';
+import { pickTone, shrubMix, SHRUB_LOD, SHRUB_VARIANTS, type Shrub, type ShrubTone } from './shrubs';
+import { makeShrubLods, shrubLeafMetrics, type ShrubKnobs } from './shrubLSystem';
 import { setWorldPointer } from './worldPointer';
 
 const UP = new Vector3(0, 1, 0);
@@ -29,10 +29,16 @@ function applyTone(mat: ShaderMaterial, tone: ShrubTone) {
 
 /**
  * Instanced shrubs: L-system branch mesh (pine turtle/tube/aTone pattern) with distance LOD.
- * One material recipe (createPineMaterial + rimLight); colours set per tone bucket.
+ * One material recipe (createPineMaterial + rimLight); colours set per tone bucket. `knobs` (the
+ * atlas's "apply to island") regrow the shapes and re-colour each patch from its own roll.
  */
-export function ShrubPatches({ plants, uniforms, onPick }: { plants: Shrub[]; uniforms: WorldUniforms; onPick?: () => void }) {
-  const shapes = useMemo(() => Array.from({ length: SHRUB_VARIANTS }, (_, v) => makeShrubLods(v)), []);
+export function ShrubPatches({ plants, uniforms, onPick, knobs }: { plants: Shrub[]; uniforms: WorldUniforms; onPick?: () => void; knobs?: ShrubKnobs }) {
+  const knobKey = JSON.stringify(knobs ?? null);
+  const shapes = useMemo(() => Array.from({ length: SHRUB_VARIANTS }, (_, v) => makeShrubLods(v, knobs)), [knobKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tones = useMemo(() => {
+    const mix = shrubMix(knobs);
+    return Uint8Array.from(plants, (p) => pickTone(p.roll ?? 0, mix));
+  }, [plants, knobKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => {
     for (const s of shapes) { s.near.dispose(); s.mid.dispose(); s.far.dispose(); }
   }, [shapes]);
@@ -115,8 +121,9 @@ export function ShrubPatches({ plants, uniforms, onPick }: { plants: Shrub[]; un
         else if (d > MID + HYST) b = 2;
       } else if (d < MID - 2) b = d < NEAR ? 0 : 1;
       band.current![i] = b;
-      const slot = counts[b][p.variant][p.tone]++;
-      const mesh = (b === 0 ? group.near : b === 1 ? group.mid : group.far)[p.variant][p.tone];
+      const tone = tones[i];
+      const slot = counts[b][p.variant][tone]++;
+      const mesh = (b === 0 ? group.near : b === 1 ? group.mid : group.far)[p.variant][tone];
       into(mesh, slot, i);
     });
     for (let b = 0; b < 3; b++) {

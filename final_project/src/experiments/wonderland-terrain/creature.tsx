@@ -12,6 +12,7 @@ export type Antlers = Partial<MorphAxes>;
 import { buildRiggedCreature, poseRiggedCreature } from './creatureRig';
 import { setWorldPointer } from './worldPointer';
 import { NEED_ICON } from './LifeCard';
+import { watching } from './streamFish';
 
 /** Which debug drawings are on. All default off; the normal picture has none of these lines. */
 export interface CreatureDebugFlags {
@@ -175,27 +176,38 @@ export function CompanionView({ dwelling, run, speed, selecting, onSelect, onSta
 
 /** Above the crown (metres over the ground under its middle). */
 const BUBBLE_UP = 2.25;
-const BUBBLE_ICON = { drink: 'water', eat: 'food', rest: 'rest' } as const;
+/** Metres: the bubble is full until the first, gone past the second (near enough to see the creature itself). */
+const BUBBLE_NEAR: [number, number] = [45, 70];
+const BUBBLE_ICON = { drink: 'water', eat: 'food', rest: 'rest', watch: 'watch' } as const;
 
 /**
  * What it is going for, as The Sims' thought bubble: one icon above it while it walks to a goal (water,
- * grass, its bed); nothing while it rests, drinks or grazes. No words: the card says what it does and
+ * grass, its bed); an eye while it watches the brook's fish dart away from it (streamFish.ts,
+ * `watching`); nothing while it rests, drinks or grazes. No words: the card says what it does and
  * how it feels, the bubble only where it is going.
  */
 function ThoughtBubble({ dwelling }: { dwelling: Dwelling }) {
-  const at = useRef<Group>(null), shown = useRef<keyof typeof BUBBLE_ICON | null>(null);
+  const at = useRef<Group>(null), shown = useRef<keyof typeof BUBBLE_ICON | null>(null), wrap = useRef<HTMLDivElement>(null);
   const [kind, setKind] = useState<keyof typeof BUBBLE_ICON | null>(null);
-  useFrame(() => {
+  useFrame(({ camera }) => {
     const p = dwelling.pose;
-    const next = p.activity === 'walk' ? dwelling.intent.kind : null;
+    const next = (watching.get(dwelling.id) ?? 0) > 0 ? 'watch' : p.activity === 'walk' ? dwelling.intent.kind : null;
     if (next !== shown.current) { shown.current = next; setKind(next); }
     at.current?.position.set(p.x, p.y + BUBBLE_UP, p.z);
+    // Only when near enough to see the creature itself: from afar a moving dot says nothing.
+    if (wrap.current) {
+      const d = camera.position.distanceTo(at.current?.position ?? camera.position);
+      const k = 1 - Math.min(Math.max((d - BUBBLE_NEAR[0]) / (BUBBLE_NEAR[1] - BUBBLE_NEAR[0]), 0), 1);
+      wrap.current.style.opacity = k.toFixed(2);
+      wrap.current.style.transform = `scale(${(0.7 + 0.3 * k).toFixed(2)})`;
+      wrap.current.style.visibility = k > 0.01 ? 'visible' : 'hidden';
+    }
   });
   // The Html stays mounted (mounting and unmounting it as goals change raced React's DOM removal);
   // only its content comes and goes.
-  return <group ref={at}><Html center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
+  return <group ref={at}><Html center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}><div ref={wrap} className="thought-wrap">
     {kind && <div key={kind} className={`thought-bubble thought-${kind}`}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={NEED_ICON[BUBBLE_ICON[kind]]} /></svg></div>}
-  </Html></group>;
+  </div></Html></group>;
 }
 
 /** The lie: the shelter bed when one is set, otherwise the home anchor. Default off with Contact debug. */

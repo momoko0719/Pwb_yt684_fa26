@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AmbientLight, Color, DirectionalLight, Group, Mesh, OrthographicCamera, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { JADE_UI } from '../../core/palette';
 import { AntlerRule } from './AntlerRule';
 import { birthAxes, resolveMorph, type CreatureMorph, type MorphAxes } from './creatureMorph';
 import { buildMorphGroup, disposeMorphGroup } from './creatureMorphMesh';
@@ -29,7 +30,7 @@ function mountFigure(host: HTMLElement, width: number, height: number, worldSeed
   renderer.setSize(width, height);
   host.appendChild(renderer.domElement);
   const scene = new Scene();
-  scene.background = new Color('#e7eeec');
+  scene.background = new Color(JADE_UI.mist);
   scene.add(new AmbientLight(0xffffff, 0.82));
   const sun = new DirectionalLight(0xfff4e5, 1.15);
   sun.position.set(2.4, 3.2, 2.2);

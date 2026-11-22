@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { LAYER, WEAR_DEBUG, ZONE_DEBUG } from '../../core/palette';
+import { LAYER, PLANT_ZONE_COLOURS, WEAR_DEBUG } from '../../core/palette';
 import { useLanguage } from '../../i18n/LanguageContext';
 import type { StringKey } from '../../i18n/strings';
-import { ZONE_NAMES } from './zones';
+import { PLANT_NAMES } from './zones';
 
 /**
  * Layers (docs/plan-2026-11-19-layers-and-rebuild.md): ways of looking at the island that show the
@@ -25,14 +25,21 @@ export interface Layers {
   relations: boolean;
   school: boolean;
   scale: boolean;
+  /** How each solid cloud is made: its box, the puffs inside. */
+  clouds: boolean;
+  /** The wind field: threads drifting along it, bending round the peaks, calm in the lee. */
+  wind: boolean;
 }
-export const NO_LAYERS: Layers = { surface: 'normal', flow: false, waterGraph: false, sites: false, traces: false, prints: false, feet: false, goals: false, relations: false, school: false, scale: false };
+export const NO_LAYERS: Layers = { surface: 'normal', flow: false, waterGraph: false, sites: false, traces: false, prints: false, feet: false, goals: false, relations: false, school: false, scale: false, clouds: false, wind: false };
 type Overlay = Exclude<keyof Layers, 'surface'>;
 
-const SURFACES: Surface[] = ['normal', 'height', 'slope', 'folds', 'zones', 'density'];
+// Only the views that read clearly (round 11: 'as it is', slope, folds and grass density are gone;
+// press the lit one again to go back to the island as it is).
+const SURFACES: Surface[] = ['height', 'zones'];
 const GROUPS: { id: string; items: Overlay[] }[] = [
-  { id: 'water', items: ['flow', 'waterGraph'] },
-  { id: 'life', items: ['sites', 'traces', 'prints', 'feet', 'goals', 'relations', 'school'] },
+  { id: 'water', items: ['flow'] },
+  { id: 'life', items: ['sites', 'traces', 'prints', 'feet', 'goals', 'school'] },
+  { id: 'air', items: ['wind', 'clouds'] },
   { id: 'scale', items: ['scale'] },
 ];
 
@@ -60,7 +67,7 @@ export function LayersPanel({ layers, onChange, onClose, onClear }: { layers: La
     <section>
       <h3>{t('layers.group.ground')}</h3>
       <div className="layers-surfaces" role="radiogroup" aria-label={t('layers.group.ground')}>
-        {SURFACES.map((s) => <button key={s} type="button" role="radio" aria-checked={layers.surface === s} onClick={() => set('surface', s)} title={t(`layers.s.${s}.note` as StringKey)}>
+        {SURFACES.map((s) => <button key={s} type="button" role="radio" aria-checked={layers.surface === s} onClick={() => set('surface', layers.surface === s ? 'normal' : s)} title={t(`layers.s.${s}.note` as StringKey)}>
           <i className={`layers-swatch layers-swatch-${s}`} aria-hidden="true" />{t(`layers.s.${s}` as StringKey)}
         </button>)}
       </div>
@@ -87,10 +94,12 @@ export function LayersLegend({ layers, heights }: { layers: Layers; heights: [nu
     case 'height': blocks.push({ id: 'h', title: t('layers.s.height'), rows: <>{bar([LAYER.heightLow, LAYER.heightMid, LAYER.heightHigh], `${Math.round(heights?.[0] ?? 0)} m`, `${Math.round(heights?.[1] ?? 0)} m`)}{sw(LAYER.contour, t('layers.lg.contour'), 'line')}</> }); break;
     case 'slope': blocks.push({ id: 's', title: t('layers.s.slope'), rows: <>{bar([LAYER.slopeFlat, LAYER.slopeMid, LAYER.slopeSteep], t('layers.lg.flat'), t('layers.lg.tooSteep'), t('layers.lg.limit'))}</> }); break;
     case 'folds': blocks.push({ id: 'f', title: t('layers.s.folds'), rows: <>{bar([LAYER.foldNone, LAYER.foldFull], t('layers.lg.none'), t('layers.lg.strong'))}</> }); break;
-    case 'zones': blocks.push({ id: 'z', title: t('layers.s.zones'), rows: <>{ZONE_NAMES.slice(1).map((n, i) => sw(ZONE_DEBUG[i + 1], t(`zones.${n}` as StringKey)))}</> }); break;
+    case 'zones': blocks.push({ id: 'z', title: t('layers.s.zones'), rows: <>{PLANT_NAMES.slice(1).map((n, i) => sw(PLANT_ZONE_COLOURS[i + 1], t(`zones.plant.${n}` as StringKey)))}</> }); break;
     case 'density': blocks.push({ id: 'd', title: t('layers.s.density'), rows: <>{bar([LAYER.densityNone, LAYER.densityFull], t('layers.lg.none'), t('layers.lg.dense'))}{sw(LAYER.trampled, t('layers.lg.trampled'))}</> }); break;
     default: break;
   }
+  if (layers.wind) blocks.push({ id: 'wi', title: t('layers.o.wind'), rows: <>{sw(LAYER.windGust, t('layers.lg.windThread'), 'line')}</> });
+  if (layers.clouds) blocks.push({ id: 'cl', title: t('layers.o.clouds'), rows: <>{sw(LAYER.cloudBox, t('layers.lg.cloudBox'), 'line')}{sw(LAYER.cloudPuff, t('layers.lg.cloudPuff'), 'ring')}</> });
   if (layers.flow) blocks.push({ id: 'fl', title: t('layers.o.flow'), rows: <><div className="layers-legend-row">{t('layers.lg.particles')}</div>{sw(LAYER.fallBand, t('layers.lg.fallBands'))}</> });
   if (layers.waterGraph) blocks.push({ id: 'wg', title: t('layers.o.waterGraph'), rows: <>{sw(LAYER.waterMain, t('layers.lg.pool'), 'ring')}{sw(LAYER.waterMain, t('layers.lg.main'), 'line')}{sw(LAYER.water, t('layers.lg.branch'), 'line')}</> });
   if (layers.sites) blocks.push({ id: 'si', title: t('layers.o.sites'), rows: <>{sw(LAYER.den, t('layers.lg.den'), 'ring')}{sw(LAYER.stand, t('layers.lg.stand'), 'ring')}{sw(LAYER.graze, t('layers.lg.graze'))}</> });

@@ -49,6 +49,26 @@ export const COVER_NEAR = {
   fadeFar: 78,
 };
 
+/**
+ * The atlas knobs for grass and flowers ("apply to island"), each x the island's own (birth 1):
+ * - grass: blades (how many to a clump), height (each blade), bend (how far each leans at rest);
+ * - flower: heads (how many to a clump), stem (each stem's height), head (each head's size).
+ */
+export type CoverKnobs = Record<string, number>;
+export const GRASS_KNOBS = [
+  { key: 'blades', min: 0.4, max: 2, step: 0.01 },
+  { key: 'height', min: 0.6, max: 1.6, step: 0.01 },
+  { key: 'bend', min: 0.2, max: 1.8, step: 0.01 },
+];
+export const FLOWER_KNOBS = [
+  { key: 'heads', min: 0.4, max: 2.2, step: 0.01 },
+  { key: 'stem', min: 0.6, max: 1.6, step: 0.01 },
+  { key: 'head', min: 0.6, max: 1.8, step: 0.01 },
+];
+export const coverKnob = (knobs: CoverKnobs | null | undefined, k: string) => knobs?.[k] ?? 1;
+/** Blades in a clump of `n` under the blades knob (one at least). */
+export const bladesUnder = (n: number, mul: number) => Math.max(1, Math.round(n * mul));
+
 /** Absolute no-vegetation. Terrace / rockSlope niches come from cover.suit, not a blanket ban. */
 const HARD_OFF = new Set<number>([ZONE.outside, ZONE.water, ZONE.cliff, ZONE.ridge]);
 
@@ -120,7 +140,7 @@ function soft(a: number, b: number, x: number) {
 const CLUMP_GAP = 0.55;
 
 export function buildChunk(
-  cover: CoverField, grid: HeightGrid, seed: number, ix: number, iz: number,
+  cover: CoverField, grid: HeightGrid, seed: number, ix: number, iz: number, bladeMul = 1,
 ): ChunkBlades {
   const { clumpCell: CELL, blades: BLADES, clumpR: CLUMP_R, suitFloor: SUIT_FLOOR, chunk: CHUNK } = COVER_NEAR;
   const cellArea = CELL * CELL;
@@ -156,7 +176,7 @@ export function buildChunk(
       if (HARD_OFF.has(cover.zoneAt(cx, cz))) continue;
       clumps++;
       const clumpScale = 0.7 + 0.55 * rng(); // per-clump radius / height stamp variation
-      const nBlades = Math.max(BLADES[0], Math.min(BLADES[1], BLADES[0] + Math.floor(rng() * (BLADES[1] - BLADES[0] + 1) * (0.75 + 0.5 * keep))));
+      const nBlades = bladesUnder(Math.max(BLADES[0], Math.min(BLADES[1], BLADES[0] + Math.floor(rng() * (BLADES[1] - BLADES[0] + 1) * (0.75 + 0.5 * keep)))), bladeMul);
       const lowLeaves = 2 + Math.floor(rng() * 2);
       const rMax = CLUMP_R * clumpScale;
       for (let k = 0; k < nBlades; k++) {
@@ -274,8 +294,11 @@ export function buildSites(cover: CoverField, grid: HeightGrid, seed: number, fx
 
 export function CoverGrass({
   cover, grid, uniforms, seed, map, amount = COVER_DEFAULTS.amount, walking = false, onStats, buildMsRef,
-  lifeGoal, prewarmLife = false, flightRef, grazing,
+  lifeGoal, prewarmLife = false, flightRef, grazing, grassKnobs, flowerKnobs,
 }: {
+  /** Knobs saved from the atlas ("apply to island"). */
+  grassKnobs?: CoverKnobs;
+  flowerKnobs?: CoverKnobs;
   cover: CoverField;
   grid: HeightGrid;
   uniforms: WorldUniforms;
@@ -313,8 +336,6 @@ export function CoverGrass({
     m.uniforms.uAccent = { value: new Color(PORCELAIN.coverFlower) };
     m.uniforms.uMeadow = { value: new Color(PORCELAIN.coverShade) };
     m.uniforms.uRimColor = { value: new Color(PORCELAIN.coverFlowerRim) };
-    m.uniforms.uStemHeight.value = COVER_NEAR.stemH;
-    m.uniforms.uHeadSize.value = COVER_NEAR.head;
     m.uniforms.uBloom.value = 1;
     m.uniforms.uGlow.value = 0;
     m.uniforms.uFadeNear.value = COVER_NEAR.fadeNear;
@@ -322,6 +343,15 @@ export function CoverGrass({
     return m;
   }, [uniforms]);
   useEffect(() => () => { grassMat.dispose(); flowerMat.dispose(); }, [grassMat, flowerMat]);
+  // The knobs that need no rebuild: heights, lean, head size (uniforms).
+  useEffect(() => {
+    grassMat.uniforms.uBladeHeight.value = COVER_NEAR.bladeH * coverKnob(grassKnobs, 'height');
+    grassMat.uniforms.uLean.value = coverKnob(grassKnobs, 'bend');
+    flowerMat.uniforms.uStemHeight.value = COVER_NEAR.stemH * coverKnob(flowerKnobs, 'stem');
+    flowerMat.uniforms.uHeadSize.value = COVER_NEAR.head * coverKnob(flowerKnobs, 'head');
+  }, [grassMat, flowerMat, grassKnobs, flowerKnobs]);
+  // The counts need the clumps laid again.
+  const bladeMul = coverKnob(grassKnobs, 'blades'), headMul = coverKnob(flowerKnobs, 'heads');
 
   const wearTex = useMemo(() => {
     if (!map || map.cells <= 0) return null;
@@ -444,7 +474,7 @@ export function CoverGrass({
     for (const key of need) {
       if (!cache.current.has(key)) {
         const [ix, iz] = key.split(',').map(Number);
-        cache.current.set(key, buildChunk(cover, grid, seed, ix, iz));
+        cache.current.set(key, buildChunk(cover, grid, seed, ix, iz, bladeMul));
         built++;
       }
     }
@@ -476,7 +506,7 @@ export function CoverGrass({
       if (HARD_OFF.has(cover.zoneAt(site.x, site.z))) continue;
       flowerClumps++;
       const rng = createRng(((seed * 0x85ebca6b) ^ Math.imul(Math.round(site.x * 10), 0x27d4eb2d) ^ Math.imul(Math.round(site.z * 10), 0x165667b1)) >>> 0);
-      const heads = site.heads ?? 3;
+      const heads = bladesUnder(site.heads ?? 3, headMul);
       let placed = 0;
       for (let k = 0; k < heads; k++) {
         const a = rng() * Math.PI * 2, r = Math.sqrt(rng()) * FLOWER_R;
@@ -534,7 +564,7 @@ export function CoverGrass({
           const key = `${cx + dx},${cz + dz}`;
           if (cache.current.has(key)) continue;
           const start = performance.now();
-          cache.current.set(key, buildChunk(cover, grid, seed, cx + dx, cz + dz));
+          cache.current.set(key, buildChunk(cover, grid, seed, cx + dx, cz + dz, bladeMul));
           if (import.meta.env.DEV) performance.measure('white-jade-cover-prewarm', { start, duration: performance.now() - start });
           break outer;
         }
@@ -614,7 +644,7 @@ export function CoverGrass({
       prefetchX: NaN, prefetchZ: NaN, hasPrefetch: false, lastHitAt: 0,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cover, grid, seed, amount, walking]);
+  }, [cover, grid, seed, amount, walking, bladeMul, headMul]);
 
   useEffect(() => { onStats?.(sites.stats); }, [sites, onStats]);
 

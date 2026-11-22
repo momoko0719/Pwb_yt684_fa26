@@ -8,8 +8,16 @@ function moveHint(event: PointerEvent) {
   if (hint) hint.style.transform = `translate(${Math.min(lastX + 18, window.innerWidth - hint.offsetWidth - 8)}px, ${Math.min(lastY + 18, window.innerHeight - hint.offsetHeight - 8)}px)`;
 }
 
+/**
+ * Whether a click on the island may open something (owner, 2026-11-21): not from far away (a tree is
+ * a speck; a card jumping up surprises), not while the camera is out. Set each frame by the page
+ * (PickGate in Scene.tsx); the hover hint and every in-world pick read it.
+ */
+export const pickGate = { open: true };
+
 /** Cursor state is shared by the pickable 3D resources, not by the page controls. */
 export function setWorldPointer(kind: 'creature' | 'fish' | 'resource' | null) {
+  if (kind && !pickGate.open) kind = null;
   if (!kind) {
     delete document.body.dataset.worldPointer;
     hint?.remove();

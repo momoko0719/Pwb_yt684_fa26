@@ -12,8 +12,8 @@ Read before planning or recommending next steps:
 - `docs/scale.md` and `src/core/scale.ts` — 1 unit = 1 m; the target size of every kind of thing.
   Scale was the professor's main criticism at the midterm: check sizes and ratios (peak : pine :
   person) before adding or resizing anything.
-- `docs/roadmap.md` — deferred ideas the owner asked to be reminded of (for example weather as the
-  24 solar terms). Mention the relevant ones when proposing the next round of work.
+- `docs/roadmap.md` — deferred ideas the owner asked to be reminded of.
+  Mention the relevant ones when proposing the next round of work.
 
 Working agreement with the owner: send a short plan in Chinese and wait for confirmation before
 new features; code and comments in English; docs and plans written for the owner in Chinese (from 2026-11-16; older English docs to be archived or translated); chat in Chinese; the owner commits.

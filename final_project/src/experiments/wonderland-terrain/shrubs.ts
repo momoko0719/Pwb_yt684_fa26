@@ -7,7 +7,8 @@ import { ZONE, type Zones } from './zones';
 
 /**
  * Patches of low shrubs (docs/shrubs-and-fold-colour-2026-10-27.md): the living mass between the
- * pines and the grass, where life would settle first, where soil and water gather. One kind, grey-green.
+ * pines and the grass, where life would settle first, where soil and water gather. One kind, in three
+ * colours: each patch rolls one (SHRUB_TONE_WEIGHTS, or the mix turned in the atlas).
  *
  * Where a patch is first, then the plants in it:
  *
@@ -53,8 +54,10 @@ export interface Shrub {
   variant: number;
   /** Patch colour class (artistic plant, not a botanical season system). */
   tone: ShrubTone;
+  /** The patch's colour roll (0..1): the tone again under another mix, without regrowing. */
+  roll: number;
 }
-export interface ShrubPatch { x: number; z: number; r: number; tone: ShrubTone }
+export interface ShrubPatch { x: number; z: number; r: number; tone: ShrubTone; roll: number }
 export interface ShrubField {
   patches: ShrubPatch[];
   plants: Shrub[];
@@ -68,9 +71,17 @@ export const SHRUB_VARIANTS = 3;
 export const SHRUB_HEIGHT = PLANT.height;
 export const SHRUB_WIDTH_RATIO = PLANT.width;
 
-function pickTone(roll: number): ShrubTone {
-  if (roll < SHRUB_TONE_WEIGHTS[0]) return 0;
-  if (roll < SHRUB_TONE_WEIGHTS[0] + SHRUB_TONE_WEIGHTS[1]) return 1;
+/** The atlas's colour mix: the share of olive and of ochre (iron red the rest), kept with the shrub knobs. */
+export const SHRUB_MIX_KEYS = ['mixOlive', 'mixOchre'] as const;
+/** The three shares a set of knobs asks for (the species' own when none). */
+export function shrubMix(knobs?: Record<string, number> | null): [number, number, number] {
+  const o = knobs?.mixOlive ?? SHRUB_TONE_WEIGHTS[0], c = knobs?.mixOchre ?? SHRUB_TONE_WEIGHTS[1];
+  return [o, c, Math.max(0, 1 - o - c)];
+}
+/** A patch's colour from its roll (0..1) and the mix. */
+export function pickTone(roll: number, mix: readonly number[] = SHRUB_TONE_WEIGHTS): ShrubTone {
+  if (roll < mix[0]) return 0;
+  if (roll < mix[0] + mix[1]) return 1;
   return 2;
 }
 
@@ -125,13 +136,13 @@ export function growShrubs(zones: Zones, grid: HeightGrid, folds: RockFolds, see
     const s = suitability(x, z), take = rng(), size = rng();
     if (s < PATCH.least || take > s) continue;
     const r = PATCH.radius[0] + (PATCH.radius[1] - PATCH.radius[0]) * Math.min(s * (0.5 + 0.5 * size), 1);
-    const tone = pickTone(rng());
-    patches.push({ x, z, r, tone });
+    const roll = rng(), tone = pickTone(roll);
+    patches.push({ x, z, r, tone, roll });
     // A few small ones beside it (same colour class as the parent patch).
     const k = Math.floor(rng() * (PATCH.satellites + 1));
     for (let q = 0; q < k; q++) {
       const a = 2 * Math.PI * rng(), d = r + 2 + 6 * rng(), sx = x + Math.cos(a) * d, sz = z + Math.sin(a) * d;
-      if (suitability(sx, sz) > PATCH.least * 0.6) patches.push({ x: sx, z: sz, r: 3 + 3 * rng(), tone });
+      if (suitability(sx, sz) > PATCH.least * 0.6) patches.push({ x: sx, z: sz, r: 3 + 3 * rng(), tone, roll });
     }
   }
   // Trees' trunks and plants already placed, by a hash of 2 m cells.
@@ -164,7 +175,7 @@ export function growShrubs(zones: Zones, grid: HeightGrid, folds: RockFolds, see
       plants.push({
         x, y: sampleGrid(grid, x, z) - 0.06, z, height: h,
         width: PLANT.width[0] + (PLANT.width[1] - PLANT.width[0]) * wide,
-        yaw: 2 * Math.PI * yaw, shade, variant: Math.floor(variant * SHRUB_VARIANTS), tone: p.tone,
+        yaw: 2 * Math.PI * yaw, shade, variant: Math.floor(variant * SHRUB_VARIANTS), tone: p.tone, roll: p.roll,
       });
     }
   });

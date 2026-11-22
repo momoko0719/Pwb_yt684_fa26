@@ -1,9 +1,9 @@
-<a href="https://guixu-yt684.web.app/#/ideas"><img src="docs/readme/banner.jpg" alt="White Jade Island: an island above the clouds, grown from rules" width="100%"></a>
+<a href="https://whitejadeisland.web.app/#/ideas"><img src="docs/readme/banner.jpg" alt="White Jade Island: an island above the clouds, grown from rules" width="100%"></a>
 
 <p align="center">
-  <a href="https://guixu-yt684.web.app/#/world"><b>▶ Enter the island</b></a> &nbsp;·&nbsp;
-  <a href="https://guixu-yt684.web.app/#/ideas">Ideas</a> &nbsp;·&nbsp;
-  <a href="https://guixu-yt684.web.app/#/atlas">Atlas</a> &nbsp;·&nbsp;
+  <a href="https://whitejadeisland.web.app/#/world"><b>▶ Enter the island</b></a> &nbsp;·&nbsp;
+  <a href="https://whitejadeisland.web.app/#/ideas">Ideas</a> &nbsp;·&nbsp;
+  <a href="https://whitejadeisland.web.app/#/atlas">Atlas</a> &nbsp;·&nbsp;
   <a href="docs/process.md">Process log</a>
 </p>
 
@@ -15,18 +15,29 @@
 
 | | |
 | :---: | :---: |
-| [![Terrain](docs/readme/rules.jpg)](https://guixu-yt684.web.app/#/ideas) | [![Water](docs/readme/water.jpg)](https://guixu-yt684.web.app/#/world) |
+| [![Terrain](docs/readme/rules.jpg)](https://whitejadeisland.web.app/#/ideas) | [![Water](docs/readme/water.jpg)](https://whitejadeisland.web.app/#/world) |
 | **Grown from one seed** · terrain → water → zones → life | **Streams and pools** · a school of streamlings in each |
-| [![Dwellers](docs/readme/life.jpg)](https://guixu-yt684.web.app/#/world) | [![Woods](docs/readme/refs.jpg)](https://guixu-yt684.web.app/#/atlas) |
+| [![Dwellers](docs/readme/life.jpg)](https://whitejadeisland.web.app/#/world) | [![Woods](docs/readme/refs.jpg)](https://whitejadeisland.web.app/#/atlas) |
 | **Two jade dwellers** · needs, names, dens of their own | **Pine woods and dens** · placed by height, slope and water |
+
+## New on the island
+
+[![A dweller resting in its den](docs/readme/den.jpg)](https://whitejadeisland.web.app/#/world)
+
+| | What | Where |
+| --- | --- | --- |
+| 🧭 | **A first-visit tour**: seven short steps, one control lit at a time | Opens on your first visit · Settings → Explore → Show me round |
+| 🌿 | **Every plant has its own editor**: replay its growth, turn its knobs, apply it to the island | Settings → Explore → Field guide → Plants |
+| 🎨 | **The shrubs' colour ring**: drag the shares of olive, ochre and iron red; the island recolours | Field guide → Shrub |
+| 🦌 | **Follow a dweller**: the camera finds it, and looks into its den when it rests | The Creature chapter |
 
 ## Explore
 
 | | Where | What you find |
 | --- | --- | --- |
-| 🏝 | [**World**](https://guixu-yt684.web.app/#/world) | The island, live: chapters, time of day, the creatures' cards |
-| 💡 | [**Ideas**](https://guixu-yt684.web.app/#/ideas) | How it grows, the rules of the fish and the dwellers, the sources |
-| 🗂 | [**Atlas**](https://guixu-yt684.web.app/#/atlas) | Every technique on its own, earlier studies (Penglai), class exercises |
+| 🏝 | [**World**](https://whitejadeisland.web.app/#/world) | The island, live: chapters, time of day, the creatures' cards |
+| 💡 | [**Ideas**](https://whitejadeisland.web.app/#/ideas) | How it grows, the rules of the fish and the dwellers, the sources |
+| 🗂 | [**Atlas**](https://whitejadeisland.web.app/#/atlas) | Every technique on its own, earlier studies (Penglai), class exercises |
 
 ## Read more
 
@@ -49,4 +60,4 @@
 | 04 | Clay Studio | [code](class_04/react-app-ts/) · [live](https://pwb-class04-clay.web.app) | [Notes](class_04/tutorials/) |
 | 03 | Island terrain | [code](class_03/react-app-ts/) | [Notes](class_03/tutorials/Noise%20and%20Procedural%20Terrain.md) |
 
-All of them also open inside the [Atlas](https://guixu-yt684.web.app/#/atlas).
+All of them also open inside the [Atlas](https://whitejadeisland.web.app/#/atlas).

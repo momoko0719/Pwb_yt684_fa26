@@ -30,7 +30,7 @@ For the midterm exhibition (Oct 14) the site became one **atlas**: the class exe
 
 - **AI workflow**: Claude Code built; I directed and judged each round from screenshots and reference photos. Several things were rejected and redone: a pavilion that assembled itself (not procedural, so removed), rope bridges (too frequent, now stone arches only), ink "search" dots over the whole island (removed), and pines whose needle pads read as cactus discs (rebuilt as needles along the shoots). I asked for numbers before any optimization, which showed the slowdown was rebuilding, not drawing.
 - **Next**: creatures for Session 9 (Shanhaijing entries, "shaped like A but with B"), then the other four islands and the voxel caves of Daiyu.
-- App: [`final_project/`](final_project/) · Live: [https://guixu-yt684.web.app](https://guixu-yt684.web.app)
+- App: [`final_project/`](final_project/) · Live: [https://whitejadeisland.web.app](https://whitejadeisland.web.app)
 - Notes: [`final_project/src/experiments/island-v1/notes.md`](final_project/src/experiments/island-v1/notes.md)
 
 ### 2026-10 · Class 07 — Penglai Pines and Guixu Chronicle (L-systems, LOD, branching worlds)
@@ -84,7 +84,7 @@ Started the final project: **Guixu**, five floating mountains above a sea of clo
 ![Guixu — Penglai Island v1 at dusk, with the techniques panel open](docs/weekly/2026-09-final-penglai-island-v1.webp)
 
 - App: [`final_project/`](final_project/)
-- Live: [https://guixu-yt684.web.app](https://guixu-yt684.web.app)
+- Live: [https://whitejadeisland.web.app](https://whitejadeisland.web.app)
 - Notes: [`final_project/src/experiments/island-v1/notes.md`](final_project/src/experiments/island-v1/notes.md) · World concept: [`final_project/docs/world-concept.md`](final_project/docs/world-concept.md)
 
 ### 2026-09 · Class 05 — Shader Lab (see → tweak → understand)

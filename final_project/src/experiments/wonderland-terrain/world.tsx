@@ -11,6 +11,8 @@ import type { StringKey } from '../../i18n/strings';
 import { sunArc } from '../../leva/sunArc';
 import { createCloudSeaMaterial } from '../island-v1/cloudSea';
 import { AtmosphereClouds } from './AtmosphereClouds';
+import { Cumulus } from './Cumulus';
+import { FarAir } from './FarAir';
 import type { IslandBox, View } from './Exhibit';
 
 /**
@@ -31,7 +33,7 @@ const FRAME_BUDGET = { high: 14, low: 9, minDpr: 0.75, maxDpr: TERRAIN_DPR[1] };
 export function useHour(): number {
   const { language, t } = useLanguage();
   const light = useControls('Light', {
-    hour: sunArc({ hour: 15, describe: (h) => t(`option.${nearestTimeOfDay(h)}` as StringKey), label: t('leva.timeOfDay'), hint: t('hint.timeOfDay') }),
+    hour: sunArc({ hour: 17, describe: (h) => t(`option.${nearestTimeOfDay(h)}` as StringKey), label: t('leva.timeOfDay'), hint: t('hint.timeOfDay') }),
   }, [language]);
   return light.hour;
 }
@@ -41,7 +43,7 @@ export function useHour(): number {
  * `clouds` is the height of the sea of cloud, metres: below the island's lowest point, so the
  * island floats clear of it.
  */
-export function World({ hour, seed, clouds: cloudHeight = -70, islandBox, arrival, children }: { hour: number; seed: number; clouds?: number; islandBox: IslandBox | null; arrival: View | null; children: (uniforms: WorldUniforms) => React.ReactNode }) {
+export function World({ hour, seed, clouds: cloudHeight = -70, islandBox, arrival, air = false, cumulus = true, cloudParts = false, children }: { hour: number; seed: number; clouds?: number; islandBox: IslandBox | null; arrival: View | null; /** The far-view study's air: mist bands, birds, far islands (FarAir.tsx). */ air?: boolean; /** The solid clouds beside the island (Cumulus.tsx), and the Layers view of how they are made. */ cumulus?: boolean; cloudParts?: boolean; children: (uniforms: WorldUniforms) => React.ReactNode }) {
   const uniforms = useMemo(createWorldUniforms, []);
   const sky = useMemo(() => createSkyMaterial(uniforms), [uniforms]);
   const clouds = useMemo(() => createCloudSeaMaterial(uniforms, true), [uniforms]);
@@ -66,6 +68,8 @@ export function World({ hour, seed, clouds: cloudHeight = -70, islandBox, arriva
       </mesh>
       {children(uniforms)}
       <AtmosphereClouds seed={seed} hour={hour} cloudHeight={cloudHeight} box={islandBox} approach={arrival} />
+      {air && islandBox && <FarAir uniforms={uniforms} box={islandBox} seed={seed} />}
+      {cumulus && islandBox && <Cumulus uniforms={uniforms} box={islandBox} seed={seed} parts={cloudParts} approach={arrival} />}
       <mesh ref={cloudRef} material={clouds} rotation-x={-Math.PI / 2} frustumCulled={false} raycast={noHit}>
         <planeGeometry args={[FAR * 1.6, FAR * 1.6]} />
       </mesh>

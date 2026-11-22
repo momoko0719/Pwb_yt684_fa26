@@ -6,10 +6,10 @@ Final project for Cornell Tech DESIGN 6197 Procedural World Building. Five mount
 
 | White Jade Island | Penglai Island |
 | --- | --- |
-| [![White Jade Island](public/atlas-img/white-jade-island.png)](https://guixu-yt684.web.app/#/atlas/wonderland-terrain) | [![Penglai Island](public/atlas-img/penglai-island-v1-b.jpg)](https://guixu-yt684.web.app/#/atlas/island-v1) |
-| Porcelain ground, a terrace of pools, streams off the rim, and a creature whose days turn the stone it touches toward jade. [Live](https://guixu-yt684.web.app/#/atlas/wonderland-terrain) | Pines, wind, the 24 solar terms, paths and pavilions. [Live](https://guixu-yt684.web.app/#/atlas/island-v1) |
+| [![White Jade Island](public/atlas-img/white-jade-island.png)](https://whitejadeisland.web.app/#/atlas/wonderland-terrain) | [![Penglai Island](public/atlas-img/penglai-island-v1-b.jpg)](https://whitejadeisland.web.app/#/atlas/island-v1) |
+| Porcelain ground, a terrace of pools, streams off the rim, and a creature whose days turn the stone it touches toward jade. [Live](https://whitejadeisland.web.app/#/atlas/wonderland-terrain) | Pines, wind, the 24 solar terms, paths and pavilions. [Live](https://whitejadeisland.web.app/#/atlas/island-v1) |
 
-Both islands, and the class cards, open from the [Atlas](https://guixu-yt684.web.app/#/atlas). Premise: [`docs/world-concept.md`](docs/world-concept.md). Shelter record: [`docs/rock-shelter-slab-2026-10-28.md`](docs/rock-shelter-slab-2026-10-28.md).
+Both islands, and the class cards, open from the [Atlas](https://whitejadeisland.web.app/#/atlas). Premise: [`docs/world-concept.md`](docs/world-concept.md). Shelter record: [`docs/rock-shelter-slab-2026-10-28.md`](docs/rock-shelter-slab-2026-10-28.md).
 
 ## Run
 

@@ -23,11 +23,13 @@ export interface LifeNeed {
   high?: { at: number; note: string };
 }
 
-export const NEED_ICON: Record<LifeNeed['icon'], string> = {
+export const NEED_ICON: Record<LifeNeed['icon'] | 'watch', string> = {
   food: 'M4 18c1-8 7-12 15-13-1 8-5 14-13 14m-1-2c3-3 6-5 10-7',
   water: 'M12 3C9 8 6 11 6 15a6 6 0 0 0 12 0c0-4-3-7-6-12Z',
   rest: 'M17 4a8 8 0 1 0 3 14A8 8 0 0 1 17 4Z',
   stamina: 'M13 2 5 14h6l-1 8 8-12h-6z',
+  // An eye: it is watching (the brook's fish darting off).
+  watch: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
 };
 
 /** Its colour step: comfortably above the mark, near it, below it, far below (half of it). */

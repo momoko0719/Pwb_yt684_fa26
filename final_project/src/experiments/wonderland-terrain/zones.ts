@@ -207,3 +207,63 @@ export function zoneAt(z: Zones, x: number, y: number): number {
   const i = Math.floor((x - z.x0) / z.cell), j = Math.floor((y - z.z0) / z.cell);
   return i >= 0 && j >= 0 && i < z.nx && j < z.nz ? z.zone[j * z.nx + i] : ZONE.outside;
 }
+
+/**
+ * The zones as the visitor sees them, one colour per kind of planting (owner, 2026-11-21: the zone
+ * map has to say what grows where, or it says nothing). Read from the zones above, and the trees
+ * are planted from this same map (woods.ts), so the colours and the trees agree:
+ *
+ * - shore: the wet shore, where the weeping cherries stand;
+ * - wood: the woodland (pines) and a band WOOD_EDGE m wide round it on open ground, the woodland's
+ *   edge, where the parasol trees stand;
+ * - open: open stone and grass (the creature's habitat is a place for its home, not a planting:
+ *   it shows as open);
+ * - rock: cliff and ridge, bare; rock slope (shrubs only); terrace; water.
+ */
+export const PLANT = { outside: 0, water: 1, terrace: 2, rock: 3, rockSlope: 4, shore: 5, wood: 6, open: 7 } as const;
+export const PLANT_NAMES = ['outside', 'water', 'terrace', 'rock', 'rockSlope', 'shore', 'wood', 'open'] as const;
+/** Metres of open ground round a woodland that count as its edge. */
+export const WOOD_EDGE = 10;
+
+const plantCache = new WeakMap<Zones, Uint8Array>();
+export function plantZones(z: Zones): Uint8Array {
+  const hit = plantCache.get(z);
+  if (hit) return hit;
+  const { nx, nz, cell, zone } = z, n = nx * nz;
+  // Metres to the nearest woodland cell: a two-pass chamfer transform.
+  const d = new Float32Array(n).fill(Infinity);
+  for (let t = 0; t < n; t++) if (zone[t] === ZONE.woodland) d[t] = 0;
+  const diag = cell * Math.SQRT2;
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const t = j * nx + i;
+    if (i > 0) d[t] = Math.min(d[t], d[t - 1] + cell);
+    if (j > 0) {
+      d[t] = Math.min(d[t], d[t - nx] + cell);
+      if (i > 0) d[t] = Math.min(d[t], d[t - nx - 1] + diag);
+      if (i < nx - 1) d[t] = Math.min(d[t], d[t - nx + 1] + diag);
+    }
+  }
+  for (let j = nz - 1; j >= 0; j--) for (let i = nx - 1; i >= 0; i--) {
+    const t = j * nx + i;
+    if (i < nx - 1) d[t] = Math.min(d[t], d[t + 1] + cell);
+    if (j < nz - 1) {
+      d[t] = Math.min(d[t], d[t + nx] + cell);
+      if (i < nx - 1) d[t] = Math.min(d[t], d[t + nx + 1] + diag);
+      if (i > 0) d[t] = Math.min(d[t], d[t + nx - 1] + diag);
+    }
+  }
+  const out = new Uint8Array(n);
+  for (let t = 0; t < n; t++) {
+    const k = zone[t];
+    out[t] = k === ZONE.outside ? PLANT.outside
+      : k === ZONE.water ? PLANT.water
+        : k === ZONE.terrace ? PLANT.terrace
+          : k === ZONE.cliff || k === ZONE.ridge ? PLANT.rock
+            : k === ZONE.rockSlope ? PLANT.rockSlope
+              : k === ZONE.wetShore ? PLANT.shore
+                : k === ZONE.woodland || d[t] <= WOOD_EDGE ? PLANT.wood
+                  : PLANT.open;
+  }
+  plantCache.set(z, out);
+  return out;
+}

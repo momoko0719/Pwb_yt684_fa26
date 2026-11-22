@@ -126,8 +126,9 @@ const GENERATIONS = 8;
 /** Generations (counted from the end) in which the trunk spreads into its crown. */
 const CROWN = 3;
 
+const TURTLE_PITCH = 74;
 const TURTLE = {
-  pitch: 74, // degrees for & : limbs leave the trunk almost level
+  pitch: TURTLE_PITCH, // degrees for & : limbs leave the trunk almost level
   fan: 48, // degrees for + - : sprays and twigs fan out within the limb's layer
   length: 0.9,
   width: 0.24,
@@ -145,33 +146,65 @@ const TURTLE = {
 };
 const GOLDEN = (137.5 * Math.PI) / 180;
 
+/**
+ * Knobs a visitor can turn (White Jade Island's atlas); none, or their birth values, grow exactly
+ * the pine above, so Penglai's pines are untouched:
+ * - whorl: x the length of each trunk step, so the whorls of limbs stand further apart;
+ * - level: degrees the limbs leave the trunk at (90 level, lower climbing);
+ * - crown: how many of the last generations spread into the flat top (more: it flattens earlier, lower).
+ */
+export type PineKnobs = Record<string, number>;
+export const PINE_KNOBS = [
+  { key: 'whorl', min: 0.6, max: 1.6, step: 0.01 },
+  { key: 'level', min: 50, max: 90, step: 1 },
+  { key: 'crown', min: 1, max: 5, step: 1 },
+];
+export const PINE_BIRTH: PineKnobs = { whorl: 1, level: TURTLE_PITCH, crown: CROWN };
+const pineKnob = (knobs: PineKnobs | null | undefined, k: string) => knobs?.[k] ?? PINE_BIRTH[k];
+/** True when these knobs grow the pine's own form. */
+export function isPineBirth(knobs?: PineKnobs | null): boolean {
+  return !knobs || Object.keys(PINE_BIRTH).every((k) => knobs[k] === undefined || Math.abs(knobs[k] - PINE_BIRTH[k]) < 1e-6);
+}
+
 /** The string after a number of rewrites; every bud is replaced by one of its rules, chosen by weight. */
-export function expandPine(seed: number, generations = GENERATIONS): string {
+export function expandPine(seed: number, generations = GENERATIONS, knobs?: PineKnobs | null): string {
+  return expandPineTagged(seed, generations, knobs).str;
+}
+
+/** The same, with the generation that wrote each symbol (0: the axiom), for a growth replay. */
+export function expandPineTagged(seed: number, generations = GENERATIONS, knobs?: PineKnobs | null): { str: string; birth: Uint8Array } {
   const rng = createRng(seed);
-  let s = AXIOM;
+  const crownFrom = generations - Math.round(pineKnob(knobs, 'crown'));
+  let s = AXIOM, born: number[] = Array.from(AXIOM, () => 0);
   for (let g = 0; g < generations; g++) {
-    const crown = g >= generations - CROWN;
+    const crown = g >= crownFrom;
     let next = '';
-    for (const c of s) {
+    const nextBorn: number[] = [];
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
       const options = RULES.filter((r) => r.from === c && (c !== 'A' || !!r.crown === crown));
-      if (!options.length) { next += c; continue; }
+      if (!options.length) { next += c; nextBorn.push(born[i]); continue; }
       let x = rng() * options.reduce((sum, r) => sum + r.weight, 0);
-      next += (options.find((r) => (x -= r.weight) <= 0) ?? options[options.length - 1]).to;
+      const to = (options.find((r) => (x -= r.weight) <= 0) ?? options[options.length - 1]).to;
+      next += to;
+      for (let j = 0; j < to.length; j++) nextBorn.push(g + 1);
     }
-    s = next;
+    s = next; born = nextBorn;
   }
-  return s;
+  return { str: s, birth: Uint8Array.from(born) };
 }
 
 interface Part { depth: number; owners: number[] }
-interface Segment extends Part { a: Vector3; b: Vector3; r0: number; r1: number }
+interface Segment extends Part { a: Vector3; b: Vector3; r0: number; r1: number; gen: number }
 /** A tuft of needles at a shoot tip: where, and which way the shoot points. */
 interface Tuft extends Part { p: Vector3; dir: Vector3 }
-export interface PineSkeleton { segments: Segment[]; tufts: Tuft[] }
+export interface PineSkeleton { segments: Segment[]; tufts: Tuft[]; /** Per generation, where its buds stood (with `birth`). */ buds: Vector3[][] }
 
-export function interpretPine(str: string, seed: number): PineSkeleton {
+export function interpretPine(str: string, seed: number, knobs?: PineKnobs | null, birth?: Uint8Array): PineSkeleton {
   const rng = createRng(seed * 7 + 3);
-  const p = TURTLE;
+  const p = { ...TURTLE, pitch: pineKnob(knobs, 'level') };
+  const whorl = pineKnob(knobs, 'whorl');
+  const buds: Vector3[][] = [];
   const turn = (deg: number) => ((deg * Math.PI) / 180) * (1 + p.jitter * (rng() - 0.5));
   const up = new Vector3(0, 1, 0);
   const reachSide = new Vector3(1, 0, 0);
@@ -211,7 +244,10 @@ export function interpretPine(str: string, seed: number): PineSkeleton {
   };
   const tuft = () => tufts.push({ p: pos.clone(), dir: H.clone(), depth, owners: [...owners] });
 
-  for (const c of str) {
+  for (let i = 0; i < str.length; i++) {
+    const c = str[i], gen = birth ? birth[i] : 0;
+    // A run written after generation g grew from one bud of generation g, standing where the run starts.
+    if (birth) for (let g = i > 0 ? birth[i - 1] : 0; g < gen; g++) (buds[g] ??= []).push(pos.clone());
     if (c === 'F') {
       if (depth === 0) {
         // The trunk wanders a little, but keeps climbing.
@@ -223,12 +259,12 @@ export function interpretPine(str: string, seed: number): PineSkeleton {
         level();
       }
       // Limbs reaching toward the open side grow longer.
-      const step = depth === 0 ? len : len * (1 + p.reach * Math.max(0, H.dot(reachSide)));
+      const step = depth === 0 ? len * whorl : len * (1 + p.reach * Math.max(0, H.dot(reachSide)));
       const a = pos.clone();
       pos = pos.clone().addScaledVector(H, step);
       // The base of the trunk flares where it grips the rock.
       const r0 = segments.length === 0 ? width * 1.6 : width;
-      segments.push({ a, b: pos.clone(), r0, r1: width * p.taper, depth, owners });
+      segments.push({ a, b: pos.clone(), r0, r1: width * p.taper, depth, owners, gen });
       width *= p.taper;
       // Needles clothe the young wood, not just its tips.
       if (depth >= 2) tuft();
@@ -250,7 +286,22 @@ export function interpretPine(str: string, seed: number): PineSkeleton {
       if (s) ({ pos, H, L, U, len, width, depth, owners } = s);
     } else if (BUDS.has(c)) tuft();
   }
-  return { segments, tufts };
+  return { segments, tufts, buds };
+}
+
+/**
+ * One pine of a seed at a level of detail, with knobs: turned, its height is brought back to
+ * GROWN_PINE_HEIGHT (so a longer trunk step stands the whorls apart, not the tree taller than its
+ * place allows: real heights stay with the placement). Untouched, exactly pineGeometry's tree.
+ */
+export function growPine(seed: number, lod: PineLod, knobs?: PineKnobs | null): BufferGeometry {
+  const g = pineGeometry(interpretPine(expandPine(seed, GENERATIONS, knobs), seed, knobs), lod, seed);
+  if (isPineBirth(knobs)) return g;
+  g.computeBoundingBox();
+  const k = GROWN_PINE_HEIGHT / Math.max(g.boundingBox!.max.y, 1e-3);
+  g.scale(k, k, k);
+  g.computeBoundingSphere();
+  return g;
 }
 
 export const PINE_LODS = [0, 1, 2] as const;

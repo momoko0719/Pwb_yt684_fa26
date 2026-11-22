@@ -38,7 +38,7 @@ export function createFlowWaterMaterial(uniforms: WorldUniforms, opts: { ground?
     defines: opts.ground ? { GROUND: '' } : {},
     uniforms: {
       uTime: uniforms.uTime, uSunDir: uniforms.uSunDir, uSkyTop: uniforms.uSkyTop, uSkyMid: uniforms.uSkyMid, uSkyHorizon: uniforms.uSkyHorizon,
-      uDeep: { value: new Color(PORCELAIN.waterDeep) }, uTint: { value: new Color(PORCELAIN.waterTint) }, uFloor: { value: new Color(PORCELAIN.body) }, uFoam: { value: new Color(PORCELAIN.sheen) },
+      uDeep: { value: new Color(PORCELAIN.waterDeep) }, uTint: { value: new Color(PORCELAIN.waterTint) }, uFloor: { value: new Color(PORCELAIN.body) }, uFoam: { value: new Color(PORCELAIN.sheen) }, uSilt: { value: new Color(PORCELAIN.silt) }, uAmberEdge: { value: new Color(PORCELAIN.travertineAmber) },
       uImpactLine: { value: Array.from({ length: MAX_IMPACTS }, () => new Vector4()) },
       uImpactInfo: { value: Array.from({ length: MAX_IMPACTS }, () => new Vector4()) },
       uImpactCount: { value: 0 },
@@ -60,7 +60,7 @@ export function createFlowWaterMaterial(uniforms: WorldUniforms, opts: { ground?
     `,
     fragmentShader: /* glsl */ `
       uniform float uTime;
-      uniform vec3 uSunDir, uSkyTop, uSkyMid, uSkyHorizon, uDeep, uTint, uFloor, uFoam;
+      uniform vec3 uSunDir, uSkyTop, uSkyMid, uSkyHorizon, uDeep, uTint, uFloor, uFoam, uSilt, uAmberEdge;
       uniform vec4 uImpactLine[${MAX_IMPACTS}]; // the line it lands along: x0, z0, x1, z1
       uniform vec4 uImpactInfo[${MAX_IMPACTS}]; // metres it stirs over, strength (0 to 1), wavelength, seed
       uniform int uImpactCount;
@@ -204,7 +204,16 @@ export function createFlowWaterMaterial(uniforms: WorldUniforms, opts: { ground?
         vec2 bent = p + n.xz * depth * 1.5;
         float caustic = pow(1.0 - min(abs(2.5 * gnoise(bent * 0.9 + uTime * 0.15)), 1.0), 5.0) * pow(1.0 - min(abs(2.5 * gnoise(bent * 1.3 - uTime * 0.1 + 4.0)), 1.0), 3.0);
         float floorLight = 0.95 + 0.6 * caustic * nearW * (1.0 - smoothstep(0.2, 1.4, depth));
-        vec3 body = uFloor * floorLight * through + uDeep * (vec3(1.0) - through);
+        // The floor is not one white: silt settles in broad patches where the water is slow and
+        // shallow (cream-ochre), and an amber rim of travertine lines the very edge. Seen through
+        // the water these are what tell one stretch of water from another from afar.
+        float siltPatch = smoothstep(0.38, 0.72, noise(p * 0.07 + 11.0) * 0.6 + noise(p * 0.27 - 3.0) * 0.4);
+        float slow = 1.0 - smoothstep(0.3, 1.2, speed);
+        vec3 bed = mix(uFloor, uSilt, siltPatch * (0.35 + 0.45 * slow) * (1.0 - smoothstep(0.4, 2.0, depth)));
+        bed = mix(bed, uAmberEdge, (1.0 - smoothstep(0.0, 0.35, depth)) * 0.35);
+        vec3 body = bed * floorLight * through + uDeep * (vec3(1.0) - through);
+        // Running water is stirred with air: paler and a little greener than still water.
+        body = mix(body, mix(body, uTint, 0.5) * 1.06, smoothstep(0.4, 1.8, speed) * 0.45);
         // The sky: its colour mostly from the flat surface (seen low, each ripple's own reflection
         // dipped to the warm horizon: flecks of gold), softer where ruffled.
         vec3 r = reflect(-v, n);

@@ -7,6 +7,7 @@
  */
 import { BufferGeometry, Float32BufferAttribute, Quaternion, Vector3 } from 'three';
 import { createRng } from '../../core/rng';
+import { skeletonStage } from './broadleaf';
 
 interface Rule { from: string; to: string; weight: number }
 
@@ -54,28 +55,69 @@ export const SHRUB_LEAF = { length: 0.055, width: 0.009, open: [0.4, 0.8] as [nu
 
 const GOLDEN = (137.5 * Math.PI) / 180;
 
-export function expandShrub(seed: number, generations = GENERATIONS): string {
+export function expandShrub(seed: number, generations = GENERATIONS, knobs?: ShrubKnobs | null): string {
+  return expandShrubTagged(seed, generations, knobs).str;
+}
+
+/**
+ * The atlas knobs (and "apply to island"), birth values the species' own:
+ * - stems: how many more (or fewer) stems rise from the root than the rule chose (whole numbers);
+ * - fork: x the length of each step along a stem, so its side shoots, and the first fork, sit
+ *   higher (the plant is normalised to its height, so this is where it forks, not how tall it is);
+ * - leaf: x the size of every leaf (the tufts at the twig ends and those along them).
+ * The colour mix lives with them (shrubs.ts SHRUB_MIX_KEYS): which colour each patch rolls.
+ */
+export type ShrubKnobs = Record<string, number>;
+export const SHRUB_KNOBS = [
+  { key: 'stems', min: -2, max: 3, step: 1 },
+  { key: 'fork', min: 0.5, max: 1.8, step: 0.01 },
+  { key: 'leaf', min: 0.6, max: 1.7, step: 0.01 },
+];
+export const SHRUB_BIRTH: ShrubKnobs = { stems: 0, fork: 1, leaf: 1 };
+const knob = (knobs: ShrubKnobs | null | undefined, k: string) => knobs?.[k] ?? SHRUB_BIRTH[k];
+
+/** The string, and for each symbol the generation that wrote it (0: the axiom). Same draws as without tags. */
+export function expandShrubTagged(seed: number, generations = GENERATIONS, knobs?: ShrubKnobs | null): { str: string; birth: Uint8Array } {
   const rng = createRng(seed + 401);
-  let s = AXIOM;
+  const more = Math.round(knob(knobs, 'stems'));
+  let s = AXIOM, born: number[] = [0];
   for (let g = 0; g < generations; g++) {
     let next = '';
-    for (const c of s) {
+    const nextBorn: number[] = [];
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
       const options = RULES.filter((r) => r.from === c);
-      if (!options.length) { next += c; continue; }
+      if (!options.length) { next += c; nextBorn.push(born[i]); continue; }
       let x = rng() * options.reduce((sum, r) => sum + r.weight, 0);
-      next += (options.find((r) => (x -= r.weight) <= 0) ?? options[options.length - 1]).to;
+      let to = (options.find((r) => (x -= r.weight) <= 0) ?? options[options.length - 1]).to;
+      // The stems knob: the rule's own count of stems, plus or minus (two at least).
+      if (c === 'S' && more) {
+        const n = Math.max(2, (to.match(/B/g) ?? []).length + more);
+        to = Array.from({ length: n }, (_, k) => (k ? (k % 2 ? '*' : '**') : '') + '[&B]').join('');
+      }
+      next += to;
+      for (let j = 0; j < to.length; j++) nextBorn.push(g + 1);
     }
-    s = next;
+    s = next; born = nextBorn;
   }
-  return s;
+  return { str: s, birth: Uint8Array.from(born) };
 }
 
 interface Part { depth: number; owners: number[] }
-interface Segment extends Part { a: Vector3; b: Vector3; r0: number; r1: number }
+interface Segment extends Part { a: Vector3; b: Vector3; r0: number; r1: number; gen: number }
 interface Tuft extends Part { p: Vector3; dir: Vector3 }
-export interface ShrubSkeleton { segments: Segment[]; tufts: Tuft[] }
+export interface ShrubSkeleton {
+  segments: Segment[];
+  tufts: Tuft[];
+  /** Per generation, where each of its buds stood (the replay). */
+  buds: Vector3[][];
+  /** x every leaf's size (the leaf knob). */
+  leaf: number;
+}
 
-export function interpretShrub(str: string, seed: number): ShrubSkeleton {
+export function interpretShrub(str: string, seed: number, knobs?: ShrubKnobs | null, birth?: Uint8Array): ShrubSkeleton {
+  const fork = knob(knobs, 'fork');
+  const buds: Vector3[][] = [];
   const rng = createRng(seed * 7 + 11);
   const p = TURTLE;
   const turn = (deg: number) => ((deg * Math.PI) / 180) * (1 + p.jitter * (rng() - 0.5));
@@ -103,15 +145,18 @@ export function interpretShrub(str: string, seed: number): ShrubSkeleton {
     q.setFromUnitVectors(H, nh);
     H = nh; L.applyQuaternion(q); U.applyQuaternion(q);
   };
-  for (const c of str) {
+  for (let i = 0; i < str.length; i++) {
+    const c = str[i], gen = birth ? birth[i] : 0;
+    // A run written after generation g grew from one bud of generation g, standing where the run starts.
+    if (birth) for (let g = i > 0 ? birth[i - 1] : 0; g < gen; g++) (buds[g] ??= []).push(pos.clone());
     if (c === 'F') {
       rotate(L.clone(), (rng() - 0.5) * p.bend);
       rotate(U.clone(), (rng() - 0.5) * p.bend * 0.5);
       if (depth >= 1) tropism(up, p.light * 0.45);
       else tropism(up, -p.gravity);
       const a = pos.clone();
-      pos = pos.clone().addScaledVector(H, len);
-      segments.push({ a, b: pos.clone(), r0: width, r1: width * p.taper, depth, owners });
+      pos = pos.clone().addScaledVector(H, len * (depth === 0 ? fork : 1));
+      segments.push({ a, b: pos.clone(), r0: width, r1: width * p.taper, depth, owners, gen });
       width *= p.taper;
       if (depth >= 1) tufts.push({ p: pos.clone().lerp(a, 0.4), dir: H.clone(), depth, owners: [...owners] });
     } else if (c === '+') rotate(U.clone(), turn(p.fan));
@@ -135,7 +180,7 @@ export function interpretShrub(str: string, seed: number): ShrubSkeleton {
       tufts.push({ p: pos.clone(), dir: H.clone(), depth, owners: [...owners] });
     }
   }
-  return { segments, tufts };
+  return { segments, tufts, buds, leaf: knob(knobs, 'leaf') };
 }
 
 export type ShrubLod = 0 | 1 | 2;
@@ -173,7 +218,7 @@ export function shrubGeometry(skel: ShrubSkeleton, lod: ShrubLod, seed: number):
   const blade = (base: Vector3, dir: Vector3, out: Vector3, length: number) => {
     const tipP = base.clone().addScaledVector(dir, length);
     const mid = base.clone().addScaledVector(dir, length * 0.45);
-    const across = new Vector3().crossVectors(dir, out).normalize().multiplyScalar(SHRUB_LEAF.width * widen);
+    const across = new Vector3().crossVectors(dir, out).normalize().multiplyScalar(SHRUB_LEAF.width * widen * skel.leaf);
     const n = out.clone().addScaledVector(up, 0.7).normalize();
     vert(base.clone().sub(across.clone().multiplyScalar(0.55)), n, 1, 0.25);
     vert(base.clone().add(across.clone().multiplyScalar(0.55)), n, 1, 0.25);
@@ -207,7 +252,7 @@ export function shrubGeometry(skel: ShrubSkeleton, lod: ShrubLod, seed: number):
         const open = SHRUB_LEAF.open[0] + (SHRUB_LEAF.open[1] - SHRUB_LEAF.open[0]) * rng();
         const out = u.clone().multiplyScalar(Math.cos(around)).addScaledVector(v, Math.sin(around));
         const dir = axis.clone().multiplyScalar(Math.cos(open)).addScaledVector(out, Math.sin(open)).addScaledVector(up, 0.2).normalize();
-        blade(s.a.clone().lerp(s.b, rng()), dir, out, SHRUB_LEAF.length * (0.75 + 0.4 * rng()));
+        blade(s.a.clone().lerp(s.b, rng()), dir, out, SHRUB_LEAF.length * skel.leaf * (0.75 + 0.4 * rng()));
       }
     }
   }
@@ -219,7 +264,7 @@ export function shrubGeometry(skel: ShrubSkeleton, lod: ShrubLod, seed: number):
       const around = (k / tip) * Math.PI * 2 + rng() * 0.4;
       const out = u.clone().multiplyScalar(Math.cos(around)).addScaledVector(v, Math.sin(around));
       const dir = axis.clone().multiplyScalar(0.5).addScaledVector(out, 0.75).normalize();
-      blade(t.p, dir, out, SHRUB_LEAF.length * (0.85 + 0.3 * rng()) * (lod === 2 ? 1.35 : 1));
+      blade(t.p, dir, out, SHRUB_LEAF.length * skel.leaf * (0.85 + 0.3 * rng()) * (lod === 2 ? 1.35 : 1));
     }
   }
   // Normalize height to 1; also measure width — if crown is narrow, scale XZ up slightly (not squash Y).
@@ -236,16 +281,38 @@ export function shrubGeometry(skel: ShrubSkeleton, lod: ShrubLod, seed: number):
     pos[i + 2] = (pos[i + 2] / h) * widthScale;
   }
   const g = new BufferGeometry();
+  // How the turtle's frame was laid into this one (the growth replay lays its stages the same way).
+  g.userData.frame = { unit: h, xz: widthScale, y0: minY };
   g.setAttribute('position', new Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new Float32BufferAttribute(nor, 3));
   g.setAttribute('aTone', new Float32BufferAttribute(tone, 2));
   g.computeBoundingSphere();
+  g.computeBoundingBox();
   return g;
 }
 
-export function makeShrubLods(variant: number): { near: BufferGeometry; mid: BufferGeometry; far: BufferGeometry; tris: { near: number; mid: number; far: number } } {
-  const seed = 9137 + variant * 31;
-  const skel = interpretShrub(expandShrub(seed), seed);
+/** The seed of each of the island's shrub shapes. */
+export const shrubSeed = (variant: number) => 9137 + variant * 31;
+
+/**
+ * The shrub as it grows, for the atlas's replay: the bare stems after each generation (those that
+ * generation wrote in leaf colour, its buds as small diamonds), then the grown shrub, all in the
+ * grown shrub's frame (1 = its height). Also how wide it came out (width / height).
+ */
+export function growShrubStages(seed: number, knobs?: ShrubKnobs | null): { stages: BufferGeometry[]; grown: BufferGeometry; spread: number } {
+  const { str, birth } = expandShrubTagged(seed, GENERATIONS, knobs);
+  const skel = interpretShrub(str, seed, knobs, birth);
+  const grown = shrubGeometry(skel, 0, seed);
+  const frame = grown.userData.frame as { unit: number; xz: number; y0: number };
+  const stages: BufferGeometry[] = [];
+  for (let g = 0; g <= GENERATIONS; g++) stages.push(skeletonStage(skel.segments, skel.buds[g] ?? [], g, frame.unit, { ...frame, bud: 0.012, min: 0.004 }));
+  const b = grown.boundingBox!;
+  return { stages, grown, spread: Math.max(b.max.x - b.min.x, b.max.z - b.min.z) };
+}
+
+export function makeShrubLods(variant: number, knobs?: ShrubKnobs | null): { near: BufferGeometry; mid: BufferGeometry; far: BufferGeometry; tris: { near: number; mid: number; far: number } } {
+  const seed = shrubSeed(variant);
+  const skel = interpretShrub(expandShrub(seed, GENERATIONS, knobs), seed, knobs);
   const near = shrubGeometry(skel, 0, seed);
   const mid = shrubGeometry(skel, 1, seed + 1);
   const far = shrubGeometry(skel, 2, seed + 2);

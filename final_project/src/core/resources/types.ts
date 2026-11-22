@@ -21,7 +21,7 @@ export interface ResourceDef {
   variants?: number;
   ruleEn: string;
   ruleZh: string;
-  preview: 'shrub' | 'grass' | 'pine' | 'person' | 'stele' | 'flower' | null;
+  preview: 'shrub' | 'grass' | 'pine' | 'parasol' | 'weeping' | 'person' | 'stele' | 'flower' | null;
   noteEn?: string;
   noteZh?: string;
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Color, Group, InstancedMesh, Matrix4, Quaternion, Vector3, type BufferGeometry, type ShaderMaterial } from 'three';
 import { BOULDER_VARIANTS, boulderGeometry, shrubGeometry, type Plant } from '../../core/generators/forest';
-import { expandPine, forestPineModel, GROWN_PINE_HEIGHT, interpretPine, pineGeometry, PINE_VARIANTS } from '../../core/generators/pine';
+import { forestPineModel, GROWN_PINE_HEIGHT, growPine, PINE_VARIANTS, type PineKnobs } from '../../core/generators/pine';
 import { GROUND } from '../../core/palette';
 import { SIZES } from '../../core/scale';
 import { createPropMaterial } from '../../core/shaders/prop';
@@ -19,7 +19,7 @@ const UP = new Vector3(0, 1, 0);
  * (its lightest level) up close, then mid/far stand-ins from `forestPineModel` (flat uneven pads,
  * not a conical Christmas-tree stack). Shrubs and boulders are single instanced meshes.
  */
-export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial, uniforms, lod = SIZES.forest.lod, onPickTree, onHoverTree }: {
+export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial, uniforms, lod = SIZES.forest.lod, onPickTree, onHoverTree, pineKnobs }: {
   trees: Plant[];
   shrubs: Plant[];
   boulders: Plant[];
@@ -30,17 +30,20 @@ export default function Vegetation({ trees, shrubs, boulders, seed, pineMaterial
   lod?: [number, number];
   onPickTree?: () => void;
   onHoverTree?: (hover: boolean) => void;
+  /** White Jade Island's atlas knobs for its pines ("apply to island"); none on Penglai. */
+  pineKnobs?: PineKnobs;
 }) {
   const [NEAR, MID] = lod;
+  const pineKey = JSON.stringify(pineKnobs ?? null);
   // Shapes: the grown pine variants (same seeds as the lone pines) and the two stand-ins.
   const shapes = useMemo(() => ({
     near: Array.from({ length: PINE_VARIANTS }, (_, v) => {
       const s = seed * 10 + v;
-      return pineGeometry(interpretPine(expandPine(s), s), 2, s);
+      return growPine(s, 2, pineKnobs);
     }),
     mid: forestPineModel('mid'),
     far: forestPineModel('far'),
-  }), [seed]);
+  }), [seed, pineKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => [...shapes.near, shapes.mid, shapes.far].forEach((g) => g.dispose()), [shapes]);
 
   // Each tree's placement twice: scaled for the grown pine, and for the one-unit stand-ins.

@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter, Navigate, NavLink, Route, Routes } from 'react-router-dom';
-import { ATLAS_UI, JADE_UI, SILK_UI, UI, LAYER, WEAR_DEBUG, ZONE_DEBUG } from './core/palette';
+import { ATLAS_UI, JADE_UI, PHOTO, SPEED_TRACK, SILK_UI, UI, LAYER, WEAR_DEBUG, ZONE_DEBUG } from './core/palette';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { LANGUAGES } from './i18n/strings';
 import Home from './pages/Home';
@@ -28,6 +28,12 @@ for (const [name, color] of Object.entries(WEAR_DEBUG)) {
   document.documentElement.style.setProperty(`--wear-${name}`, color);
 }
 ZONE_DEBUG.forEach((color, i) => document.documentElement.style.setProperty(`--zone-${i}`, color));
+for (const [name, color] of Object.entries(SPEED_TRACK)) {
+  document.documentElement.style.setProperty(`--speed-${name}`, color);
+}
+for (const [name, color] of Object.entries(PHOTO)) {
+  document.documentElement.style.setProperty(`--photo-${name}`, color);
+}
 for (const [name, color] of Object.entries(SILK_UI)) {
   document.documentElement.style.setProperty(`--silk-${name}`, color);
 }
@@ -37,7 +43,7 @@ function Header() {
   return (
     <header className="site-header">
       <nav>
-        <NavLink to="/" end className="brand">{t('site.title')}</NavLink>
+        <NavLink to="/" end className="brand">{t('site.brand')}</NavLink>
         <NavLink to="/ideas">{t('nav.ideas')}</NavLink>
         <NavLink to="/world">{t('nav.world')}</NavLink>
         <NavLink to="/atlas">{t('nav.atlas')}</NavLink>
