@@ -2,21 +2,29 @@ import { useEffect, useRef } from 'react';
 import { JADE_UI, PORCELAIN } from '../../core/palette';
 import { createRng } from '../../core/rng';
 import { SCHOOL_DEFAULT, schoolPull, type Swimmer } from '../../experiments/wonderland-terrain/schoolRules';
+import { SCARE } from '../../experiments/wonderland-terrain/streamFish';
+import { drawDweller } from './dweller';
 
 /**
  * The streamlings' own school rule (schoolRules.ts), running live on nine fish in a round pool,
- * seen from above. The view drifts with the school over a pebbled floor (so the swimming reads),
+ * seen from above, the whole pool in view over a pebbled floor (so the swimming reads),
  * each fish drawn as the island's: a white body with a jade patch, a beating tail. The red one
  * leads; its three rings are how far each rule reaches (in its body lengths).
+ *
+ * Now and then a dweller comes down to drink (the island's rule, streamFish.ts SCARE): every fish
+ * within its reach darts away, keeps clear while its fear lasts, then the school's rules bring it back.
  */
-const R = 6; // the pool's radius, metres
+const R = 3.5; // the pool's radius, metres
 const L = 0.5; // a fish's length, metres
-const VIEW = 5; // metres across the panel
+const VIEW = 2 * R + 4; // metres across: the pool and the rim the dweller drinks at
+/** A dweller's visit, seconds: walking in, drinking, walking off, away. */
+const VISIT = { in: 4, drink: 6, out: 4, away: 6 };
+const DWELLER = 1.5; // its body length, metres
 
 /** The ink colour at an opacity (shadows and outlines). */
 const ink = (a: number) => `rgba(${[1, 3, 5].map((o) => parseInt(JADE_UI.ink.slice(o, o + 2), 16)).join(',')},${a})`;
 
-interface Fish extends Swimmer { phase: number; mark: number }
+interface Fish extends Swimmer { phase: number; mark: number; fear: number }
 
 export function FishPond() {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -25,35 +33,57 @@ export function FishPond() {
     if (!c || !ctx) return;
     const rand = createRng(684);
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const fish: Fish[] = Array.from({ length: 9 }, () => ({ x: (rand() - 0.5) * 2, z: (rand() - 0.5) * 2, heading: rand() * Math.PI * 2, length: L, phase: rand() * 6, mark: rand() }));
+    const fish: Fish[] = Array.from({ length: 9 }, () => ({ x: (rand() - 0.5) * 2, z: (rand() - 0.5) * 2, heading: rand() * Math.PI * 2, length: L, phase: rand() * 6, mark: rand(), fear: 0 }));
     const pebbles = Array.from({ length: 260 }, () => {
       const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * R;
       return { x: Math.cos(a) * r, z: Math.sin(a) * r, s: 0.03 + rand() * 0.07, a: rand() * 3 };
     });
-    let frame = 0, last = performance.now(), t = 0, cx = 0, cz = 0;
+    let frame = 0, last = performance.now(), t = 0;
+    let visitAt = 6, side = 0; // when the next visit starts, and where on the rim it drinks
     const draw = (now: number) => {
       const dt = reduced ? 0 : Math.min(0.05, (now - last) / 1000); last = now; t += dt;
       // Where the school is heading: a slow loop round the pool.
       const gx = Math.cos(t * 0.12) * R * 0.5, gz = Math.sin(t * 0.17) * R * 0.45;
+      // The dweller's visit: in from beyond the rim on the school's side, drink, then off again.
+      const period = VISIT.in + VISIT.drink + VISIT.out + VISIT.away;
+      if (t >= visitAt + period) visitAt += period;
+      const v = t - visitAt;
+      // It comes down at the rim nearest the school (so the school is within its reach).
+      if (v >= 0 && v < VISIT.in * 0.5) { const sx = fish.reduce((a, f) => a + f.x, 0), sz = fish.reduce((a, f) => a + f.z, 0); side = Math.atan2(sz, sx); }
+      const ux = Math.cos(side), uz = Math.sin(side);
+      const reach = (k: number) => R + DWELLER * 0.62 + k * 5; // the body's middle, its muzzle at the water's edge when k = 0
+      let dweller: { x: number; z: number; dist: number; step: number; dip: number; drinking: boolean } | null = null;
+      if (v >= 0 && v < VISIT.in) dweller = { x: 0, z: 0, dist: reach(1 - v / VISIT.in), step: v * 7, dip: 0, drinking: false };
+      else if (v >= VISIT.in && v < VISIT.in + VISIT.drink) dweller = { x: 0, z: 0, dist: reach(0), step: 0, dip: 1, drinking: true };
+      else if (v >= VISIT.in + VISIT.drink && v < VISIT.in + VISIT.drink + VISIT.out) { const o = v - VISIT.in - VISIT.drink; dweller = { x: 0, z: 0, dist: reach(o / VISIT.out), step: o * 7, dip: 0, drinking: false }; }
+      if (dweller) { dweller.x = ux * dweller.dist; dweller.z = uz * dweller.dist; }
+      const muzzle = dweller && { x: ux * (dweller.dist - DWELLER * 0.62), z: uz * (dweller.dist - DWELLER * 0.62) };
       for (const f of fish) {
+        // Frightened: within reach of a dweller at the water (drinking or close by).
+        if (muzzle && dweller!.dist < reach(0.3) && Math.hypot(f.x - muzzle.x, f.z - muzzle.z) < SCARE.radius) f.fear = 1;
+        f.fear = Math.max(0, f.fear - dt / SCARE.calm);
         const pull = schoolPull(f, fish, SCHOOL_DEFAULT);
         let want = f === fish[0] ? Math.atan2(gz - f.z, gx - f.x) : f.heading;
         if (pull.dir) { const w = pull.repelled ? 2.5 : 1; want = Math.atan2(Math.sin(want) * 0.5 + pull.dir[1] * w, Math.cos(want) * 0.5 + pull.dir[0] * w); }
+        if (f.fear > 0 && muzzle && Math.hypot(f.x - muzzle.x, f.z - muzzle.z) < SCARE.radius * SCARE.keep) want = Math.atan2(f.z - muzzle.z, f.x - muzzle.x);
         if (Math.hypot(f.x, f.z) > R * 0.85) want = Math.atan2(-f.z, -f.x);
         const d = Math.atan2(Math.sin(want - f.heading), Math.cos(want - f.heading));
-        f.heading += Math.max(-dt * 1.8, Math.min(dt * 1.8, d));
-        const speed = 0.55 + 0.15 * Math.sin(t * 1.3 + f.phase);
+        const turn = f.fear > 0.6 ? 5 : 1.8;
+        f.heading += Math.max(-dt * turn, Math.min(dt * turn, d));
+        // The dart: up to SCARE.burst times its cruise at the start of the fright, easing back.
+        const speed = (0.55 + 0.15 * Math.sin(t * 1.3 + f.phase)) * (1 + (SCARE.burst - 1) * f.fear ** 4);
         f.x += Math.cos(f.heading) * speed * dt; f.z += Math.sin(f.heading) * speed * dt;
+        // The pool's wall: a darting fish slides along it rather than out of the water.
+        const r = Math.hypot(f.x, f.z), wall = R - L * 0.6;
+        if (r > wall) { f.x *= wall / r; f.z *= wall / r; }
       }
-      const mx = fish.reduce((s, f) => s + f.x, 0) / fish.length, mz = fish.reduce((s, f) => s + f.z, 0) / fish.length;
-      const ease = reduced ? 1 : 1 - Math.exp(-dt * 1.5);
-      cx += (mx - cx) * ease; cz += (mz - cz) * ease;
 
       const w = c.clientWidth, h = c.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
       if (!w || !h) { frame = requestAnimationFrame(draw); return; }
       if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const k = w / VIEW, X = (x: number) => w / 2 + (x - cx) * k, Y = (z: number) => h / 2 + (z - cz) * k;
+      // The whole pool and its rim in view (the dweller drinks at the rim; the school crosses to the far side).
+      const k = Math.min(w / VIEW, h / (2 * R + DWELLER * 2.4)), X = (x: number) => w / 2 + x * k, Y = (z: number) => h / 2 + z * k;
 
       // Stone around, water inside: milky jade, deeper towards the middle.
       ctx.fillStyle = PORCELAIN.rockFace; ctx.fillRect(0, 0, w, h);
@@ -70,6 +100,15 @@ export function FishPond() {
       for (const [r, col] of [[SCHOOL_DEFAULT.attract, JADE_UI.jade], [SCHOOL_DEFAULT.align, JADE_UI.jadeDeep], [SCHOOL_DEFAULT.repel, JADE_UI.seal]] as const) {
         ctx.beginPath(); ctx.arc(X(lead.x), Y(lead.z), r * L * k, 0, Math.PI * 2);
         ctx.setLineDash([4, 4]); ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.stroke(); ctx.setLineDash([]);
+      }
+
+      // The dweller (its reach dashed round its muzzle while it drinks).
+      if (dweller && muzzle) {
+        if (dweller.drinking) {
+          ctx.beginPath(); ctx.arc(X(muzzle.x), Y(muzzle.z), SCARE.radius * k, 0, Math.PI * 2);
+          ctx.setLineDash([2, 5]); ctx.strokeStyle = ink(0.35); ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]);
+        }
+        drawDweller(ctx, X(dweller.x), Y(dweller.z), side + Math.PI * (dweller.dist > reach(0) + 0.01 && v > VISIT.in ? 0 : 1), DWELLER * k, dweller.step, dweller.dip);
       }
 
       // Each fish: a soft shadow on the floor, a tapered white body, a jade patch, a beating tail.

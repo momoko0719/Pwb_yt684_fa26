@@ -1,8 +1,8 @@
-<a href="https://whitejadeisland.web.app/#/ideas"><img src="docs/readme/banner.jpg" alt="White Jade Island: an island above the clouds, grown from rules" width="100%"></a>
+<a href="https://whitejadeisland.web.app/"><img src="docs/readme/banner.jpg" alt="White Jade Island: an island above the clouds, grown from rules" width="100%"></a>
 
 <p align="center">
   <a href="https://whitejadeisland.web.app/#/world"><b>▶ Enter the island</b></a> &nbsp;·&nbsp;
-  <a href="https://whitejadeisland.web.app/#/ideas">Ideas</a> &nbsp;·&nbsp;
+  <a href="https://whitejadeisland.web.app/">How it grows</a> &nbsp;·&nbsp;
   <a href="https://whitejadeisland.web.app/#/atlas">Atlas</a> &nbsp;·&nbsp;
   <a href="docs/process.md">Process log</a>
 </p>
@@ -15,28 +15,35 @@
 
 | | |
 | :---: | :---: |
-| [![Terrain](docs/readme/rules.jpg)](https://whitejadeisland.web.app/#/ideas) | [![Water](docs/readme/water.jpg)](https://whitejadeisland.web.app/#/world) |
+| [![Terrain](docs/readme/rules.jpg)](https://whitejadeisland.web.app/) | [![Water](docs/readme/water.jpg)](https://whitejadeisland.web.app/#/world) |
 | **Grown from one seed** · terrain → water → zones → life | **Streams and pools** · a school of streamlings in each |
 | [![Dwellers](docs/readme/life.jpg)](https://whitejadeisland.web.app/#/world) | [![Woods](docs/readme/refs.jpg)](https://whitejadeisland.web.app/#/atlas) |
 | **Two jade dwellers** · needs, names, dens of their own | **Pine woods and dens** · placed by height, slope and water |
 
 ## New on the island
 
-[![A dweller resting in its den](docs/readme/den.jpg)](https://whitejadeisland.web.app/#/world)
+[![The whole island at dusk](docs/readme/overview.jpg)](https://whitejadeisland.web.app/#/world)
+
+| | |
+| :---: | :---: |
+| [![Photo mode: a print after The Starry Night](docs/readme/photo-print.jpg)](https://whitejadeisland.web.app/#/world) | [![Photo mode: watercolour film](docs/readme/photo-mode.jpg)](https://whitejadeisland.web.app/#/world) |
+| **Take a picture** · five films after famous paintings, an instant print or a handscroll | **Through the viewfinder** · ink, blue-green, watercolour, oil |
+| [![The jade dweller's editor](docs/readme/creature-editor.jpg)](https://whitejadeisland.web.app/#/world) | [![A dweller resting in its den](docs/readme/den.jpg)](https://whitejadeisland.web.app/#/world) |
+| **Reshape a dweller** · build, legs, antlers that branch generation by generation | **Follow a dweller** · the camera finds it and looks into its den |
 
 | | What | Where |
 | --- | --- | --- |
-| 🧭 | **A first-visit tour**: seven short steps, one control lit at a time | Opens on your first visit · Settings → Explore → Show me round |
+| 🧭 | **A first-visit tour**: seven short steps, one control lit at a time ([see it](docs/readme/tour.jpg)) | Opens on your first visit · Settings → Explore → Show me round |
 | 🌿 | **Every plant has its own editor**: replay its growth, turn its knobs, apply it to the island | Settings → Explore → Field guide → Plants |
 | 🎨 | **The shrubs' colour ring**: drag the shares of olive, ochre and iron red; the island recolours | Field guide → Shrub |
-| 🦌 | **Follow a dweller**: the camera finds it, and looks into its den when it rests | The Creature chapter |
+| 🐟 | **Fish that scatter**: when a dweller drinks, the school darts off, then regroups | The home page, and any pool on the island |
 
 ## Explore
 
 | | Where | What you find |
 | --- | --- | --- |
 | 🏝 | [**World**](https://whitejadeisland.web.app/#/world) | The island, live: chapters, time of day, the creatures' cards |
-| 💡 | [**Ideas**](https://whitejadeisland.web.app/#/ideas) | How it grows, the rules of the fish and the dwellers, the sources |
+| 💡 | [**Home**](https://whitejadeisland.web.app/) | How it grows, the rules of the fish and the dwellers, the sources |
 | 🗂 | [**Atlas**](https://whitejadeisland.web.app/#/atlas) | Every technique on its own, earlier studies (Penglai), class exercises |
 
 ## Read more

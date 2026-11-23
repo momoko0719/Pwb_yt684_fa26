@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { JADE_UI } from '../core/palette';
+import { JADE_UI, PORCELAIN } from '../core/palette';
+import { drawDweller } from './ideas/dweller';
 import { useLanguage } from '../i18n/LanguageContext';
 import type { StringKey } from '../i18n/strings';
 import { LifeCard, type LifeNeed } from '../experiments/wonderland-terrain/LifeCard';
 import { GrowSteps } from './ideas/GrowSteps';
 import { FishPond } from './ideas/FishPond';
 import { SCHOOL_DEFAULT } from '../experiments/wonderland-terrain/schoolRules';
+import { SCARE } from '../experiments/wonderland-terrain/streamFish';
 
 /**
  * The Ideas page (docs/plan-2026-11-19-ideas-page.md): one full-screen stage held in place while the
@@ -80,34 +82,79 @@ function LifeMini() {
     needs={needs} traits={[{ word: t('trait.roam.high'), note: '' }, { word: t('trait.bold.low'), note: '' }]} />;
 }
 
-/** Dwelling turns stone to jade: a walker's steps tint the cells it crosses, a little each time. */
+/**
+ * Dwelling turns stone to jade: a dweller walks its day (den, water, meadow, den again), pausing at
+ * each, and the cells under its steps tint a little each time; the ways it walks most turn deepest.
+ */
+const STOPS = [
+  { x: 0.16, z: 0.62, kind: 'den', stay: 2.4 },
+  { x: 0.8, z: 0.3, kind: 'water', stay: 1.8 },
+  { x: 0.62, z: 0.78, kind: 'meadow', stay: 2.6 },
+] as const;
 function JadeMini() {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const c = canvas.current, ctx = c?.getContext('2d');
     if (!c || !ctx) return;
     const NX = 28, NZ = 16, cells = new Float32Array(NX * NZ);
-    // Stone white to jade (JADE_UI.paper → jadeDeep), as the island's contact tint deepens.
+    // Stone white to jade (JADE_UI.paper -> jadeDeep), as the island's contact tint deepens.
     const from = [0xf6, 0xf3, 0xec], to = [0x5f, 0x87, 0x7d];
-    let frame = 0, t = 0, last = performance.now();
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // A walk: each leg bends a little (the same few ways, walked again and again).
+    let leg = 0, legT = 0, waiting: number = STOPS[0].stay, step = 0;
+    let px = STOPS[0].x * NX, pz = STOPS[0].z * NZ, heading = 0;
+    let frame = 0, last = performance.now();
     const draw = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
-      // A loop between a "den", a "pool" and a "meadow": the same few ways, walked again and again.
-      const x = NX / 2 + Math.sin(t * 0.5) * NX * 0.38, z = NZ / 2 + Math.sin(t * 1.0 + 0.6) * NZ * 0.3;
-      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-        const ci = Math.round(x) + i, cj = Math.round(z) + j;
-        if (ci >= 0 && cj >= 0 && ci < NX && cj < NZ) cells[cj * NX + ci] = Math.min(1, cells[cj * NX + ci] + dt * (i || j ? 0.09 : 0.25));
+      const dt = reduced ? 0 : Math.min(0.05, (now - last) / 1000); last = now;
+      const a = STOPS[leg], b = STOPS[(leg + 1) % STOPS.length];
+      if (waiting > 0) waiting -= dt;
+      else {
+        const ax = a.x * NX, az = a.z * NZ, bx = b.x * NX, bz = b.z * NZ;
+        const len = Math.hypot(bx - ax, bz - az);
+        legT = Math.min(1, legT + dt * 3.2 / len);
+        const bend = Math.sin(legT * Math.PI) * 2.2 * (leg % 2 ? 1 : -1);
+        const nx = -(bz - az) / len, nz = (bx - ax) / len;
+        const x = ax + (bx - ax) * legT + nx * bend, z = az + (bz - az) * legT + nz * bend;
+        heading = Math.atan2(z - pz, x - px); px = x; pz = z; step += dt * 9;
+        if (legT >= 1) { leg = (leg + 1) % STOPS.length; legT = 0; waiting = STOPS[leg].stay; }
+        for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+          const ci = Math.round(px) + i, cj = Math.round(pz) + j;
+          if (ci >= 0 && cj >= 0 && ci < NX && cj < NZ) cells[cj * NX + ci] = Math.min(1, cells[cj * NX + ci] + dt * (i || j ? 0.05 : 0.16));
+        }
       }
       const w = c.clientWidth, h = c.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
-      if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+      if (!w || !h) { frame = requestAnimationFrame(draw); return; }
+      if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const cw = w / NX, ch = h / NZ;
       for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
         const v = cells[j * NX + i];
-        ctx.fillStyle = `rgb(${from.map((a, k) => Math.round(a + (to[k] - a) * v)).join(',')})`;
+        ctx.fillStyle = `rgb(${from.map((f, k) => Math.round(f + (to[k] - f) * v)).join(',')})`;
         ctx.fillRect(i * cw, j * ch, cw - 1, ch - 1);
       }
-      ctx.beginPath(); ctx.arc(x * cw, z * ch, Math.min(cw, ch) * 0.55, 0, Math.PI * 2); ctx.fillStyle = JADE_UI.ink; ctx.fill();
+      // The three places it keeps going to.
+      for (const st of STOPS) {
+        const x = st.x * w, y = st.z * h, r = Math.min(cw, ch) * 1.6;
+        ctx.lineWidth = 1.4; ctx.strokeStyle = JADE_UI.inkDim;
+        if (st.kind === 'den') {
+          ctx.fillStyle = PORCELAIN.rockFace;
+          ctx.beginPath(); ctx.moveTo(x - r * 1.2, y + r * 0.7); ctx.quadraticCurveTo(x, y - r * 1.7, x + r * 1.2, y + r * 0.7); ctx.closePath(); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = JADE_UI.ink; ctx.globalAlpha = 0.35;
+          ctx.beginPath(); ctx.ellipse(x, y + r * 0.45, r * 0.45, r * 0.32, 0, Math.PI, 0); ctx.fill(); ctx.globalAlpha = 1;
+        } else if (st.kind === 'water') {
+          ctx.fillStyle = PORCELAIN.water;
+          ctx.beginPath(); ctx.ellipse(x, y, r * 1.5, r, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        } else {
+          ctx.strokeStyle = JADE_UI.jadeDeep;
+          for (const [ox, oz] of [[-0.9, 0.3], [0, -0.2], [0.9, 0.35]]) {
+            const gx = x + ox * r, gz = y + oz * r;
+            ctx.beginPath(); ctx.moveTo(gx - r * 0.3, gz - r * 0.5); ctx.lineTo(gx, gz + r * 0.3); ctx.lineTo(gx + r * 0.3, gz - r * 0.5); ctx.moveTo(gx, gz + r * 0.3); ctx.lineTo(gx, gz - r * 0.7); ctx.stroke();
+          }
+        }
+      }
+      // The dweller (head down while it drinks or grazes).
+      const atStop = waiting > 0 ? STOPS[leg].kind : null;
+      drawDweller(ctx, px * cw, pz * ch, heading, Math.min(cw, ch) * 3.4, waiting > 0 ? 0 : step, atStop === 'water' || atStop === 'meadow' ? 1 : 0);
       frame = requestAnimationFrame(draw);
     };
     frame = requestAnimationFrame(draw);
@@ -177,7 +224,8 @@ export default function Ideas() {
                 <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke={col} strokeWidth="1.6" strokeDasharray="3 2" /></svg>
                 {t(`ideas.fish.${k}` as StringKey)}<em>{t('ideas.fish.body').replace('{n}', String(SCHOOL_RINGS[k]))}</em></li>)}
             </ul>
-            <p className="ideas-note">{t('ideas.fish.lead')}</p></Rise>
+            <p className="ideas-note">{t('ideas.fish.lead')}</p>
+            <p className="ideas-note">{t('ideas.fish.scare').replace('{r}', String(SCARE.radius)).replace('{s}', String(SCARE.calm))}</p></Rise>
           <Rise on={on(2)} delay={200} className="ideas-panel ideas-pond"><FishPond /></Rise>
         </div>, 'ideas-left')}
 

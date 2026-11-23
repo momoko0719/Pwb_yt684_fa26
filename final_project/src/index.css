@@ -995,7 +995,10 @@ body[data-world-pointer='creature'] .wonderland-canvas, body[data-world-pointer=
 /* The last scene sits in the night sky above the island; its door is a filled pill (readable on any ground). */
 .ideas-sky { justify-content: flex-start; padding-top: clamp(48px, 12vh, 140px); }
 .ideas-sky .ideas-enter { background: var(--jade-paper); border-color: var(--jade-paper); color: var(--jade-ink); }
-.ideas-sky .ideas-enter:hover { background: var(--jade-jade); border-color: var(--jade-jade); color: var(--jade-ink); }
+.ideas-sky .ideas-enter { transition: box-shadow .4s ease, transform .4s ease; }
+/* Hover: the button glows on the night sky (owner, 2026-11-22: turning jade green did not sit with the dark). */
+.ideas-sky .ideas-enter:hover, .ideas-sky .ideas-enter:focus-visible { background: var(--jade-paper); border-color: var(--jade-paper); color: var(--jade-ink); transform: translateY(-1px);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--jade-paper) 60%, transparent), 0 0 18px 2px color-mix(in srgb, var(--jade-paper) 55%, transparent), 0 0 46px 10px color-mix(in srgb, var(--jade-paper) 22%, transparent); }
 
 /* Ideas, round 2: every text block sits on a paper card (as the dwellers' panels do), set with room to breathe. */
 .ideas-card { box-sizing: border-box; max-width: 620px; padding: clamp(22px, 3vw, 36px) clamp(24px, 3.4vw, 42px); border: 1px solid color-mix(in srgb, var(--jade-line) 80%, transparent); border-radius: 22px; background: color-mix(in srgb, var(--jade-paper) 88%, transparent); backdrop-filter: blur(10px) saturate(1.05); box-shadow: 0 18px 50px #2e333018; color: var(--jade-ink); }

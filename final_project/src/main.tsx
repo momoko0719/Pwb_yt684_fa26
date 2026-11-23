@@ -4,7 +4,6 @@ import { HashRouter, Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { ATLAS_UI, JADE_UI, PHOTO, SPEED_TRACK, SILK_UI, UI, LAYER, WEAR_DEBUG, ZONE_DEBUG } from './core/palette';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { LANGUAGES } from './i18n/strings';
-import Home from './pages/Home';
 import Ideas from './pages/Ideas';
 import Atlas from './pages/Atlas';
 import ExperimentPage from './pages/ExperimentPage';
@@ -44,7 +43,6 @@ function Header() {
     <header className="site-header">
       <nav>
         <NavLink to="/" end className="brand">{t('site.brand')}</NavLink>
-        <NavLink to="/ideas">{t('nav.ideas')}</NavLink>
         <NavLink to="/world">{t('nav.world')}</NavLink>
         <NavLink to="/atlas">{t('nav.atlas')}</NavLink>
       </nav>
@@ -66,8 +64,9 @@ createRoot(document.getElementById('root')!).render(
         <Header />
         <main>
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/ideas" element={<Ideas />} />
+            {/* The landing page is the Ideas page (owner, 2026-11-22: the plain welcome page went). */}
+            <Route path="/" element={<Ideas />} />
+            <Route path="/ideas" element={<Navigate to="/" replace />} />
             <Route path="/atlas" element={<Atlas />} />
             {/* The island moved to World; old links still arrive. */}
             <Route path="/atlas/wonderland-terrain" element={<Navigate to="/world" replace />} />
