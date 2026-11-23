@@ -1,15 +1,14 @@
 import { useEffect, useRef } from 'react';
-import { JADE_UI, PORCELAIN } from '../../core/palette';
+import { JADE_UI } from '../../core/palette';
 import { createRng } from '../../core/rng';
 import { SCHOOL_DEFAULT, schoolPull, type Swimmer } from '../../experiments/wonderland-terrain/schoolRules';
 import { SCARE } from '../../experiments/wonderland-terrain/streamFish';
-import { drawDweller } from './dweller';
+import { inkDweller, inkFish, ripples, tint, washPool } from './dweller';
 
 /**
  * The streamlings' own school rule (schoolRules.ts), running live on nine fish in a round pool,
- * seen from above, the whole pool in view over a pebbled floor (so the swimming reads),
- * each fish drawn as the island's: a white body with a jade patch, a beating tail. The red one
- * leads; its three rings are how far each rule reaches (in its body lengths).
+ * seen from above as an ink-wash sketch (dweller.ts): each fish a single jade stroke with a flicking
+ * tail. The red one leads; its three rings are how far each rule reaches (in its body lengths).
  *
  * Now and then a dweller comes down to drink (the island's rule, streamFish.ts SCARE): every fish
  * within its reach darts away, keeps clear while its fear lasts, then the school's rules bring it back.
@@ -21,9 +20,6 @@ const VIEW = 2 * R + 4; // metres across: the pool and the rim the dweller drink
 const VISIT = { in: 4, drink: 6, out: 4, away: 6 };
 const DWELLER = 1.5; // its body length, metres
 
-/** The ink colour at an opacity (shadows and outlines). */
-const ink = (a: number) => `rgba(${[1, 3, 5].map((o) => parseInt(JADE_UI.ink.slice(o, o + 2), 16)).join(',')},${a})`;
-
 interface Fish extends Swimmer { phase: number; mark: number; fear: number }
 
 export function FishPond() {
@@ -34,10 +30,6 @@ export function FishPond() {
     const rand = createRng(684);
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const fish: Fish[] = Array.from({ length: 9 }, () => ({ x: (rand() - 0.5) * 2, z: (rand() - 0.5) * 2, heading: rand() * Math.PI * 2, length: L, phase: rand() * 6, mark: rand(), fear: 0 }));
-    const pebbles = Array.from({ length: 260 }, () => {
-      const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * R;
-      return { x: Math.cos(a) * r, z: Math.sin(a) * r, s: 0.03 + rand() * 0.07, a: rand() * 3 };
-    });
     let frame = 0, last = performance.now(), t = 0;
     let visitAt = 6, side = 0; // when the next visit starts, and where on the rim it drinks
     const draw = (now: number) => {
@@ -85,56 +77,30 @@ export function FishPond() {
       // The whole pool and its rim in view (the dweller drinks at the rim; the school crosses to the far side).
       const k = Math.min(w / VIEW, h / (2 * R + DWELLER * 2.4)), X = (x: number) => w / 2 + x * k, Y = (z: number) => h / 2 + z * k;
 
-      // Stone around, water inside: milky jade, deeper towards the middle.
-      ctx.fillStyle = PORCELAIN.rockFace; ctx.fillRect(0, 0, w, h);
-      const g = ctx.createRadialGradient(X(0), Y(0), 0, X(0), Y(0), R * k);
-      g.addColorStop(0, PORCELAIN.waterDeep); g.addColorStop(0.75, PORCELAIN.water); g.addColorStop(1, PORCELAIN.waterTint);
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(X(0), Y(0), R * k, 0, Math.PI * 2); ctx.fill();
-      ctx.save(); ctx.clip();
-      ctx.globalAlpha = 0.09; ctx.fillStyle = JADE_UI.paper;
-      for (const p of pebbles) { ctx.beginPath(); ctx.ellipse(X(p.x), Y(p.z), p.s * k, p.s * k * 0.7, p.a, 0, Math.PI * 2); ctx.fill(); }
-      ctx.globalAlpha = 1; ctx.restore();
+      // Paper around, the pool an ink-wash sketch: mist, jade deepening inward, a brushed rim.
+      ctx.fillStyle = JADE_UI.paper; ctx.fillRect(0, 0, w, h);
+      washPool(ctx, X(0), Y(0), R * k, R * k);
 
       // The lead's three rings (dashed, labelled by colour in the legend beside).
       const lead = fish[0];
       for (const [r, col] of [[SCHOOL_DEFAULT.attract, JADE_UI.jade], [SCHOOL_DEFAULT.align, JADE_UI.jadeDeep], [SCHOOL_DEFAULT.repel, JADE_UI.seal]] as const) {
         ctx.beginPath(); ctx.arc(X(lead.x), Y(lead.z), r * L * k, 0, Math.PI * 2);
-        ctx.setLineDash([4, 4]); ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.stroke(); ctx.setLineDash([]);
+        ctx.setLineDash([3, 5]); ctx.strokeStyle = tint(col, 0.5); ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]);
       }
 
-      // The dweller (its reach dashed round its muzzle while it drinks).
+      // The dweller, and ripples spreading from its muzzle while it drinks (its reach a faint dashed ring).
       if (dweller && muzzle) {
         if (dweller.drinking) {
           ctx.beginPath(); ctx.arc(X(muzzle.x), Y(muzzle.z), SCARE.radius * k, 0, Math.PI * 2);
-          ctx.setLineDash([2, 5]); ctx.strokeStyle = ink(0.35); ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]);
+          ctx.setLineDash([2, 5]); ctx.strokeStyle = tint(JADE_UI.ink, 0.18); ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]);
+          ripples(ctx, X(muzzle.x), Y(muzzle.z), side + Math.PI, 1.4 * k, t);
         }
-        drawDweller(ctx, X(dweller.x), Y(dweller.z), side + Math.PI * (dweller.dist > reach(0) + 0.01 && v > VISIT.in ? 0 : 1), DWELLER * k, dweller.step, dweller.dip);
+        const leaving = v > VISIT.in + VISIT.drink;
+        inkDweller(ctx, X(dweller.x), Y(dweller.z), leaving ? side : side + Math.PI, Math.max(34, DWELLER * k * 1.3), dweller.step, dweller.dip);
       }
 
-      // Each fish: a soft shadow on the floor, a tapered white body, a jade patch, a beating tail.
-      for (const f of fish) {
-        const s = L * k, beat = Math.sin(t * 9 + f.phase) * 0.35;
-        ctx.save(); ctx.translate(X(f.x), Y(f.z)); ctx.rotate(f.heading);
-        ctx.fillStyle = ink(0.16);
-        ctx.beginPath(); ctx.ellipse(-s * 0.05 + 4, 5, s * 0.45, s * 0.13, 0, 0, Math.PI * 2); ctx.fill();
-        // Tail.
-        ctx.save(); ctx.translate(-s * 0.36, 0); ctx.rotate(beat);
-        ctx.fillStyle = PORCELAIN.fishFin;
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-s * 0.12, -s * 0.05, -s * 0.2, -s * 0.13); ctx.lineTo(-s * 0.14, 0); ctx.lineTo(-s * 0.2, s * 0.13); ctx.quadraticCurveTo(-s * 0.12, s * 0.05, 0, 0); ctx.fill();
-        ctx.restore();
-        // Body.
-        ctx.fillStyle = f === lead ? JADE_UI.seal : PORCELAIN.fishBody;
-        ctx.strokeStyle = ink(0.35); ctx.lineWidth = 0.8;
-        ctx.beginPath(); ctx.moveTo(s * 0.5, 0);
-        ctx.bezierCurveTo(s * 0.42, -s * 0.13, s * 0.05, -s * 0.15, -s * 0.38, -s * 0.03);
-        ctx.lineTo(-s * 0.38, s * 0.03);
-        ctx.bezierCurveTo(s * 0.05, s * 0.15, s * 0.42, s * 0.13, s * 0.5, 0);
-        ctx.fill(); ctx.stroke();
-        if (f !== lead) { ctx.fillStyle = PORCELAIN.fishMark; ctx.beginPath(); ctx.ellipse(s * (0.05 + f.mark * 0.15), (f.mark - 0.5) * s * 0.06, s * 0.1, s * 0.06, 0, 0, Math.PI * 2); ctx.fill(); }
-        ctx.fillStyle = PORCELAIN.fishEye;
-        ctx.beginPath(); ctx.arc(s * 0.36, -s * 0.05, 1.2, 0, Math.PI * 2); ctx.arc(s * 0.36, s * 0.05, 1.2, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
+      // Each fish: one tapered stroke and a flicking tail; the leader in seal red.
+      for (const f of fish) inkFish(ctx, X(f.x), Y(f.z), f.heading, Math.max(14, L * k * 1.6), t * 9 + f.phase, f === lead);
       frame = requestAnimationFrame(draw);
     };
     frame = requestAnimationFrame(draw);

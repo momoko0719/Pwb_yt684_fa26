@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { JADE_UI, PORCELAIN } from '../core/palette';
-import { drawDweller } from './ideas/dweller';
+import { JADE_UI } from '../core/palette';
+import { inkDen, inkDweller, inkMeadow, washPool } from './ideas/dweller';
 import { useLanguage } from '../i18n/LanguageContext';
 import type { StringKey } from '../i18n/strings';
 import { LifeCard, type LifeNeed } from '../experiments/wonderland-terrain/LifeCard';
@@ -97,8 +97,9 @@ function JadeMini() {
     const c = canvas.current, ctx = c?.getContext('2d');
     if (!c || !ctx) return;
     const NX = 28, NZ = 16, cells = new Float32Array(NX * NZ);
-    // Stone white to jade (JADE_UI.paper -> jadeDeep), as the island's contact tint deepens.
-    const from = [0xf6, 0xf3, 0xec], to = [0x5f, 0x87, 0x7d];
+    // Stone white to a soft jade, from the palette (lighter than before: owner, 2026-11-22).
+    const rgb = (hex: string) => [1, 3, 5].map((o) => parseInt(hex.slice(o, o + 2), 16));
+    const from = rgb(JADE_UI.paper), to = rgb(JADE_UI.jade);
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     // A walk: each leg bends a little (the same few ways, walked again and again).
     let leg = 0, legT = 0, waiting: number = STOPS[0].stay, step = 0;
@@ -127,34 +128,22 @@ function JadeMini() {
       if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const cw = w / NX, ch = h / NZ;
+      ctx.fillStyle = JADE_UI.paper; ctx.fillRect(0, 0, w, h);
       for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
         const v = cells[j * NX + i];
         ctx.fillStyle = `rgb(${from.map((f, k) => Math.round(f + (to[k] - f) * v)).join(',')})`;
         ctx.fillRect(i * cw, j * ch, cw - 1, ch - 1);
       }
-      // The three places it keeps going to.
+      // The three places it keeps going to, and the dweller, in the pond's ink-wash hand (dweller.ts).
+      const g = Math.min(cw * 2.6, ch * 2.6, 32);
       for (const st of STOPS) {
-        const x = st.x * w, y = st.z * h, r = Math.min(cw, ch) * 1.6;
-        ctx.lineWidth = 1.4; ctx.strokeStyle = JADE_UI.inkDim;
-        if (st.kind === 'den') {
-          ctx.fillStyle = PORCELAIN.rockFace;
-          ctx.beginPath(); ctx.moveTo(x - r * 1.2, y + r * 0.7); ctx.quadraticCurveTo(x, y - r * 1.7, x + r * 1.2, y + r * 0.7); ctx.closePath(); ctx.fill(); ctx.stroke();
-          ctx.fillStyle = JADE_UI.ink; ctx.globalAlpha = 0.35;
-          ctx.beginPath(); ctx.ellipse(x, y + r * 0.45, r * 0.45, r * 0.32, 0, Math.PI, 0); ctx.fill(); ctx.globalAlpha = 1;
-        } else if (st.kind === 'water') {
-          ctx.fillStyle = PORCELAIN.water;
-          ctx.beginPath(); ctx.ellipse(x, y, r * 1.5, r, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        } else {
-          ctx.strokeStyle = JADE_UI.jadeDeep;
-          for (const [ox, oz] of [[-0.9, 0.3], [0, -0.2], [0.9, 0.35]]) {
-            const gx = x + ox * r, gz = y + oz * r;
-            ctx.beginPath(); ctx.moveTo(gx - r * 0.3, gz - r * 0.5); ctx.lineTo(gx, gz + r * 0.3); ctx.lineTo(gx + r * 0.3, gz - r * 0.5); ctx.moveTo(gx, gz + r * 0.3); ctx.lineTo(gx, gz - r * 0.7); ctx.stroke();
-          }
-        }
+        const x = st.x * w, y = st.z * h;
+        if (st.kind === 'water') washPool(ctx, x, y, g * 0.75, g * 0.5);
+        else if (st.kind === 'den') inkDen(ctx, x, y, g);
+        else inkMeadow(ctx, x, y, g * 1.1);
       }
-      // The dweller (head down while it drinks or grazes).
-      const atStop = waiting > 0 ? STOPS[leg].kind : null;
-      drawDweller(ctx, px * cw, pz * ch, heading, Math.min(cw, ch) * 3.4, waiting > 0 ? 0 : step, atStop === 'water' || atStop === 'meadow' ? 1 : 0);
+      const at = waiting > 0 ? STOPS[leg].kind : null;
+      inkDweller(ctx, px * cw, pz * ch, heading, g * 1.2, waiting > 0 ? 0 : step, at === 'water' || at === 'meadow' ? 1 : 0);
       frame = requestAnimationFrame(draw);
     };
     frame = requestAnimationFrame(draw);
